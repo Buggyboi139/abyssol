@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const els = {};
 
     function cacheElements() {
-        const ids = [
+        const ids =[
             'calculateBtn','backBtn','setupForm','setup-view','results-view','errorBanner',
             'baseIncome','baseIncomeLabel','hoursWrapper','hoursPerWeek','taxExemptIncome',
             'monthlyDebt','location','age','householdType','sex','education','race',
@@ -75,6 +75,10 @@ document.addEventListener("DOMContentLoaded", function() {
     function validateNumericInput(el, minVal = 0, maxVal = Infinity) {
         const val = parseFloat(el.value);
         if (el.value === '' || isNaN(val)) {
+            if (el.hasAttribute('required')) {
+                el.classList.add('invalid');
+                return false;
+            }
             el.classList.remove('invalid');
             return true;
         }
@@ -107,7 +111,6 @@ document.addEventListener("DOMContentLoaded", function() {
             return await res.json();
         } catch (err) {
             if (err.name !== 'AbortError') {
-                console.error('Failed to load location data:', err);
                 showError(`Unable to load data for ${loc.toUpperCase()}. Using national defaults.`);
             }
             return null;
@@ -334,7 +337,7 @@ document.addEventListener("DOMContentLoaded", function() {
             const res = await fetch(`data/${compareLoc}.json`);
             if (res.ok) compareData = await res.json();
         } catch (e) {
-            console.warn('Geo compare fetch failed:', e);
+            
         }
 
         const compareTaxRate = compareData?.tax_rate ?? 0.22;
@@ -362,7 +365,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const netDiff = altNet - ((taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt);
         const housingDiff = equivalentHousing - state.housingMax;
-        const diffText = [];
+        const diffText =[];
         if (netDiff > 0) diffText.push(`+${formatCurrency(netDiff)} take-home`);
         else if (netDiff < 0) diffText.push(`${formatCurrency(netDiff)} take-home`);
         if (housingDiff > 0) diffText.push(`+${formatCurrency(housingDiff)} housing budget`);
@@ -375,8 +378,8 @@ document.addEventListener("DOMContentLoaded", function() {
         if (charts.donut) charts.donut.destroy();
 
         const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
-        const xValues = [];
-        const yValues = [];
+        const xValues =[];
+        const yValues =[];
         for (let i = 0; i <= 100; i += 2) {
             xValues.push(i);
             const y = Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)));
@@ -388,7 +391,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'line',
             data: {
                 labels: xValues,
-                datasets: [{
+                datasets:[{
                     label: 'Population Distribution',
                     data: yValues,
                     borderColor: 'rgba(59, 130, 246, 0.5)',
@@ -432,10 +435,10 @@ document.addEventListener("DOMContentLoaded", function() {
         charts.donut = new Chart(donutCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Needs', 'Wants', 'Savings/Debt'],
+                labels:['Needs', 'Wants', 'Savings/Debt'],
                 datasets: [{
                     data: [needs, wants, savings],
-                    backgroundColor: ['#3b82f6', '#0ea5e9', '#38bdf8'],
+                    backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'],
                     borderWidth: 0,
                     hoverOffset: 4
                 }]
@@ -502,7 +505,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'line',
             data: {
                 labels: ages,
-                datasets: [{
+                datasets:[{
                     label: 'Portfolio Balance',
                     data: balances,
                     borderColor: '#34d399',
@@ -660,7 +663,6 @@ document.addEventListener("DOMContentLoaded", function() {
         els.maxTotalDebt.textContent = formatCurrency(totalDebtMax);
         els.availableDebtCapacity.textContent = formatCurrency(remainingDebtCapacity);
 
-        // Benchmarks
         if (fetchedData) {
             els.benchMedian.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 50));
             els.benchTop25.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 75));
@@ -680,18 +682,18 @@ document.addEventListener("DOMContentLoaded", function() {
         drawCharts(finalMicro, state.needs, state.wants, state.savings);
         calculateFIRE();
 
-        els.setupView.classList.remove('active-view');
-        els.setupView.classList.add('hidden-view');
-        els.resultsView.classList.remove('hidden-view');
-        els.resultsView.classList.add('active-view');
+        els['setup-view'].classList.remove('active-view');
+        els['setup-view'].classList.add('hidden-view');
+        els['results-view'].classList.remove('hidden-view');
+        els['results-view'].classList.add('active-view');
         window.scrollTo(0, 0);
     }
 
     function handleBack() {
-        els.resultsView.classList.remove('active-view');
-        els.resultsView.classList.add('hidden-view');
-        els.setupView.classList.remove('hidden-view');
-        els.setupView.classList.add('active-view');
+        els['results-view'].classList.remove('active-view');
+        els['results-view'].classList.add('hidden-view');
+        els['setup-view'].classList.remove('hidden-view');
+        els['setup-view'].classList.add('active-view');
         window.scrollTo(0, 0);
     }
 
@@ -757,10 +759,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         els.currentPortfolio.addEventListener('input', calculateFIRE);
         els.marketReturn.addEventListener('input', calculateFIRE);
-        els.inflationRate.addEventListener('input', calculateFIRE);
-
-        // Validation listeners
-        [els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
+        els.inflationRate.addEventListener('input', calculateFIRE);[els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
          els.age, els.marketReturn, els.inflationRate].forEach(el => {
             el.addEventListener('input', () => validateNumericInput(el));
         });

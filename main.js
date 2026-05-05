@@ -38,7 +38,9 @@ document.addEventListener("DOMContentLoaded", function() {
             'grossMonthlyValue','netMonthlyValue','totalAnnualValue',
             'budgetTitle','labelNeeds','labelWants','labelSavings',
             'budgetNeeds','budgetWants','budgetSavings',
-            'remainingWantsValue','maxHousing','maxTotalDebt','availableDebtCapacity',
+            'cashFlowNetIncome','cashFlowTotalExpenses','cashFlowRemaining',
+            'expHousingPrimary','expAutoPrimary',
+            'maxHousing','maxTotalDebt','availableDebtCapacity',
             'maxTransport','maxCarPrice','loanType','loanTerm','interestRate','downPayment',
             'rateLabel','downLabel','propertyTax','propTaxLabel','homeInsurance','homeInsLabel',
             'vetExempt','maxHomePriceValue','autoType','autoTerm','autoRate','autoRateLabel',
@@ -51,7 +53,7 @@ document.addEventListener("DOMContentLoaded", function() {
         ];
         ids.forEach(id => els[id] = document.getElementById(id));
         els.incomeTypeTabs = document.querySelectorAll('.menu-tab-btn');
-        els.lifestyleInputs = document.querySelectorAll('.lifestyle-input');
+        els.expenseInputs = document.querySelectorAll('.expense-input');
     }
 
     function formatCurrency(amount) {
@@ -250,6 +252,11 @@ document.addEventListener("DOMContentLoaded", function() {
         } else {
             els.actualHousingPayment.style.color = '';
         }
+
+        if (els.expHousingPrimary) {
+            els.expHousingPrimary.value = totalMonthly.toFixed(2);
+            updateCashFlowTracker();
+        }
     }
 
     function calculateAuto() {
@@ -318,17 +325,36 @@ document.addEventListener("DOMContentLoaded", function() {
         } else {
             els.actualAutoPayment.style.color = '';
         }
+
+        if (els.expAutoPrimary) {
+            els.expAutoPrimary.value = (pmt * count).toFixed(2);
+            updateCashFlowTracker();
+        }
     }
 
-    function updateLifestyleTracker() {
+    function updateCashFlowTracker() {
         let spent = 0;
-        els.lifestyleInputs.forEach(input => {
-            const v = parseFloat(input.value);
-            if (!isNaN(v) && v > 0) spent += v;
-        });
-        const remaining = state.wants - spent;
-        els.remainingWantsValue.textContent = formatCurrency(remaining);
-        els.remainingWantsValue.style.color = remaining < 0 ? '#fb7185' : '';
+        if (els.expenseInputs) {
+            els.expenseInputs.forEach(input => {
+                const v = parseFloat(input.value);
+                if (!isNaN(v) && v > 0) spent += v;
+            });
+        }
+        
+        const netIncome = (state.taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt;
+        
+        if (els.cashFlowNetIncome) {
+            els.cashFlowNetIncome.textContent = formatCurrency(netIncome);
+        }
+        if (els.cashFlowTotalExpenses) {
+            els.cashFlowTotalExpenses.textContent = formatCurrency(spent);
+        }
+        
+        if (els.cashFlowRemaining) {
+            const remaining = netIncome - spent;
+            els.cashFlowRemaining.textContent = formatCurrency(remaining);
+            els.cashFlowRemaining.style.color = remaining < 0 ? '#fb7185' : '#34d399';
+        }
     }
 
     async function calculateGeoArbitrage() {
@@ -684,7 +710,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         calculateAuto();
         calculateHousingMatrix();
-        updateLifestyleTracker();
+        updateCashFlowTracker();
         calculateGeoArbitrage();
         drawCharts(finalMicro, state.needs, state.wants, state.savings);
         calculateFIRE();
@@ -754,8 +780,8 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         els.targetCarPrice.addEventListener('input', calculateTargetAutoPayment);
 
-        els.lifestyleInputs.forEach(input => {
-            input.addEventListener('input', updateLifestyleTracker);
+        els.expenseInputs.forEach(input => {
+            input.addEventListener('input', updateCashFlowTracker);
         });
 
         els.geoCompare.addEventListener('change', calculateGeoArbitrage);

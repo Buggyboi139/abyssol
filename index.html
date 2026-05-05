@@ -1,621 +1,646 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;">
-    <title>Abyssol | Financial Intelligence</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;">
+<title>Abyssol | Financial Intelligence</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
 <body>
-    <noscript>
-        <div class="noscript-banner">JavaScript is required to run Abyssol. Please enable JavaScript in your browser settings.</div>
-    </noscript>
+<noscript>
+<div class="noscript-banner">JavaScript is required to run Abyssol. Please enable JavaScript in your browser settings.</div>
+</noscript>
 
-    <div id="left-color-bar"></div>
+<div id="left-color-bar"></div>
 
-    <nav>
-        <div class="logo-container">
-            <div class="logo-text">Abyssol</div>
-        </div>
-        <div class="nav-actions">
-            <a href="#" class="nav-link neutral">Methodology</a>
-            <a href="#" class="nav-link">Privacy</a>
-        </div>
-    </nav>
+<nav>
+<div class="logo-container">
+<div class="logo-text">Abyssol</div>
+</div>
+<div class="nav-actions">
+<a href="#" class="nav-link neutral">Methodology</a>
+<a href="#" class="nav-link">Privacy</a>
+</div>
+</nav>
 
-    <div class="app-wrapper">
-        <aside class="sidebar">
-            <form id="setupForm" class="control-panel sidebar-panel" novalidate>
-                <h2 class="mb-20" style="font-weight:800; font-size:1.4rem; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Profile Setup</h2>
-                <div id="errorBanner" class="error-banner" role="alert" aria-live="assertive"></div>
+<div class="app-wrapper">
+<aside class="sidebar">
+<form id="setupForm" class="control-panel sidebar-panel" novalidate>
+<h2 class="mb-20" style="font-weight:800; font-size:1.4rem; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Profile Setup</h2>
+<div id="errorBanner" class="error-banner" role="alert" aria-live="assertive"></div>
 
-                <div class="sidebar-section">
-                    <div class="gt-label mb-10 text-center">Income Engine</div>
-                    <div class="menu-tabs" id="incomeTypeTabs" role="tablist">
-                        <button type="button" class="menu-tab-btn active" data-type="annual" role="tab" aria-selected="true">Annual</button>
-                        <button type="button" class="menu-tab-btn" data-type="monthly" role="tab" aria-selected="false">Monthly</button>
-                        <button type="button" class="menu-tab-btn" data-type="hourly" role="tab" aria-selected="false">Hourly</button>
-                    </div>
+<div class="sidebar-section">
+<div class="gt-label mb-10 text-center">Income Engine</div>
+<div class="menu-tabs" id="incomeTypeTabs" role="tablist">
+<button type="button" class="menu-tab-btn active" data-type="annual" role="tab" aria-selected="true">Annual</button>
+<button type="button" class="menu-tab-btn" data-type="monthly" role="tab" aria-selected="false">Monthly</button>
+<button type="button" class="menu-tab-btn" data-type="hourly" role="tab" aria-selected="false">Hourly</button>
+</div>
 
-                    <div class="input-group mb-10">
-                        <label for="baseIncome" id="baseIncomeLabel">Annual Base Salary</label>
-                        <div class="unit-wrapper icon-prefix">
-                            <span class="prefix">$</span>
-                            <input type="number" id="baseIncome" class="glass-input" placeholder="0" min="0" required>
-                        </div>
-                    </div>
-                    <div class="input-group mb-10 hidden-element" id="hoursWrapper">
-                        <label for="hoursPerWeek">Hours Per Week</label>
-                        <input type="number" id="hoursPerWeek" class="glass-input" placeholder="40" value="40" min="1" max="168">
-                    </div>
-                    <div class="input-group mb-10">
-                        <label for="taxExemptIncome">Tax-Exempt Monthly Income</label>
-                        <div class="unit-wrapper icon-prefix">
-                            <span class="prefix">$</span>
-                            <input type="number" id="taxExemptIncome" class="glass-input" placeholder="0" min="0">
-                        </div>
-                    </div>
-                    <div class="input-group mb-10">
-                        <label for="monthlyDebt">Existing Monthly Debt</label>
-                        <div class="unit-wrapper icon-prefix">
-                            <span class="prefix">$</span>
-                            <input type="number" id="monthlyDebt" class="glass-input" placeholder="0" min="0">
-                        </div>
-                    </div>
-                </div>
+<div class="input-group mb-10">
+<label for="baseIncome" id="baseIncomeLabel">Annual Base Salary</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="baseIncome" class="glass-input" placeholder="0" min="0" required>
+</div>
+</div>
+<div class="input-group mb-10 hidden-element" id="hoursWrapper">
+<label for="hoursPerWeek">Hours Per Week</label>
+<input type="number" id="hoursPerWeek" class="glass-input" placeholder="40" value="40" min="1" max="168">
+</div>
+<div class="input-group mb-10">
+<label for="taxExemptIncome">Tax-Exempt Monthly Income</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="taxExemptIncome" class="glass-input" placeholder="0" min="0">
+</div>
+</div>
+<div class="input-group mb-10">
+<label for="monthlyDebt">Existing Monthly Debt</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="monthlyDebt" class="glass-input" placeholder="0" min="0">
+</div>
+</div>
+</div>
 
-                <div class="sidebar-section">
-                    <div class="gt-label mb-10 text-center">Deep Demographics</div>
-                    <div class="input-row mb-10">
-                        <div class="input-group flex-1">
-                            <label for="age">Age</label>
-                            <input type="number" id="age" class="glass-input" placeholder="25" min="18" max="100" value="25">
-                        </div>
-                        <div class="input-group flex-1">
-                            <label for="location">Location</label>
-                            <select id="location" class="glass-input">
-                                <option value="national">National Avg</option>
-                                <option value="ny">New York, NY</option>
-                                <option value="ca">San Francisco</option>
-                                <option value="tx">Austin, TX</option>
-                                <option value="il">Chicago, IL</option>
-                                <option value="fl">Miami, FL</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="input-group mb-10">
-                        <label for="householdType">Household Type</label>
-                        <select id="householdType" class="glass-input">
-                            <option value="all">All Types</option>
-                            <option value="single">Single Earner</option>
-                            <option value="dual">Dual Income</option>
-                        </select>
-                    </div>
-                    <div class="input-group mb-10">
-                        <label for="sex">Sex</label>
-                        <select id="sex" class="glass-input">
-                            <option value="all">All</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                        </select>
-                    </div>
-                    <div class="input-group mb-10">
-                        <label for="education">Education</label>
-                        <select id="education" class="glass-input">
-                            <option value="all">All Levels</option>
-                            <option value="hs">High School</option>
-                            <option value="bachelors">Bachelor's Degree</option>
-                            <option value="masters">Master's / Doctorate</option>
-                        </select>
-                    </div>
-                    <div class="input-group mb-10">
-                        <label for="race">Race / Ethnicity</label>
-                        <select id="race" class="glass-input">
-                            <option value="all">All Races</option>
-                            <option value="white">White</option>
-                            <option value="black">Black</option>
-                            <option value="asian">Asian</option>
-                            <option value="hispanic">Hispanic or Latino</option>
-                        </select>
-                    </div>
-                </div>
+<div class="sidebar-section">
+<div class="gt-label mb-10 text-center">Credit Profile</div>
+<div class="input-group mb-10">
+<label for="creditScore">FICO Credit Score</label>
+<input type="number" id="creditScore" class="glass-input" placeholder="720" min="300" max="850" value="720">
+</div>
+<div class="input-group mb-10">
+<label for="bankruptcyStatus" style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem;">
+<input type="checkbox" id="bankruptcyStatus" style="width:18px; height:18px;">
+Past Bankruptcy / Foreclosure
+</label>
+</div>
+</div>
 
-                <button type="submit" id="calculateBtn" class="primary-btn mt-15" style="padding: 16px;">Update Dashboard</button>
-            </form>
-        </aside>
+<div class="sidebar-section">
+<div class="gt-label mb-10 text-center">Deep Demographics</div>
+<div class="input-row mb-10">
+<div class="input-group flex-1">
+<label for="age">Age</label>
+<input type="number" id="age" class="glass-input" placeholder="25" min="18" max="100" value="25">
+</div>
+<div class="input-group flex-1">
+<label for="location">Location</label>
+<select id="location" class="glass-input">
+<option value="national">National Avg</option>
+<option value="ny">New York, NY</option>
+<option value="ca">San Francisco</option>
+<option value="tx">Austin, TX</option>
+<option value="il">Chicago, IL</option>
+<option value="fl">Miami, FL</option>
+</select>
+</div>
+</div>
+<div class="input-group mb-10">
+<label for="householdType">Household Type</label>
+<select id="householdType" class="glass-input">
+<option value="all">All Types</option>
+<option value="single">Single Earner</option>
+<option value="dual">Dual Income</option>
+</select>
+</div>
+<div class="input-group mb-10">
+<label for="sex">Sex</label>
+<select id="sex" class="glass-input">
+<option value="all">All</option>
+<option value="male">Male</option>
+<option value="female">Female</option>
+</select>
+</div>
+<div class="input-group mb-10">
+<label for="education">Education</label>
+<select id="education" class="glass-input">
+<option value="all">All Levels</option>
+<option value="hs">High School</option>
+<option value="bachelors">Bachelor's Degree</option>
+<option value="masters">Master's / Doctorate</option>
+</select>
+</div>
+<div class="input-group mb-10">
+<label for="race">Race / Ethnicity</label>
+<select id="race" class="glass-input">
+<option value="all">All Races</option>
+<option value="white">White</option>
+<option value="black">Black</option>
+<option value="asian">Asian</option>
+<option value="hispanic">Hispanic or Latino</option>
+</select>
+</div>
+</div>
 
-        <main class="workspace">
-            <div id="welcome-splash" class="welcome-splash active-view">
-                <h1>Financial Intelligence</h1>
-                <p class="subtitle">Socioeconomic benchmarking and local affordability metrics.</p>
-                <div style="margin-top: 40px; color: var(--text-muted);">
-                    <p>Configure your profile on the left to generate your personalized dashboard.</p>
-                </div>
-            </div>
+<button type="submit" id="calculateBtn" class="primary-btn mt-15" style="padding: 16px;">Update Dashboard</button>
+</form>
+</aside>
 
-            <div id="dashboardWorkspace" class="hidden-view">
-                <div class="dashboard-tabs">
-                    <button type="button" class="tab-link active" data-tab="tab-overview">Executive Summary</button>
-                    <button type="button" class="tab-link" data-tab="tab-budget">Cash Flow & Budget</button>
-                    <button type="button" class="tab-link" data-tab="tab-purchases">Big Purchases</button>
-                    <button type="button" class="tab-link" data-tab="tab-fire">FIRE Projector</button>
-                </div>
+<main class="workspace">
+<div id="welcome-splash" class="welcome-splash active-view">
+<h1>Financial Intelligence</h1>
+<p class="subtitle">Socioeconomic benchmarking and local affordability metrics.</p>
+<div style="margin-top: 40px; color: var(--text-muted);">
+<p>Configure your profile on the left to generate your personalized dashboard.</p>
+</div>
+</div>
 
-                <div id="tab-overview" class="tab-pane active">
-                    <div class="dashboard-grid">
-                        <div class="dash-card">
-                            <div class="gt-label">Socioeconomic Percentile</div>
-                            <div class="gt-value" id="percentileValue">Top --%</div>
-                            <div class="fs-09 text-center mb-15" id="detailedPercentiles" style="color: var(--text-muted);">Loading detailed metrics...</div>
-                            <div class="chart-container"><canvas id="bellCurveChart"></canvas></div>
-                            <div class="mt-25">
-                                <div class="gt-label mb-10 fs-08">Comparative Benchmarks</div>
-                                <div class="line-items" style="padding: 10px 15px;">
-                                    <div class="item-row"><span>Top 50% (Median)</span><span id="benchMedian">$0</span></div>
-                                    <div class="item-row"><span>Top 25%</span><span id="benchTop25">$0</span></div>
-                                    <div class="item-row"><span>Top 10%</span><span id="benchTop10">$0</span></div>
-                                    <div class="item-row no-border-bottom"><span>Top 1%</span><span id="benchTop1">$0</span></div>
-                                </div>
-                            </div>
-                        </div>
+<div id="dashboardWorkspace" class="hidden-view">
+<div class="dashboard-tabs">
+<button type="button" class="tab-link active" data-tab="tab-overview">Executive Summary</button>
+<button type="button" class="tab-link" data-tab="tab-budget">Cash Flow & Budget</button>
+<button type="button" class="tab-link" data-tab="tab-purchases">Big Purchases</button>
+<button type="button" class="tab-link" data-tab="tab-fire">FIRE Projector</button>
+</div>
 
-                        <div class="dashboard-grid grid-1fr" style="gap: 30px; margin-bottom: 0;">
-                            <div class="dash-card">
-                                <div class="gt-label">Income Breakdown</div>
-                                <div class="gt-value" id="netIncomeValue">$0</div>
-                                <div class="line-items" style="padding: 10px 15px;">
-                                    <div class="item-row"><span>Gross Monthly</span><span id="grossMonthlyValue">$0</span></div>
-                                    <div class="item-row"><span>Net Monthly</span><span id="netMonthlyValue">$0</span></div>
-                                    <div class="item-row no-border-bottom"><span>Total Annual</span><span id="totalAnnualValue">$0</span></div>
-                                </div>
-                            </div>
+<div id="tab-overview" class="tab-pane active">
+<div class="dashboard-grid">
+<div class="dash-card">
+<div class="gt-label">Socioeconomic Percentile</div>
+<div class="gt-value" id="percentileValue">Top --%</div>
+<div class="fs-09 text-center mb-15" id="detailedPercentiles" style="color: var(--text-muted);">Loading detailed metrics...</div>
+<div class="chart-container"><canvas id="bellCurveChart"></canvas></div>
+<div class="mt-25">
+<div class="gt-label mb-10 fs-08">Comparative Benchmarks</div>
+<div class="line-items" style="padding: 10px 15px;">
+<div class="item-row"><span>Top 50% (Median)</span><span id="benchMedian">$0</span></div>
+<div class="item-row"><span>Top 25%</span><span id="benchTop25">$0</span></div>
+<div class="item-row"><span>Top 10%</span><span id="benchTop10">$0</span></div>
+<div class="item-row no-border-bottom"><span>Top 1%</span><span id="benchTop1">$0</span></div>
+</div>
+</div>
+</div>
 
-                            <div class="dash-card">
-                                <div class="gt-label mb-15">Geo-Arbitrage Engine</div>
-                                <div class="geo-arbitrage-box" style="border:none; padding:0; margin:0;">
-                                    <label for="geoCompare">Compare against:</label>
-                                    <select id="geoCompare" class="glass-input">
-                                        <option value="tx">Austin, TX</option>
-                                        <option value="ny">New York, NY</option>
-                                        <option value="ca">San Francisco, CA</option>
-                                        <option value="il">Chicago, IL</option>
-                                        <option value="fl">Miami, FL</option>
-                                        <option value="national">National Average</option>
-                                    </select>
-                                    <div class="line-items mt-15" style="padding: 10px 15px;">
-                                        <div class="item-row">
-                                            <span id="geoNetLabel" class="fs-09">Take-Home in ...</span>
-                                            <span id="altNetIncome" class="fs-09">$0</span>
-                                        </div>
-                                        <div class="item-row no-border-bottom">
-                                            <span id="geoHousingLabel" class="fs-09">Max Housing in ...</span>
-                                            <span id="altMaxHousing" class="fs-09">$0</span>
-                                        </div>
-                                    </div>
-                                    <p id="geoDiffText" class="fs-085 mt-15 lh-14 text-center" style="color: var(--text-muted);"></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="dashboard-grid grid-1fr" style="gap: 30px; margin-bottom: 0;">
+<div class="dash-card">
+<div class="gt-label">Income Breakdown</div>
+<div class="gt-value" id="netIncomeValue">$0</div>
+<div class="line-items" style="padding: 10px 15px;">
+<div class="item-row"><span>Gross Monthly</span><span id="grossMonthlyValue">$0</span></div>
+<div class="item-row"><span>Net Monthly</span><span id="netMonthlyValue">$0</span></div>
+<div class="item-row no-border-bottom"><span>Total Annual</span><span id="totalAnnualValue">$0</span></div>
+</div>
+</div>
 
-                <div id="tab-budget" class="tab-pane">
-                    <div class="sticky-cashflow">
-                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
-                            <div>
-                                <div class="gt-label fs-08">Remaining Free Cash Flow</div>
-                                <div id="cashFlowRemaining" style="font-size: 2.5rem; font-weight:800; color: #34d399; line-height:1;">$0</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div class="fs-08" style="color:var(--text-muted);">Net Income: <span id="cashFlowNetIncome" style="color:#f8fafc; font-weight:600;">$0</span></div>
-                                <div class="fs-08 mt-5" style="color:var(--text-muted);">Expenses: <span id="cashFlowTotalExpenses" style="color:#f8fafc; font-weight:600;">$0</span></div>
-                            </div>
-                        </div>
-                    </div>
+<div class="dash-card">
+<div class="gt-label mb-15">Geo-Arbitrage Engine</div>
+<div class="geo-arbitrage-box" style="border:none; padding:0; margin:0;">
+<label for="geoCompare">Compare against:</label>
+<select id="geoCompare" class="glass-input">
+<option value="tx">Austin, TX</option>
+<option value="ny">New York, NY</option>
+<option value="ca">San Francisco, CA</option>
+<option value="il">Chicago, IL</option>
+<option value="fl">Miami, FL</option>
+<option value="national">National Average</option>
+</select>
+<div class="line-items mt-15" style="padding: 10px 15px;">
+<div class="item-row">
+<span id="geoNetLabel" class="fs-09">Take-Home in ...</span>
+<span id="altNetIncome" class="fs-09">$0</span>
+</div>
+<div class="item-row no-border-bottom">
+<span id="geoHousingLabel" class="fs-09">Max Housing in ...</span>
+<span id="altMaxHousing" class="fs-09">$0</span>
+</div>
+</div>
+<p id="geoDiffText" class="fs-085 mt-15 lh-14 text-center" style="color: var(--text-muted);"></p>
+</div>
+</div>
+</div>
+</div>
+</div>
 
-                    <div class="layout-grid">
-                        <div class="module-container active" style="margin-bottom:0;">
-                            <div class="module-header"><span id="budgetTitle">Budgeting Framework</span></div>
-                            <div class="module-content">
-                                <div class="chart-container-donut mb-25"><canvas id="budgetDonutChart"></canvas></div>
-                                <div class="line-items">
-                                    <div class="item-row">
-                                        <span id="labelNeeds">Needs</span>
-                                        <span id="budgetNeeds">$0</span>
-                                    </div>
-                                    <div class="item-row">
-                                        <span id="labelWants">Wants</span>
-                                        <span id="budgetWants">$0</span>
-                                    </div>
-                                    <div class="item-row no-border-bottom">
-                                        <span id="labelSavings">Savings & Debt</span>
-                                        <span id="budgetSavings">$0</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+<div id="tab-budget" class="tab-pane">
+<div class="sticky-cashflow">
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
+<div>
+<div class="gt-label fs-08">Remaining Free Cash Flow</div>
+<div id="cashFlowRemaining" style="font-size: 2.5rem; font-weight:800; color: #34d399; line-height:1;">$0</div>
+</div>
+<div style="text-align:right;">
+<div class="fs-08" style="color:var(--text-muted);">Net Income: <span id="cashFlowNetIncome" style="color:#f8fafc; font-weight:600;">$0</span></div>
+<div class="fs-08 mt-5" style="color:var(--text-muted);">Expenses: <span id="cashFlowTotalExpenses" style="color:#f8fafc; font-weight:600;">$0</span></div>
+</div>
+</div>
+</div>
 
-                        <div class="module-container active" style="margin-bottom:0;">
-                            <div class="module-header"><span>Expense Engine</span></div>
-                            <div class="module-content" style="padding-top:10px;">
-                                <details class="expense-category" open>
-                                    <summary class="category-header">
-                                        Housing & Utilities <span class="category-total" id="catTotalHousing">$0</span>
-                                    </summary>
-                                    <div class="category-body">
-                                        <div class="input-row clean-row">
-                                            <div class="input-group">
-                                                <label>Mortgage / Rent (Auto-Synced)</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" id="expHousingPrimary" class="glass-input expense-input sync-housing" readonly>
-                                                </div>
-                                            </div>
-                                            <div class="input-group">
-                                                <label>Electricity & Gas</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="150" min="0">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="input-row clean-row">
-                                            <div class="input-group">
-                                                <label>Internet & Streaming</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="80" min="0">
-                                                </div>
-                                            </div>
-                                            <div class="input-group">
-                                                <label>Water & Trash</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="60" min="0">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="housing">+ Add Custom Expense</button>
-                                    </div>
-                                </details>
+<div class="layout-grid">
+<div class="module-container active" style="margin-bottom:0;">
+<div class="module-header"><span id="budgetTitle">Budgeting Framework</span></div>
+<div class="module-content">
+<div class="chart-container-donut mb-25"><canvas id="budgetDonutChart"></canvas></div>
+<div class="line-items">
+<div class="item-row">
+<span id="labelNeeds">Needs</span>
+<span id="budgetNeeds">$0</span>
+</div>
+<div class="item-row">
+<span id="labelWants">Wants</span>
+<span id="budgetWants">$0</span>
+</div>
+<div class="item-row no-border-bottom">
+<span id="labelSavings">Savings & Debt</span>
+<span id="budgetSavings">$0</span>
+</div>
+</div>
+</div>
+</div>
 
-                                <details class="expense-category">
-                                    <summary class="category-header">
-                                        Transportation <span class="category-total" id="catTotalTransport">$0</span>
-                                    </summary>
-                                    <div class="category-body">
-                                        <div class="input-row clean-row">
-                                            <div class="input-group">
-                                                <label>Auto Loan (Auto-Synced)</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" id="expAutoPrimary" class="glass-input expense-input sync-auto" readonly>
-                                                </div>
-                                            </div>
-                                            <div class="input-group">
-                                                <label>Fuel / Charging</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="150" min="0">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="transport">+ Add Custom Expense</button>
-                                    </div>
-                                </details>
+<div class="module-container active" style="margin-bottom:0;">
+<div class="module-header"><span>Expense Engine</span></div>
+<div class="module-content" style="padding-top:10px;">
+<details class="expense-category" open>
+<summary class="category-header">
+Housing & Utilities <span class="category-total" id="catTotalHousing">$0</span>
+</summary>
+<div class="category-body">
+<div class="input-row clean-row">
+<div class="input-group">
+<label>Mortgage / Rent (Auto-Synced)</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="expHousingPrimary" class="glass-input expense-input sync-housing" readonly>
+</div>
+</div>
+<div class="input-group">
+<label>Electricity & Gas</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="150" min="0">
+</div>
+</div>
+</div>
+<div class="input-row clean-row">
+<div class="input-group">
+<label>Internet & Streaming</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="80" min="0">
+</div>
+</div>
+<div class="input-group">
+<label>Water & Trash</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="60" min="0">
+</div>
+</div>
+</div>
+<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="housing">+ Add Custom Expense</button>
+</div>
+</details>
 
-                                <details class="expense-category">
-                                    <summary class="category-header">
-                                        Food & Dining <span class="category-total" id="catTotalFood">$0</span>
-                                    </summary>
-                                    <div class="category-body">
-                                        <div class="input-row clean-row">
-                                            <div class="input-group">
-                                                <label>Groceries</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="400" min="0">
-                                                </div>
-                                            </div>
-                                            <div class="input-group">
-                                                <label>Restaurants & Takeout</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="250" min="0">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="food">+ Add Custom Expense</button>
-                                    </div>
-                                </details>
+<details class="expense-category">
+<summary class="category-header">
+Transportation <span class="category-total" id="catTotalTransport">$0</span>
+</summary>
+<div class="category-body">
+<div class="input-row clean-row">
+<div class="input-group">
+<label>Auto Loan (Auto-Synced)</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="expAutoPrimary" class="glass-input expense-input sync-auto" readonly>
+</div>
+</div>
+<div class="input-group">
+<label>Fuel / Charging</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="150" min="0">
+</div>
+</div>
+</div>
+<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="transport">+ Add Custom Expense</button>
+</div>
+</details>
 
-                                <details class="expense-category">
-                                    <summary class="category-header">
-                                        Insurance & Health <span class="category-total" id="catTotalInsurance">$0</span>
-                                    </summary>
-                                    <div class="category-body">
-                                        <div class="input-row clean-row">
-                                            <div class="input-group">
-                                                <label>Health Premium</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="150" min="0">
-                                                </div>
-                                            </div>
-                                            <div class="input-group">
-                                                <label>Out of Pocket</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="100" min="0">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="insurance">+ Add Custom Expense</button>
-                                    </div>
-                                </details>
+<details class="expense-category">
+<summary class="category-header">
+Food & Dining <span class="category-total" id="catTotalFood">$0</span>
+</summary>
+<div class="category-body">
+<div class="input-row clean-row">
+<div class="input-group">
+<label>Groceries</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="400" min="0">
+</div>
+</div>
+<div class="input-group">
+<label>Restaurants & Takeout</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="250" min="0">
+</div>
+</div>
+</div>
+<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="food">+ Add Custom Expense</button>
+</div>
+</details>
 
-                                <details class="expense-category">
-                                    <summary class="category-header">
-                                        Lifestyle <span class="category-total" id="catTotalLifestyle">$0</span>
-                                    </summary>
-                                    <div class="category-body">
-                                        <div class="input-row clean-row">
-                                            <div class="input-group">
-                                                <label>Fitness / Subs</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="50" min="0">
-                                                </div>
-                                            </div>
-                                            <div class="input-group">
-                                                <label>Personal Care</label>
-                                                <div class="unit-wrapper icon-prefix">
-                                                    <span class="prefix">$</span>
-                                                    <input type="number" class="glass-input expense-input" value="60" min="0">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="lifestyle">+ Add Custom Expense</button>
-                                    </div>
-                                </details>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<details class="expense-category">
+<summary class="category-header">
+Insurance & Health <span class="category-total" id="catTotalInsurance">$0</span>
+</summary>
+<div class="category-body">
+<div class="input-row clean-row">
+<div class="input-group">
+<label>Health Premium</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="150" min="0">
+</div>
+</div>
+<div class="input-group">
+<label>Out of Pocket</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="100" min="0">
+</div>
+</div>
+</div>
+<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="insurance">+ Add Custom Expense</button>
+</div>
+</details>
 
-                <div id="tab-purchases" class="tab-pane">
-                    <div class="module-container active">
-                        <div class="module-header"><span>28/36 Housing Rule & Purchase Matrix</span></div>
-                        <div class="module-content layout-grid">
-                            <div class="controls-col">
-                                <div class="slider-container" style="background:none; border:none; box-shadow:none; padding:0; margin:0; max-width:100%;">
-                                    <div class="gt-label mb-10">Target Home Purchase Price</div>
-                                    <div class="budget-display fs-09" id="targetHomePriceDisplay" style="font-size: 2.5rem; text-align:left;">$0</div>
-                                    <div class="slider-wrapper">
-                                        <input type="range" id="targetHomePrice" min="50000" max="2000000" step="5000" value="350000">
-                                    </div>
-                                    <div class="calc-row bg-dark mt-25">
-                                        <div class="input-row">
-                                            <div class="input-group">
-                                                <label for="loanType">Loan Type</label>
-                                                <select id="loanType" class="glass-input">
-                                                    <option value="conv">Conventional</option>
-                                                    <option value="fha">FHA (w/ PMI)</option>
-                                                    <option value="va">VA (Zero PMI)</option>
-                                                </select>
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="loanTerm">Loan Term</label>
-                                                <select id="loanTerm" class="glass-input">
-                                                    <option value="30">30-Year Fixed</option>
-                                                    <option value="15">15-Year Fixed</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="input-row mt-15">
-                                            <div class="input-group flex-1">
-                                                <label for="interestRate">Interest Rate: <span id="rateLabel">6.5%</span></label>
-                                                <div class="slider-wrapper">
-                                                    <input type="range" id="interestRate" min="2.0" max="12.0" step="0.1" value="6.5">
-                                                </div>
-                                            </div>
-                                            <div class="input-group flex-1">
-                                                <label for="downPayment">Down Payment: <span id="downLabel">20.0%</span></label>
-                                                <div class="slider-wrapper">
-                                                    <input type="range" id="downPayment" min="0" max="50" step="0.5" value="20">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="input-row mt-15">
-                                            <div class="input-group flex-1">
-                                                <label for="propertyTax">Property Tax: <span id="propTaxLabel">1.2%</span></label>
-                                                <div class="slider-wrapper">
-                                                    <input type="range" id="propertyTax" min="0" max="3" step="0.1" value="1.2">
-                                                </div>
-                                            </div>
-                                            <div class="input-group flex-1">
-                                                <label for="homeInsurance">Home Insurance: <span id="homeInsLabel">0.5%</span></label>
-                                                <div class="slider-wrapper">
-                                                    <input type="range" id="homeInsurance" min="0" max="2" step="0.1" value="0.5">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="input-row mt-15">
-                                            <div class="input-group">
-                                                <label for="vetExempt" style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem;">
-                                                    <input type="checkbox" id="vetExempt" style="width:18px; height:18px;">
-                                                    100% Disabled Veteran (Tax Exempt)
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="outputs-col">
-                                <div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);">
-                                    <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
-                                    <div class="budget-display transition-color text-center" id="actualHousingPayment" style="font-size: 3rem;">$0/mo</div>
-                                    <div class="line-items mt-25">
-                                        <div class="item-row">
-                                            <span>Recommended Max Purchase</span>
-                                            <span id="maxHomePriceValue">$0</span>
-                                        </div>
-                                        <div class="item-row">
-                                            <span>Max Monthly Housing (28%)</span>
-                                            <span id="maxHousing">$0</span>
-                                        </div>
-                                        <div class="item-row">
-                                            <span>Max Total Monthly Debt (36%)</span>
-                                            <span id="maxTotalDebt">$0</span>
-                                        </div>
-                                        <div class="item-row no-border-bottom">
-                                            <span>Available Debt Capacity</span>
-                                            <span id="availableDebtCapacity">$0</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+<details class="expense-category">
+<summary class="category-header">
+Lifestyle <span class="category-total" id="catTotalLifestyle">$0</span>
+</summary>
+<div class="category-body">
+<div class="input-row clean-row">
+<div class="input-group">
+<label>Fitness / Subs</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="50" min="0">
+</div>
+</div>
+<div class="input-group">
+<label>Personal Care</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" class="glass-input expense-input" value="60" min="0">
+</div>
+</div>
+</div>
+<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="lifestyle">+ Add Custom Expense</button>
+</div>
+</details>
+</div>
+</div>
+</div>
+</div>
 
-                    <div class="module-container active">
-                        <div class="module-header"><span>20/4/10 Auto Financing</span></div>
-                        <div class="module-content layout-grid">
-                            <div class="controls-col">
-                                <div class="slider-container" style="background:none; border:none; box-shadow:none; padding:0; margin:0; max-width:100%;">
-                                    <div class="gt-label mb-10">Target Vehicle Price</div>
-                                    <div class="budget-display" id="targetCarPriceDisplay" style="font-size: 2.5rem; text-align:left;">$0</div>
-                                    <div class="slider-wrapper">
-                                        <input type="range" id="targetCarPrice" min="5000" max="150000" step="1000" value="25000">
-                                    </div>
-                                    <div class="calc-row bg-dark mt-25">
-                                        <div class="input-row">
-                                            <div class="input-group">
-                                                <label for="autoType">Financing Type</label>
-                                                <select id="autoType" class="glass-input">
-                                                    <option value="buy">Buy (Finance)</option>
-                                                    <option value="lease">Lease</option>
-                                                </select>
-                                            </div>
-                                            <div class="input-group">
-                                                <label for="autoTerm">Loan Term</label>
-                                                <select id="autoTerm" class="glass-input">
-                                                    <option value="36">36 Months</option>
-                                                    <option value="48" selected>48 Months</option>
-                                                    <option value="60">60 Months</option>
-                                                    <option value="72">72 Months</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="input-row mt-15">
-                                            <div class="input-group flex-1">
-                                                <label for="autoRate">Interest Rate: <span id="autoRateLabel">7.0%</span></label>
-                                                <div class="slider-wrapper">
-                                                    <input type="range" id="autoRate" min="0.0" max="15.0" step="0.1" value="7.0">
-                                                </div>
-                                            </div>
-                                            <div class="input-group flex-1">
-                                                <label for="autoCount">Number of Vehicles</label>
-                                                <select id="autoCount" class="glass-input">
-                                                    <option value="1">1 Vehicle</option>
-                                                    <option value="2">2 Vehicles</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="outputs-col">
-                                <div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);">
-                                    <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
-                                    <div class="budget-display transition-color text-center" id="actualAutoPayment" style="font-size: 3rem;">$0/mo</div>
-                                    <div class="line-items mt-25">
-                                        <div class="item-row">
-                                            <span>Recommended Max Car Price</span>
-                                            <span id="maxCarPrice">$0</span>
-                                        </div>
-                                        <div class="item-row no-border-bottom">
-                                            <span>Max Transport Costs (10%)</span>
-                                            <span id="maxTransport">$0</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div id="tab-purchases" class="tab-pane">
+<div class="module-container active">
+<div class="module-header"><span>28/36 Housing Rule & Purchase Matrix</span></div>
+<div class="module-content layout-grid">
+<div class="controls-col">
+<div class="market-rate-banner" id="housingRateBanner">
+<div class="mr-title">Live Market Rate (30yr Fixed)</div>
+<div class="mr-data"><span id="liveMortgageRate">6.85%</span> <span class="mr-badge" id="housingRateBadge">Baseline</span></div>
+<div class="mr-sub" id="housingRateSubtext">Adjusted based on credit profile.</div>
+</div>
+<div class="slider-container" style="background:none; border:none; box-shadow:none; padding:0; margin:0; max-width:100%;">
+<div class="gt-label mb-10 mt-15">Target Home Purchase Price</div>
+<div class="budget-display fs-09" id="targetHomePriceDisplay" style="font-size: 2.5rem; text-align:left;">$0</div>
+<div class="slider-wrapper">
+<input type="range" id="targetHomePrice" min="50000" max="2000000" step="5000" value="350000">
+</div>
+<div class="calc-row bg-dark mt-25">
+<div class="input-row">
+<div class="input-group">
+<label for="loanType">Loan Type</label>
+<select id="loanType" class="glass-input">
+<option value="conv">Conventional</option>
+<option value="fha">FHA (w/ PMI)</option>
+<option value="va">VA (Zero PMI)</option>
+</select>
+</div>
+<div class="input-group">
+<label for="loanTerm">Loan Term</label>
+<select id="loanTerm" class="glass-input">
+<option value="30">30-Year Fixed</option>
+<option value="15">15-Year Fixed</option>
+</select>
+</div>
+</div>
+<div class="input-row mt-15">
+<div class="input-group flex-1">
+<label for="interestRate">Interest Rate: <span id="rateLabel">6.5%</span></label>
+<div class="slider-wrapper">
+<input type="range" id="interestRate" min="2.0" max="15.0" step="0.1" value="6.5">
+</div>
+</div>
+<div class="input-group flex-1">
+<label for="downPayment">Down Payment: <span id="downLabel">20.0%</span></label>
+<div class="slider-wrapper">
+<input type="range" id="downPayment" min="0" max="50" step="0.5" value="20">
+</div>
+</div>
+</div>
+<div class="input-row mt-15">
+<div class="input-group flex-1">
+<label for="propertyTax">Property Tax: <span id="propTaxLabel">1.2%</span></label>
+<div class="slider-wrapper">
+<input type="range" id="propertyTax" min="0" max="3" step="0.1" value="1.2">
+</div>
+</div>
+<div class="input-group flex-1">
+<label for="homeInsurance">Home Insurance: <span id="homeInsLabel">0.5%</span></label>
+<div class="slider-wrapper">
+<input type="range" id="homeInsurance" min="0" max="2" step="0.1" value="0.5">
+</div>
+</div>
+</div>
+<div class="input-row mt-15">
+<div class="input-group">
+<label for="vetExempt" style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem;">
+<input type="checkbox" id="vetExempt" style="width:18px; height:18px;">
+100% Disabled Veteran (Tax Exempt)
+</label>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="outputs-col">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);">
+<div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
+<div class="budget-display transition-color text-center" id="actualHousingPayment" style="font-size: 3rem;">$0/mo</div>
+<div class="line-items mt-25">
+<div class="item-row">
+<span>Recommended Max Purchase</span>
+<span id="maxHomePriceValue">$0</span>
+</div>
+<div class="item-row">
+<span>Max Monthly Housing (28%)</span>
+<span id="maxHousing">$0</span>
+</div>
+<div class="item-row">
+<span>Max Total Monthly Debt (36%)</span>
+<span id="maxTotalDebt">$0</span>
+</div>
+<div class="item-row no-border-bottom">
+<span>Available Debt Capacity</span>
+<span id="availableDebtCapacity">$0</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
 
-                <div id="tab-fire" class="tab-pane">
-                    <div class="module-container active">
-                        <div class="module-header"><span>FIRE Projector</span></div>
-                        <div class="module-content">
-                            <div class="layout-grid mb-25" style="align-items: center;">
-                                <div class="dash-card" style="padding:20px; background:rgba(0,0,0,0.2); box-shadow:none; border:1px solid var(--border-highlight);">
-                                    <div class="gt-label text-center">Projected FI Number</div>
-                                    <div class="gt-value text-center" id="fiNumberValue" style="color:#34d399; font-size:3rem;">$0</div>
-                                </div>
-                                <div class="dash-card" style="padding:20px; background:rgba(0,0,0,0.2); box-shadow:none; border:1px solid var(--border-glass);">
-                                    <div class="gt-label text-center">FI Age</div>
-                                    <div class="gt-value text-center" id="fiAgeValue" style="font-size:3rem;">--</div>
-                                </div>
-                            </div>
+<div class="module-container active">
+<div class="module-header"><span>20/4/10 Auto Financing</span></div>
+<div class="module-content layout-grid">
+<div class="controls-col">
+<div class="market-rate-banner" id="autoRateBanner">
+<div class="mr-title">Live Market Rate (Auto)</div>
+<div class="mr-data"><span id="liveAutoRate">7.20%</span> <span class="mr-badge" id="autoRateBadge">Baseline</span></div>
+<div class="mr-sub" id="autoRateSubtext">Adjusted based on credit profile.</div>
+</div>
+<div class="slider-container" style="background:none; border:none; box-shadow:none; padding:0; margin:0; max-width:100%;">
+<div class="gt-label mb-10 mt-15">Target Vehicle Price</div>
+<div class="budget-display" id="targetCarPriceDisplay" style="font-size: 2.5rem; text-align:left;">$0</div>
+<div class="slider-wrapper">
+<input type="range" id="targetCarPrice" min="5000" max="150000" step="1000" value="25000">
+</div>
+<div class="calc-row bg-dark mt-25">
+<div class="input-row">
+<div class="input-group">
+<label for="autoType">Financing Type</label>
+<select id="autoType" class="glass-input">
+<option value="buy">Buy (Finance)</option>
+<option value="lease">Lease</option>
+</select>
+</div>
+<div class="input-group">
+<label for="autoTerm">Loan Term</label>
+<select id="autoTerm" class="glass-input">
+<option value="36">36 Months</option>
+<option value="48" selected>48 Months</option>
+<option value="60">60 Months</option>
+<option value="72">72 Months</option>
+</select>
+</div>
+</div>
+<div class="input-row mt-15">
+<div class="input-group flex-1">
+<label for="autoRate">Interest Rate: <span id="autoRateLabel">7.0%</span></label>
+<div class="slider-wrapper">
+<input type="range" id="autoRate" min="0.0" max="25.0" step="0.1" value="7.0">
+</div>
+</div>
+<div class="input-group flex-1">
+<label for="autoCount">Number of Vehicles</label>
+<select id="autoCount" class="glass-input">
+<option value="1">1 Vehicle</option>
+<option value="2">2 Vehicles</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="outputs-col">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);">
+<div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
+<div class="budget-display transition-color text-center" id="actualAutoPayment" style="font-size: 3rem;">$0/mo</div>
+<div class="line-items mt-25">
+<div class="item-row">
+<span>Recommended Max Car Price</span>
+<span id="maxCarPrice">$0</span>
+</div>
+<div class="item-row no-border-bottom">
+<span>Max Transport Costs (10%)</span>
+<span id="maxTransport">$0</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
 
-                            <div class="calc-row clean-row" style="margin-bottom: 0;">
-                                <div class="input-row">
-                                    <div class="input-group">
-                                        <label for="fireContribution">Monthly Contribution</label>
-                                        <div class="unit-wrapper icon-prefix">
-                                            <span class="prefix">$</span>
-                                            <input type="number" id="fireContribution" class="glass-input" placeholder="0" value="0" min="0">
-                                        </div>
-                                    </div>
-                                    <div class="input-group">
-                                        <label for="currentPortfolio">Current Portfolio Balance</label>
-                                        <div class="unit-wrapper icon-prefix">
-                                            <span class="prefix">$</span>
-                                            <input type="number" id="currentPortfolio" class="glass-input" placeholder="0" value="0" min="0">
-                                        </div>
-                                    </div>
-                                    <div class="input-group">
-                                        <label for="marketReturn">Expected Market Return</label>
-                                        <div class="unit-wrapper">
-                                            <input type="number" id="marketReturn" class="glass-input" placeholder="7" value="7" min="0">
-                                            <span class="unit">%</span>
-                                        </div>
-                                    </div>
-                                    <div class="input-group">
-                                        <label for="inflationRate">Expected Inflation</label>
-                                        <div class="unit-wrapper">
-                                            <input type="number" id="inflationRate" class="glass-input" placeholder="3" value="3" min="0">
-                                            <span class="unit">%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+<div id="tab-fire" class="tab-pane">
+<div class="module-container active">
+<div class="module-header"><span>FIRE Projector</span></div>
+<div class="module-content">
+<div class="layout-grid mb-25" style="align-items: center;">
+<div class="dash-card" style="padding:20px; background:rgba(0,0,0,0.2); box-shadow:none; border:1px solid var(--border-highlight);">
+<div class="gt-label text-center">Projected FI Number</div>
+<div class="gt-value text-center" id="fiNumberValue" style="color:#34d399; font-size:3rem;">$0</div>
+</div>
+<div class="dash-card" style="padding:20px; background:rgba(0,0,0,0.2); box-shadow:none; border:1px solid var(--border-glass);">
+<div class="gt-label text-center">FI Age</div>
+<div class="gt-value text-center" id="fiAgeValue" style="font-size:3rem;">--</div>
+</div>
+</div>
 
-                            <div class="chart-container chart-h-300 mt-20">
-                                <canvas id="fireChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
+<div class="calc-row clean-row" style="margin-bottom: 0;">
+<div class="input-row">
+<div class="input-group">
+<label for="fireContribution">Monthly Contribution</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="fireContribution" class="glass-input" placeholder="0" value="0" min="0">
+</div>
+</div>
+<div class="input-group">
+<label for="currentPortfolio">Current Portfolio Balance</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="currentPortfolio" class="glass-input" placeholder="0" value="0" min="0">
+</div>
+</div>
+<div class="input-group">
+<label for="marketReturn">Expected Market Return</label>
+<div class="unit-wrapper">
+<input type="number" id="marketReturn" class="glass-input" placeholder="7" value="7" min="0">
+<span class="unit">%</span>
+</div>
+</div>
+<div class="input-group">
+<label for="inflationRate">Expected Inflation</label>
+<div class="unit-wrapper">
+<input type="number" id="inflationRate" class="glass-input" placeholder="3" value="3" min="0">
+<span class="unit">%</span>
+</div>
+</div>
+</div>
+</div>
 
-    <footer class="site-footer">
-        <div class="footer-content">
-            <p>100% Secure. Calculations run locally. No data leaves your device.</p>
-            <div class="footer-links">
-                <a href="#">Methodology</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-            </div>
-        </div>
-    </footer>
+<div class="chart-container chart-h-300 mt-20">
+<canvas id="fireChart"></canvas>
+</div>
+</div>
+</div>
+</div>
 
-    <script src="main.js"></script>
+</div>
+</main>
+</div>
+
+<footer class="site-footer">
+<div class="footer-content">
+<p>100% Secure. Calculations run locally. No data leaves your device.</p>
+<div class="footer-links">
+<a href="#">Methodology</a>
+<a href="#">Privacy Policy</a>
+<a href="#">Terms of Service</a>
+</div>
+</div>
+</footer>
+
+<script src="main.js"></script>
 </body>
 </html>

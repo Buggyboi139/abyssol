@@ -2,29 +2,21 @@ document.addEventListener("DOMContentLoaded", function() {
 Chart.defaults.color = '#94a3b8';
 Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
 
-const charts = {
-bell: null,
-donut: null,
-fire: null
-};
-
+const charts = { bell: null, donut: null, fire: null };
 let abortController = null;
 let userEditedDownPayment = false;
 let userEditedFIRE = false;
+let userEditedInterestRate = false;
+let userEditedAutoRate = false;
 
 const state = {
-incomeType: 'annual',
-taxableMonthlyGross: 0,
-totalGross: 0,
-annualGross: 0,
-taxExempt: 0,
-taxRate: 0.22,
-needs: 0,
-wants: 0,
-savings: 0,
-housingMax: 0,
-locationData: null,
-location: 'national'
+incomeType: 'annual', taxableMonthlyGross: 0, totalGross: 0, annualGross: 0, taxExempt: 0,
+taxRate: 0.22, needs: 0, wants: 0, savings: 0, housingMax: 0, locationData: null, location: 'national',
+creditScore: 720, bankrupt: false,
+marketRates: {
+    mortgage_30yr: 6.85, mortgage_15yr: 6.15, auto_new: 7.20, auto_used: 7.95,
+    fed_funds: 5.25, inflation_cpi: 3.1
+}
 };
 
 const els = {};
@@ -33,23 +25,19 @@ function cacheElements() {
 const ids =[
 'calculateBtn','setupForm','welcome-splash','dashboardWorkspace','errorBanner',
 'baseIncome','baseIncomeLabel','hoursWrapper','hoursPerWeek','taxExemptIncome',
-'monthlyDebt','location','age','householdType','sex','education','race',
-'percentileValue','detailedPercentiles','netIncomeValue',
-'grossMonthlyValue','netMonthlyValue','totalAnnualValue',
-'budgetTitle','labelNeeds','labelWants','labelSavings',
-'budgetNeeds','budgetWants','budgetSavings',
-'cashFlowNetIncome','cashFlowTotalExpenses','cashFlowRemaining',
-'expHousingPrimary','expAutoPrimary',
-'maxHousing','maxTotalDebt','availableDebtCapacity',
-'maxTransport','maxCarPrice','loanType','loanTerm','interestRate','downPayment',
-'rateLabel','downLabel','propertyTax','propTaxLabel','homeInsurance','homeInsLabel',
-'vetExempt','maxHomePriceValue','autoType','autoTerm','autoRate','autoRateLabel',
+'monthlyDebt','creditScore','bankruptcyStatus','location','age','householdType','sex','education','race',
+'percentileValue','detailedPercentiles','netIncomeValue','grossMonthlyValue','netMonthlyValue','totalAnnualValue',
+'budgetTitle','labelNeeds','labelWants','labelSavings','budgetNeeds','budgetWants','budgetSavings',
+'cashFlowNetIncome','cashFlowTotalExpenses','cashFlowRemaining','expHousingPrimary','expAutoPrimary',
+'maxHousing','maxTotalDebt','availableDebtCapacity','maxTransport','maxCarPrice','loanType','loanTerm',
+'interestRate','downPayment','rateLabel','downLabel','propertyTax','propTaxLabel','homeInsurance',
+'homeInsLabel','vetExempt','maxHomePriceValue','autoType','autoTerm','autoRate','autoRateLabel',
 'autoCount','geoCompare','altNetIncome','altMaxHousing','fiNumberValue','fiAgeValue',
-'fireContribution','currentPortfolio','marketReturn','inflationRate',
-'targetHomePrice','targetHomePriceDisplay','actualHousingPayment',
-'targetCarPrice','targetCarPriceDisplay','actualAutoPayment',
-'benchMedian','benchTop25','benchTop10','benchTop1',
-'geoNetLabel','geoHousingLabel','geoDiffText'
+'fireContribution','currentPortfolio','marketReturn','inflationRate','targetHomePrice',
+'targetHomePriceDisplay','actualHousingPayment','targetCarPrice','targetCarPriceDisplay',
+'actualAutoPayment','benchMedian','benchTop25','benchTop10','benchTop1',
+'geoNetLabel','geoHousingLabel','geoDiffText','liveMortgageRate','housingRateBadge',
+'housingRateSubtext','liveAutoRate','autoRateBadge','autoRateSubtext'
 ];
 ids.forEach(id => els[id] = document.getElementById(id));
 els.incomeTypeTabs = document.querySelectorAll('.menu-tab-btn');
@@ -61,11 +49,7 @@ els.tabPanes = document.querySelectorAll('.tab-pane');
 
 function formatCurrency(amount) {
 if (!isFinite(amount)) return '$—';
-return new Intl.NumberFormat('en-US', {
-style: 'currency',
-currency: 'USD',
-maximumFractionDigits: 0
-}).format(amount);
+return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
 }
 
 function showError(message) {
@@ -81,19 +65,11 @@ els.errorBanner.classList.remove('visible');
 function validateNumericInput(el, minVal = 0, maxVal = Infinity) {
 const val = parseFloat(el.value);
 if (el.value === '' || isNaN(val)) {
-if (el.hasAttribute('required')) {
-el.classList.add('invalid');
-return false;
+if (el.hasAttribute('required')) { el.classList.add('invalid'); return false; }
+el.classList.remove('invalid'); return true;
 }
-el.classList.remove('invalid');
-return true;
-}
-if (val < minVal || val > maxVal || !isFinite(val)) {
-el.classList.add('invalid');
-return false;
-}
-el.classList.remove('invalid');
-return true;
+if (val < minVal || val > maxVal || !isFinite(val)) { el.classList.add('invalid'); return false; }
+el.classList.remove('invalid'); return true;
 }
 
 function validateAll() {
@@ -102,10 +78,23 @@ ok = validateNumericInput(els.baseIncome, 0, 1e12) && ok;
 ok = validateNumericInput(els.hoursPerWeek, 1, 168) && ok;
 ok = validateNumericInput(els.taxExemptIncome, 0, 1e12) && ok;
 ok = validateNumericInput(els.monthlyDebt, 0, 1e12) && ok;
+ok = validateNumericInput(els.creditScore, 300, 850) && ok;
 ok = validateNumericInput(els.age, 18, 100) && ok;
 ok = validateNumericInput(els.marketReturn, 0, 100) && ok;
 ok = validateNumericInput(els.inflationRate, 0, 100) && ok;
 return ok;
+}
+
+async function fetchMarketData() {
+try {
+const res = await fetch('data/market_rates.json');
+if (res.ok) {
+const data = await res.json();
+state.marketRates = { ...state.marketRates, ...data };
+}
+} catch (e) {
+}
+els.inflationRate.value = state.marketRates.inflation_cpi;
 }
 
 async function fetchLocationData(loc) {
@@ -116,9 +105,7 @@ const res = await fetch(`data/${loc}.json`, { signal: abortController.signal });
 if (!res.ok) throw new Error(`HTTP ${res.status}`);
 return await res.json();
 } catch (err) {
-if (err.name !== 'AbortError') {
-showError(`Unable to load data for ${loc.toUpperCase()}. Using national defaults.`);
-}
+if (err.name !== 'AbortError') { showError(`Unable to load data for ${loc.toUpperCase()}. Using national defaults.`); }
 return null;
 }
 }
@@ -143,25 +130,59 @@ function updateIncomeTabs() {
 els.incomeTypeTabs.forEach(t => t.classList.remove('active'));
 const active = document.querySelector(`.menu-tab-btn[data-type="${state.incomeType}"]`);
 if (active) active.classList.add('active');
-
-if (state.incomeType === 'annual') {
-els.baseIncomeLabel.textContent = 'Annual Base Salary';
-els.hoursWrapper.classList.add('hidden-element');
-} else if (state.incomeType === 'monthly') {
-els.baseIncomeLabel.textContent = 'Monthly Gross Salary';
-els.hoursWrapper.classList.add('hidden-element');
-} else if (state.incomeType === 'hourly') {
-els.baseIncomeLabel.textContent = 'Hourly Wage';
-els.hoursWrapper.classList.remove('hidden-element');
-}
+if (state.incomeType === 'annual') { els.baseIncomeLabel.textContent = 'Annual Base Salary'; els.hoursWrapper.classList.add('hidden-element'); }
+else if (state.incomeType === 'monthly') { els.baseIncomeLabel.textContent = 'Monthly Gross Salary'; els.hoursWrapper.classList.add('hidden-element'); }
+else if (state.incomeType === 'hourly') { els.baseIncomeLabel.textContent = 'Hourly Wage'; els.hoursWrapper.classList.remove('hidden-element'); }
 els.baseIncome.value = '';
 }
 
-function calculateHousingMatrix() {
-if (state.housingMax <= 0) {
-els.maxHomePriceValue.textContent = '$0';
-return;
+function applyCreditPremium(baseRate, isMortgage) {
+let rate = baseRate;
+let badge = "Baseline";
+let color = "#94a3b8";
+
+if (state.bankrupt) {
+rate += 1.50;
+badge = "High Risk";
+color = "#fb7185";
+} else {
+if (state.creditScore >= 740) { rate -= 0.25; badge = "Excellent"; color = "#34d399"; }
+else if (state.creditScore >= 670) { rate += 0.50; badge = "Good"; color = "#60a5fa"; }
+else if (state.creditScore >= 580) { rate += 1.50; badge = "Fair"; color = "#fbbf24"; }
+else { rate += 3.00; badge = "Poor"; color = "#fb7185"; }
 }
+return { rate: Math.max(0.1, rate), badge, color };
+}
+
+function handleLoanAvailability() {
+Array.from(els.loanType.options).forEach(opt => opt.disabled = false);
+if (state.bankrupt || state.creditScore < 620) {
+const convOpt = els.loanType.querySelector('option[value="conv"]');
+if (convOpt) convOpt.disabled = true;
+if (els.loanType.value === 'conv') els.loanType.value = 'fha';
+}
+}
+
+function calculateHousingMatrix() {
+handleLoanAvailability();
+const is15yr = els.loanTerm.value === '15';
+const baseMarket = is15yr ? state.marketRates.mortgage_15yr : state.marketRates.mortgage_30yr;
+const adj = applyCreditPremium(baseMarket, true);
+
+els.liveMortgageRate.textContent = `${baseMarket.toFixed(2)}%`;
+els.housingRateBadge.textContent = adj.badge;
+els.housingRateBadge.style.backgroundColor = adj.color;
+els.housingRateBadge.style.color = "#0f172a";
+
+if (!userEditedInterestRate) {
+els.interestRate.value = adj.rate.toFixed(2);
+els.rateLabel.textContent = `${adj.rate.toFixed(2)}%`;
+els.housingRateSubtext.textContent = `Your Estimated Rate: ${adj.rate.toFixed(2)}%`;
+} else {
+els.housingRateSubtext.textContent = `User Overridden Rate: ${parseFloat(els.interestRate.value).toFixed(2)}%`;
+}
+
+if (state.housingMax <= 0) { els.maxHomePriceValue.textContent = '$0'; return; }
 const maxMonthlyPayment = state.housingMax;
 const annualRate = parseFloat(els.interestRate.value) || 0;
 const termYears = parseInt(els.loanTerm.value) || 30;
@@ -171,43 +192,24 @@ const loanType = els.loanType.value;
 const r = annualRate / 100 / 12;
 const n = termYears * 12;
 
-let amortizationFactor = 0;
-if (r === 0) {
-amortizationFactor = 1 / n;
-} else {
-amortizationFactor = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-}
+let amortizationFactor = (r === 0) ? (1 / n) : ((r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
 
 let monthlyPropTaxRate = (parseFloat(els.propertyTax.value) || 0) / 100 / 12;
 if (els.vetExempt.checked) {
-monthlyPropTaxRate = 0;
-els.propertyTax.disabled = true;
-els.propTaxLabel.textContent = '0% (Exempt)';
+monthlyPropTaxRate = 0; els.propertyTax.disabled = true; els.propTaxLabel.textContent = '0% (Exempt)';
 } else {
-els.propertyTax.disabled = false;
-els.propTaxLabel.textContent = `${parseFloat(els.propertyTax.value).toFixed(1)}%`;
+els.propertyTax.disabled = false; els.propTaxLabel.textContent = `${parseFloat(els.propertyTax.value).toFixed(1)}%`;
 }
 
 const monthlyInsRate = (parseFloat(els.homeInsurance.value) || 0) / 100 / 12;
 
 let monthlyPMI = 0;
-if (loanType === 'fha' && downPct < 0.20) {
-monthlyPMI = 0.0085 / 12;
-} else if (loanType === 'conv' && downPct < 0.20) {
-monthlyPMI = 0.005 / 12;
-} else if (loanType === 'va') {
-monthlyPMI = 0;
-}
+if (loanType === 'fha' && downPct < 0.20) monthlyPMI = 0.0085 / 12;
+else if (loanType === 'conv' && downPct < 0.20) monthlyPMI = 0.005 / 12;
+else if (loanType === 'va') monthlyPMI = 0;
 
-const combinedFactor = ((1 - downPct) * amortizationFactor) +
-monthlyPropTaxRate +
-monthlyInsRate +
-((1 - downPct) * monthlyPMI);
-
-let maxHomePrice = 0;
-if (combinedFactor > 0) {
-maxHomePrice = maxMonthlyPayment / combinedFactor;
-}
+const combinedFactor = ((1 - downPct) * amortizationFactor) + monthlyPropTaxRate + monthlyInsRate + ((1 - downPct) * monthlyPMI);
+let maxHomePrice = (combinedFactor > 0) ? (maxMonthlyPayment / combinedFactor) : 0;
 els.maxHomePriceValue.textContent = formatCurrency(maxHomePrice);
 calculateTargetHomePayment();
 }
@@ -215,57 +217,50 @@ calculateTargetHomePayment();
 function calculateTargetHomePayment() {
 const price = parseFloat(els.targetHomePrice.value) || 0;
 els.targetHomePriceDisplay.textContent = formatCurrency(price);
-
 const annualRate = parseFloat(els.interestRate.value) || 0;
 const termYears = parseInt(els.loanTerm.value) || 30;
 const downPct = (parseFloat(els.downPayment.value) || 0) / 100;
 const loanType = els.loanType.value;
 const loanAmount = price * (1 - downPct);
-
 const r = annualRate / 100 / 12;
 const n = termYears * 12;
 
 let pmt = 0;
 if (loanAmount > 0) {
-if (r === 0) {
-pmt = loanAmount / n;
-} else {
-pmt = loanAmount * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-}
+pmt = (r === 0) ? (loanAmount / n) : (loanAmount * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
 }
 
-let monthlyPropTax = 0;
-if (!els.vetExempt.checked) {
-monthlyPropTax = price * ((parseFloat(els.propertyTax.value) || 0) / 100) / 12;
-}
+let monthlyPropTax = els.vetExempt.checked ? 0 : (price * ((parseFloat(els.propertyTax.value) || 0) / 100) / 12);
 const monthlyIns = price * ((parseFloat(els.homeInsurance.value) || 0) / 100) / 12;
-
 let monthlyPMI = 0;
-if (loanType === 'fha' && downPct < 0.20) {
-monthlyPMI = loanAmount * 0.0085 / 12;
-} else if (loanType === 'conv' && downPct < 0.20) {
-monthlyPMI = loanAmount * 0.005 / 12;
-}
+if (loanType === 'fha' && downPct < 0.20) monthlyPMI = loanAmount * 0.0085 / 12;
+else if (loanType === 'conv' && downPct < 0.20) monthlyPMI = loanAmount * 0.005 / 12;
 
 const totalMonthly = pmt + monthlyPropTax + monthlyIns + monthlyPMI;
 els.actualHousingPayment.textContent = formatCurrency(totalMonthly) + '/mo';
-
-if (totalMonthly > state.housingMax + 0.01) {
-els.actualHousingPayment.style.color = '#fb7185';
-} else {
-els.actualHousingPayment.style.color = '';
-}
-
-if (els.expHousingPrimary) {
-els.expHousingPrimary.value = totalMonthly.toFixed(2);
-updateCashFlowTracker();
-}
+els.actualHousingPayment.style.color = (totalMonthly > state.housingMax + 0.01) ? '#fb7185' : '';
+if (els.expHousingPrimary) { els.expHousingPrimary.value = totalMonthly.toFixed(2); updateCashFlowTracker(); }
 }
 
 function calculateAuto() {
+const baseMarket = state.marketRates.auto_new;
+const adj = applyCreditPremium(baseMarket, false);
+
+els.liveAutoRate.textContent = `${baseMarket.toFixed(2)}%`;
+els.autoRateBadge.textContent = adj.badge;
+els.autoRateBadge.style.backgroundColor = adj.color;
+els.autoRateBadge.style.color = "#0f172a";
+
+if (!userEditedAutoRate) {
+els.autoRate.value = adj.rate.toFixed(2);
+els.autoRateLabel.textContent = `${adj.rate.toFixed(2)}%`;
+els.autoRateSubtext.textContent = `Your Estimated Rate: ${adj.rate.toFixed(2)}%`;
+} else {
+els.autoRateSubtext.textContent = `User Overridden Rate: ${parseFloat(els.autoRate.value).toFixed(2)}%`;
+}
+
 const transportMax = state.totalGross * 0.10;
 els.maxTransport.textContent = formatCurrency(transportMax);
-
 const autoType = els.autoType.value;
 const term = parseInt(els.autoTerm.value) || 48;
 const rate = (parseFloat(els.autoRate.value) || 0) / 100 / 12;
@@ -273,26 +268,16 @@ const inputRate = parseFloat(els.autoRate.value) || 0;
 const mf = inputRate / 2400;
 const count = parseInt(els.autoCount.value) || 1;
 
-if (count <= 0) {
-els.maxCarPrice.textContent = '$0';
-calculateTargetAutoPayment();
-return;
-}
-
+if (count <= 0) { els.maxCarPrice.textContent = '$0'; calculateTargetAutoPayment(); return; }
 const budgetPerCar = transportMax / count;
 let maxPrice = 0;
 
 if (autoType === 'buy') {
-if (rate === 0) {
-maxPrice = budgetPerCar * term;
-} else {
-maxPrice = budgetPerCar * ((1 - Math.pow(1 + rate, -term)) / rate);
-}
+maxPrice = (rate === 0) ? (budgetPerCar * term) : (budgetPerCar * ((1 - Math.pow(1 + rate, -term)) / rate));
 } else {
 const factor = (0.45 / term) + (1.55 * mf);
 maxPrice = factor === 0 ? 0 : budgetPerCar / factor;
 }
-
 els.maxCarPrice.textContent = formatCurrency(maxPrice);
 calculateTargetAutoPayment();
 }
@@ -300,67 +285,40 @@ calculateTargetAutoPayment();
 function calculateTargetAutoPayment() {
 const price = parseFloat(els.targetCarPrice.value) || 0;
 els.targetCarPriceDisplay.textContent = formatCurrency(price);
-
 const autoType = els.autoType.value;
 const term = parseInt(els.autoTerm.value) || 48;
 const rate = (parseFloat(els.autoRate.value) || 0) / 100 / 12;
 const inputRate = parseFloat(els.autoRate.value) || 0;
 const mf = inputRate / 2400;
 const count = parseInt(els.autoCount.value) || 1;
-const transportMax = state.totalGross * 0.10;
-const budgetPerCar = transportMax / count;
+const budgetPerCar = (state.totalGross * 0.10) / count;
 
 let pmt = 0;
 if (autoType === 'lease') {
 pmt = price * ((0.45 / term) + (1.55 * mf));
 } else {
-if (rate === 0) {
-pmt = price / term;
-} else {
-pmt = price * (rate * Math.pow(1 + rate, term)) / (Math.pow(1 + rate, term) - 1);
-}
+pmt = (rate === 0) ? (price / term) : (price * (rate * Math.pow(1 + rate, term)) / (Math.pow(1 + rate, term) - 1));
 }
 
 els.actualAutoPayment.textContent = formatCurrency(pmt) + '/mo';
-if (pmt > budgetPerCar + 0.01) {
-els.actualAutoPayment.style.color = '#fb7185';
-} else {
-els.actualAutoPayment.style.color = '';
-}
-
-if (els.expAutoPrimary) {
-els.expAutoPrimary.value = (pmt * count).toFixed(2);
-updateCashFlowTracker();
-}
+els.actualAutoPayment.style.color = (pmt > budgetPerCar + 0.01) ? '#fb7185' : '';
+if (els.expAutoPrimary) { els.expAutoPrimary.value = (pmt * count).toFixed(2); updateCashFlowTracker(); }
 }
 
 function updateCashFlowTracker() {
 let spent = 0;
-
 document.querySelectorAll('.expense-category').forEach(cat => {
 let catTotal = 0;
 cat.querySelectorAll('.expense-input').forEach(input => {
 const v = parseFloat(input.value);
-if (!isNaN(v) && v > 0) {
-spent += v;
-catTotal += v;
-}
+if (!isNaN(v) && v > 0) { spent += v; catTotal += v; }
 });
 const totalSpan = cat.querySelector('.category-total');
-if (totalSpan) {
-totalSpan.textContent = formatCurrency(catTotal);
-}
+if (totalSpan) totalSpan.textContent = formatCurrency(catTotal);
 });
-
 const netIncome = (state.taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt;
-
-if (els.cashFlowNetIncome) {
-els.cashFlowNetIncome.textContent = formatCurrency(netIncome);
-}
-if (els.cashFlowTotalExpenses) {
-els.cashFlowTotalExpenses.textContent = formatCurrency(spent);
-}
-
+if (els.cashFlowNetIncome) els.cashFlowNetIncome.textContent = formatCurrency(netIncome);
+if (els.cashFlowTotalExpenses) els.cashFlowTotalExpenses.textContent = formatCurrency(spent);
 if (els.cashFlowRemaining) {
 const remaining = netIncome - spent;
 els.cashFlowRemaining.textContent = formatCurrency(remaining);
@@ -371,17 +329,11 @@ els.cashFlowRemaining.style.color = remaining < 0 ? '#fb7185' : '#34d399';
 async function calculateGeoArbitrage() {
 const compareLoc = els.geoCompare.value;
 let compareData = null;
-try {
-const res = await fetch(`data/${compareLoc}.json`);
-if (res.ok) compareData = await res.json();
-} catch (e) {
-
-}
+try { const res = await fetch(`data/${compareLoc}.json`); if (res.ok) compareData = await res.json(); } catch (e) {}
 
 const compareTaxRate = compareData?.tax_rate ?? 0.22;
 const compareHousingMult = compareData?.housing_multiplier ?? 1.0;
 const currentHousingMult = state.locationData?.housing_multiplier ?? 1.0;
-
 const taxableMonthlyGross = state.taxableMonthlyGross;
 const altNet = (taxableMonthlyGross * (1 - compareTaxRate)) + state.taxExempt;
 els.altNetIncome.textContent = formatCurrency(altNet);
@@ -389,14 +341,7 @@ els.altNetIncome.textContent = formatCurrency(altNet);
 const equivalentHousing = state.housingMax * (compareHousingMult / currentHousingMult);
 els.altMaxHousing.textContent = formatCurrency(equivalentHousing);
 
-const locNames = {
-national: 'National Average',
-ny: 'New York, NY',
-ca: 'San Francisco, CA',
-tx: 'Austin, TX',
-il: 'Chicago, IL',
-fl: 'Miami, FL'
-};
+const locNames = { national: 'National Average', ny: 'New York, NY', ca: 'San Francisco, CA', tx: 'Austin, TX', il: 'Chicago, IL', fl: 'Miami, FL' };
 const name = locNames[compareLoc] || compareLoc;
 els.geoNetLabel.textContent = `Take-Home in ${name}`;
 els.geoHousingLabel.textContent = `Equiv. Housing in ${name}`;
@@ -404,94 +349,34 @@ els.geoHousingLabel.textContent = `Equiv. Housing in ${name}`;
 const netDiff = altNet - ((taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt);
 const housingDiff = equivalentHousing - state.housingMax;
 const diffText =[];
-if (netDiff > 0) diffText.push(`+${formatCurrency(netDiff)} take-home`);
-else if (netDiff < 0) diffText.push(`${formatCurrency(netDiff)} take-home`);
-if (housingDiff > 0) diffText.push(`+${formatCurrency(housingDiff)} housing budget`);
-else if (housingDiff < 0) diffText.push(`${formatCurrency(housingDiff)} housing budget`);
+if (netDiff > 0) diffText.push(`+${formatCurrency(netDiff)} take-home`); else if (netDiff < 0) diffText.push(`${formatCurrency(netDiff)} take-home`);
+if (housingDiff > 0) diffText.push(`+${formatCurrency(housingDiff)} housing budget`); else if (housingDiff < 0) diffText.push(`${formatCurrency(housingDiff)} housing budget`);
 els.geoDiffText.textContent = diffText.length ? diffText.join(' • ') : 'No change in purchasing power.';
 }
 
 function drawCharts(percentile, needs, wants, savings) {
 if (charts.bell) charts.bell.destroy();
 if (charts.donut) charts.donut.destroy();
-
 const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
-const xValues =[];
-const yValues =[];
-for (let i = 0; i <= 100; i += 2) {
-xValues.push(i);
-const y = Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)));
-yValues.push(y);
-}
+const xValues =[]; const yValues =[];
+for (let i = 0; i <= 100; i += 2) { xValues.push(i); yValues.push(Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)))); }
 const pointIndex = xValues.findIndex(x => x >= (100 - percentile));
 
 charts.bell = new Chart(bellCtx, {
 type: 'line',
 data: {
 labels: xValues,
-datasets:[{
-label: 'Population Distribution',
-data: yValues,
-borderColor: 'rgba(59, 130, 246, 0.5)',
-backgroundColor: 'rgba(59, 130, 246, 0.1)',
-fill: true,
-tension: 0.4,
-pointRadius: 0
-}, {
-label: 'You',
-data: xValues.map((x, i) => i === pointIndex ? yValues[i] : null),
-borderColor: '#38bdf8',
-backgroundColor: '#38bdf8',
-pointRadius: 6,
-pointHoverRadius: 8
-}]
+datasets:[{ label: 'Population Distribution', data: yValues, borderColor: 'rgba(59, 130, 246, 0.5)', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.4, pointRadius: 0 },
+{ label: 'You', data: xValues.map((x, i) => i === pointIndex ? yValues[i] : null), borderColor: '#38bdf8', backgroundColor: '#38bdf8', pointRadius: 6, pointHoverRadius: 8 }]
 },
-options: {
-responsive: true,
-maintainAspectRatio: false,
-scales: {
-x: { display: false },
-y: { display: false }
-},
-plugins: {
-legend: { display: false },
-tooltip: {
-callbacks: {
-label: function(context) {
-if (context.datasetIndex === 1 && context.raw !== null) {
-return `Your Position: Top ${percentile}%`;
-}
-return null;
-}
-}
-}
-}
-}
+options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { display: false } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(context) { if (context.datasetIndex === 1 && context.raw !== null) { return `Your Position: Top ${percentile}%`; } return null; } } } } }
 });
 
 const donutCtx = document.getElementById('budgetDonutChart').getContext('2d');
 charts.donut = new Chart(donutCtx, {
 type: 'doughnut',
-data: {
-labels:['Needs', 'Wants', 'Savings/Debt'],
-datasets: [{
-data: [needs, wants, savings],
-backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'],
-borderWidth: 0,
-hoverOffset: 4
-}]
-},
-options: {
-responsive: true,
-maintainAspectRatio: false,
-cutout: '70%',
-plugins: {
-legend: {
-position: 'bottom',
-labels: { color: '#f8fafc' }
-}
-}
-}
+data: { labels:['Needs', 'Wants', 'Savings/Debt'], datasets: [{ data: [needs, wants, savings], backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'], borderWidth: 0, hoverOffset: 4 }] },
+options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { color: '#f8fafc' } } } }
 });
 }
 
@@ -505,122 +390,56 @@ let contribution = parseFloat(els.fireContribution.value) || 0;
 const annualExpenses = (state.needs + state.wants) * 12;
 const fiNumber = annualExpenses * 25;
 const realReturn = (returnRate - inflation) / 100;
-
 els.fiNumberValue.textContent = formatCurrency(fiNumber);
 
-if (contribution <= 0 && portfolio < fiNumber && realReturn <= 0) {
-els.fiAgeValue.textContent = 'Never';
-if (charts.fire) {
-charts.fire.destroy();
-charts.fire = null;
-}
-return;
-}
+if (contribution <= 0 && portfolio < fiNumber && realReturn <= 0) { els.fiAgeValue.textContent = 'Never'; if (charts.fire) { charts.fire.destroy(); charts.fire = null; } return; }
 
 let currentAge = age;
-let ages = [currentAge];
+let ages =[currentAge];
 let balances = [portfolio];
 let annualSavings = contribution * 12;
 
 while (portfolio < fiNumber && currentAge < 100) {
 portfolio = portfolio * (1 + realReturn) + annualSavings;
-currentAge++;
-ages.push(currentAge);
-balances.push(portfolio);
+currentAge++; ages.push(currentAge); balances.push(portfolio);
 }
-
-if (portfolio >= fiNumber) {
-els.fiAgeValue.textContent = currentAge;
-} else {
-els.fiAgeValue.textContent = '100+';
-}
+els.fiAgeValue.textContent = (portfolio >= fiNumber) ? currentAge : '100+';
 
 if (charts.fire) charts.fire.destroy();
-
 const fireCtx = document.getElementById('fireChart').getContext('2d');
 charts.fire = new Chart(fireCtx, {
 type: 'line',
 data: {
 labels: ages,
-datasets:[{
-label: 'Portfolio Balance',
-data: balances,
-borderColor: '#34d399',
-backgroundColor: 'rgba(52, 211, 153, 0.1)',
-fill: true,
-tension: 0.1,
-pointRadius: 2
-}, {
-label: 'FI Target',
-data: Array(ages.length).fill(fiNumber),
-borderColor: '#fb7185',
-borderDash:[5, 5],
-pointRadius: 0,
-fill: false
-}]
+datasets:[{ label: 'Portfolio Balance', data: balances, borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', fill: true, tension: 0.1, pointRadius: 2 },
+{ label: 'FI Target', data: Array(ages.length).fill(fiNumber), borderColor: '#fb7185', borderDash:[5, 5], pointRadius: 0, fill: false }]
 },
-options: {
-responsive: true,
-maintainAspectRatio: false,
-scales: {
-x: {
-title: { display: true, text: 'Age', color: '#94a3b8' },
-grid: { color: 'rgba(255,255,255,0.05)' }
-},
-y: {
-grid: { color: 'rgba(255,255,255,0.05)' },
-ticks: {
-callback: function(value) {
-if (value >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M';
-if (value >= 1000) return '$' + (value / 1000).toFixed(0) + 'k';
-return '$' + value;
-}
-}
-}
-},
-plugins: {
-legend: {
-position: 'top',
-labels: { color: '#f8fafc' }
-}
-}
-}
+options: { responsive: true, maintainAspectRatio: false, scales: { x: { title: { display: true, text: 'Age', color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { callback: function(value) { if (value >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M'; if (value >= 1000) return '$' + (value / 1000).toFixed(0) + 'k'; return '$' + value; } } } }, plugins: { legend: { position: 'top', labels: { color: '#f8fafc' } } } }
 });
 }
 
 async function handleCalculate(e) {
 if (e) e.preventDefault();
 clearError();
-
-if (!validateAll()) {
-showError('Please correct the highlighted fields.');
-return;
-}
+if (!validateAll()) { showError('Please correct the highlighted fields.'); return; }
 
 const baseIncomeRaw = parseFloat(els.baseIncome.value) || 0;
 const taxExemptMonthly = parseFloat(els.taxExemptIncome.value) || 0;
 const existingDebt = parseFloat(els.monthlyDebt.value) || 0;
 const hours = parseFloat(els.hoursPerWeek.value) || 40;
-
 const location = els.location.value;
 const ht = els.householdType.value;
 const sx = els.sex.value;
 const ed = els.education.value;
 const rc = els.race.value;
 
-let taxableMonthlyGross = 0;
-let annualGross = 0;
+state.creditScore = parseFloat(els.creditScore.value) || 720;
+state.bankrupt = els.bankruptcyStatus.checked;
 
-if (state.incomeType === 'annual') {
-taxableMonthlyGross = baseIncomeRaw / 12;
-annualGross = baseIncomeRaw;
-} else if (state.incomeType === 'monthly') {
-taxableMonthlyGross = baseIncomeRaw;
-annualGross = baseIncomeRaw * 12;
-} else if (state.incomeType === 'hourly') {
-taxableMonthlyGross = (baseIncomeRaw * hours * 52) / 12;
-annualGross = baseIncomeRaw * hours * 52;
-}
+let taxableMonthlyGross = 0; let annualGross = 0;
+if (state.incomeType === 'annual') { taxableMonthlyGross = baseIncomeRaw / 12; annualGross = baseIncomeRaw; }
+else if (state.incomeType === 'monthly') { taxableMonthlyGross = baseIncomeRaw; annualGross = baseIncomeRaw * 12; }
+else if (state.incomeType === 'hourly') { taxableMonthlyGross = (baseIncomeRaw * hours * 52) / 12; annualGross = baseIncomeRaw * hours * 52; }
 
 state.taxableMonthlyGross = taxableMonthlyGross;
 state.taxExempt = taxExemptMonthly;
@@ -629,7 +448,6 @@ state.annualGross = annualGross;
 state.location = location;
 
 const totalAnnualEquivalent = annualGross + (taxExemptMonthly * 1.25 * 12);
-
 const fetchedData = await fetchLocationData(location);
 state.locationData = fetchedData;
 state.taxRate = fetchedData ? fetchedData.tax_rate : 0.22;
@@ -637,29 +455,17 @@ state.taxRate = fetchedData ? fetchedData.tax_rate : 0.22;
 const netTaxableIncome = taxableMonthlyGross * (1 - state.taxRate);
 const totalNetMonthly = netTaxableIncome + taxExemptMonthly;
 
-let needsRatio = 0.50;
-let wantsRatio = 0.30;
-let savingsRatio = 0.20;
-
+let needsRatio = 0.50; let wantsRatio = 0.30; let savingsRatio = 0.20;
 if (location === 'ca' || location === 'ny') {
-needsRatio = 0.65;
-wantsRatio = 0.15;
-savingsRatio = 0.20;
-els.budgetTitle.textContent = '65/15/20 Budgeting (HCOL)';
-els.labelNeeds.textContent = 'Needs (65%)';
-els.labelWants.textContent = 'Wants (15%)';
-els.labelSavings.textContent = 'Savings & Debt (20%)';
+needsRatio = 0.65; wantsRatio = 0.15; savingsRatio = 0.20;
+els.budgetTitle.textContent = '65/15/20 Budgeting (HCOL)'; els.labelNeeds.textContent = 'Needs (65%)'; els.labelWants.textContent = 'Wants (15%)'; els.labelSavings.textContent = 'Savings & Debt (20%)';
 } else {
-els.budgetTitle.textContent = '50/30/20 Budgeting Framework';
-els.labelNeeds.textContent = 'Needs (50%)';
-els.labelWants.textContent = 'Wants (30%)';
-els.labelSavings.textContent = 'Savings & Debt (20%)';
+els.budgetTitle.textContent = '50/30/20 Budgeting Framework'; els.labelNeeds.textContent = 'Needs (50%)'; els.labelWants.textContent = 'Wants (30%)'; els.labelSavings.textContent = 'Savings & Debt (20%)';
 }
 
 state.needs = totalNetMonthly * needsRatio;
 state.wants = totalNetMonthly * wantsRatio;
 state.savings = totalNetMonthly * savingsRatio;
-
 state.housingMax = state.totalGross * 0.28;
 const totalDebtMax = state.totalGross * 0.36;
 const remainingDebtCapacity = Math.max(0, totalDebtMax - state.housingMax - existingDebt);
@@ -669,24 +475,14 @@ const macroP = getPercentile(fetchedData, 'all', 'all', 'all', 'all', totalAnnua
 const sexP = getPercentile(fetchedData, 'all', sx, 'all', 'all', totalAnnualEquivalent) ?? null;
 const raceP = getPercentile(fetchedData, 'all', 'all', 'all', rc, totalAnnualEquivalent) ?? null;
 
-let fallbackP = null;
-if (microP === null) {
-fallbackP = Math.max(1, Math.min(99, 100 - Math.floor(totalAnnualEquivalent / 150)));
-}
-const finalMicro = microP ?? fallbackP ?? 50;
-const finalMacro = macroP ?? fallbackP ?? 50;
-const finalSex = sexP ?? fallbackP ?? 50;
-const finalRace = raceP ?? fallbackP ?? 50;
+let fallbackP = microP === null ? Math.max(1, Math.min(99, 100 - Math.floor(totalAnnualEquivalent / 150))) : null;
+const finalMicro = microP ?? fallbackP ?? 50; const finalMacro = macroP ?? fallbackP ?? 50;
+const finalSex = sexP ?? fallbackP ?? 50; const finalRace = raceP ?? fallbackP ?? 50;
 
 els.percentileValue.textContent = `Top ${finalMicro}%`;
-
 let details = `Overall: Top ${finalMacro}% National`;
-if (sx !== 'all') {
-details += ` \u2022 Top ${finalSex}% of ${els.sex.options[els.sex.selectedIndex].text}`;
-}
-if (rc !== 'all') {
-details += ` \u2022 Top ${finalRace}% of ${els.race.options[els.race.selectedIndex].text}`;
-}
+if (sx !== 'all') details += ` \u2022 Top ${finalSex}% of ${els.sex.options[els.sex.selectedIndex].text}`;
+if (rc !== 'all') details += ` \u2022 Top ${finalRace}% of ${els.race.options[els.race.selectedIndex].text}`;
 els.detailedPercentiles.textContent = details;
 
 els.netIncomeValue.textContent = formatCurrency(totalNetMonthly);
@@ -697,10 +493,7 @@ els.totalAnnualValue.textContent = formatCurrency(totalAnnualEquivalent);
 els.budgetNeeds.textContent = formatCurrency(state.needs);
 els.budgetWants.textContent = formatCurrency(state.wants);
 els.budgetSavings.textContent = formatCurrency(state.savings);
-
-if (!userEditedFIRE) {
-els.fireContribution.value = Math.round(state.savings);
-}
+if (!userEditedFIRE) els.fireContribution.value = Math.round(state.savings);
 
 els.maxHousing.textContent = formatCurrency(state.housingMax);
 els.maxTotalDebt.textContent = formatCurrency(totalDebtMax);
@@ -712,12 +505,11 @@ els.benchTop25.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, 
 els.benchTop10.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 90));
 els.benchTop1.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 99));
 } else {
-els.benchMedian.textContent = '$0';
-els.benchTop25.textContent = '$0';
-els.benchTop10.textContent = '$0';
-els.benchTop1.textContent = '$0';
+els.benchMedian.textContent = '$0'; els.benchTop25.textContent = '$0'; els.benchTop10.textContent = '$0'; els.benchTop1.textContent = '$0';
 }
 
+userEditedInterestRate = false;
+userEditedAutoRate = false;
 calculateAuto();
 calculateHousingMatrix();
 updateCashFlowTracker();
@@ -730,33 +522,23 @@ document.getElementById('welcome-splash').classList.add('hidden-view');
 document.getElementById('dashboardWorkspace').classList.remove('hidden-view');
 document.getElementById('dashboardWorkspace').classList.add('active-view');
 
-if (window.innerWidth <= 1024) {
-document.getElementById('dashboardWorkspace').scrollIntoView({ behavior: 'smooth' });
-}
+if (window.innerWidth <= 1024) document.getElementById('dashboardWorkspace').scrollIntoView({ behavior: 'smooth' });
 }
 
 function bindEvents() {
 els.setupForm.addEventListener('submit', handleCalculate);
-
 els.tabLinks.forEach(btn => {
 btn.addEventListener('click', (e) => {
-els.tabLinks.forEach(l => l.classList.remove('active'));
-els.tabPanes.forEach(p => p.classList.remove('active'));
-e.target.classList.add('active');
-const targetId = e.target.getAttribute('data-tab');
-document.getElementById(targetId).classList.add('active');
-
-if (targetId === 'tab-overview' && charts.bell) charts.bell.resize();
-if (targetId === 'tab-budget' && charts.donut) charts.donut.resize();
-if (targetId === 'tab-fire' && charts.fire) charts.fire.resize();
+els.tabLinks.forEach(l => l.classList.remove('active')); els.tabPanes.forEach(p => p.classList.remove('active'));
+e.target.classList.add('active'); document.getElementById(e.target.getAttribute('data-tab')).classList.add('active');
+if (e.target.getAttribute('data-tab') === 'tab-overview' && charts.bell) charts.bell.resize();
+if (e.target.getAttribute('data-tab') === 'tab-budget' && charts.donut) charts.donut.resize();
+if (e.target.getAttribute('data-tab') === 'tab-fire' && charts.fire) charts.fire.resize();
 });
 });
 
 els.incomeTypeTabs.forEach(tab => {
-tab.addEventListener('click', () => {
-state.incomeType = tab.getAttribute('data-type');
-updateIncomeTabs();
-});
+tab.addEventListener('click', () => { state.incomeType = tab.getAttribute('data-type'); updateIncomeTabs(); });
 });
 
 els.loanType.addEventListener('change', function() {
@@ -770,42 +552,32 @@ calculateHousingMatrix();
 });
 
 els.downPayment.addEventListener('input', function() {
-userEditedDownPayment = true;
-els.downLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
-calculateHousingMatrix();
+userEditedDownPayment = true; els.downLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`; calculateHousingMatrix();
 });
 
 els.loanTerm.addEventListener('change', calculateHousingMatrix);
 els.interestRate.addEventListener('input', function() {
-els.rateLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
-calculateHousingMatrix();
+userEditedInterestRate = true; els.rateLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`; calculateHousingMatrix();
 });
 els.propertyTax.addEventListener('input', calculateHousingMatrix);
 els.homeInsurance.addEventListener('input', function() {
-els.homeInsLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
-calculateHousingMatrix();
+els.homeInsLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`; calculateHousingMatrix();
 });
 els.vetExempt.addEventListener('change', calculateHousingMatrix);
-
 els.targetHomePrice.addEventListener('input', calculateTargetHomePayment);
 
 els.autoType.addEventListener('change', calculateAuto);
 els.autoTerm.addEventListener('change', calculateAuto);
 els.autoCount.addEventListener('change', calculateAuto);
 els.autoRate.addEventListener('input', function() {
-els.autoRateLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
-calculateAuto();
+userEditedAutoRate = true; els.autoRateLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`; calculateAuto();
 });
 els.targetCarPrice.addEventListener('input', calculateTargetAutoPayment);
-
-els.expenseInputs.forEach(input => {
-input.addEventListener('input', updateCashFlowTracker);
-});
+els.expenseInputs.forEach(input => { input.addEventListener('input', updateCashFlowTracker); });
 
 els.addCustomBtns.forEach(btn => {
 btn.addEventListener('click', function() {
 const targetContainer = this.previousElementSibling;
-
 const newRow = document.createElement('div');
 newRow.className = 'input-row clean-row';
 newRow.innerHTML = `
@@ -822,28 +594,18 @@ newRow.innerHTML = `
 </div>
 <button type="button" class="remove-custom-btn" style="background:none; border:none; color:#fb7185; cursor:pointer; font-size:1.5rem; align-self:flex-end; margin-bottom:5px; padding:0 10px;">&times;</button>
 `;
-
 targetContainer.appendChild(newRow);
-
 const newInput = newRow.querySelector('.expense-input');
 newInput.addEventListener('input', updateCashFlowTracker);
-
-newRow.querySelector('.remove-custom-btn').addEventListener('click', function() {
-newRow.remove();
-updateCashFlowTracker();
-});
+newRow.querySelector('.remove-custom-btn').addEventListener('click', function() { newRow.remove(); updateCashFlowTracker(); });
 });
 });
 
 els.geoCompare.addEventListener('change', calculateGeoArbitrage);
-
-els.fireContribution.addEventListener('input', function() {
-userEditedFIRE = true;
-calculateFIRE();
-});
+els.fireContribution.addEventListener('input', function() { userEditedFIRE = true; calculateFIRE(); });
 els.currentPortfolio.addEventListener('input', calculateFIRE);
 els.marketReturn.addEventListener('input', calculateFIRE);
-els.inflationRate.addEventListener('input', calculateFIRE);[els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
+els.inflationRate.addEventListener('input', calculateFIRE);[els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt, els.creditScore,
 els.age, els.marketReturn, els.inflationRate].forEach(el => {
 el.addEventListener('input', () => validateNumericInput(el));
 });
@@ -852,4 +614,5 @@ el.addEventListener('input', () => validateNumericInput(el));
 cacheElements();
 bindEvents();
 updateIncomeTabs();
+fetchMarketData();
 });

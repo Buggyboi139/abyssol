@@ -1,0 +1,35 @@
+name: Update Economic Data Pipeline
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-market-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Execute Data Ingestion Script
+        run: python fetch_economic_data.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Commit and Push Updated Rates
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(data): automated daily market rates sync"
+          file_pattern: 'data/market_rates.json'

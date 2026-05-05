@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", function() {
     
     const grossIncomeInput = document.getElementById("grossIncome");
     const monthlyDebtInput = document.getElementById("monthlyDebt");
+    const locationSelect = document.getElementById("location");
     
     const percentileValue = document.getElementById("percentileValue");
     const netIncomeValue = document.getElementById("netIncomeValue");
@@ -29,11 +30,40 @@ document.addEventListener("DOMContentLoaded", function() {
         }).format(amount);
     }
 
-    calculateBtn.addEventListener("click", function() {
+    async function fetchDemographics(location) {
+        try {
+            const response = await fetch(`data/${location}.json`);
+            if (!response.ok) throw new Error('Network response was not ok');
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
+    }
+
+    calculateBtn.addEventListener("click", async function() {
         const grossIncome = parseFloat(grossIncomeInput.value) || 0;
         const existingDebt = parseFloat(monthlyDebtInput.value) || 0;
+        const selectedLocation = locationSelect.value;
 
-        const effectiveTaxRate = 0.22;
+        const demoData = await fetchDemographics(selectedLocation);
+        
+        let effectiveTaxRate = 0.22;
+        let percentile = 99;
+
+        if (demoData) {
+            effectiveTaxRate = demoData.tax_rate;
+            percentile = 1;
+            for (const bracket of demoData.brackets) {
+                if (grossIncome >= bracket.income) {
+                    percentile = bracket.percentile;
+                } else {
+                    break;
+                }
+            }
+        } else if (grossIncome > 0) {
+            percentile = Math.max(1, 100 - Math.floor(grossIncome / 150));
+        }
+
         const netIncome = grossIncome * (1 - effectiveTaxRate);
         
         const needs = netIncome * 0.50;
@@ -50,11 +80,6 @@ document.addEventListener("DOMContentLoaded", function() {
         const autoTermMonths = 48;
         const autoMonthlyCapacity = transportMax;
         const estimatedCarPrice = (autoMonthlyCapacity * autoTermMonths) / (1 - autoDownPaymentPct);
-
-        let percentile = 99;
-        if (grossIncome > 0) {
-            percentile = Math.max(1, 100 - Math.floor(grossIncome / 150));
-        }
 
         percentileValue.innerText = `Top ${percentile}%`;
         netIncomeValue.innerText = formatCurrency(netIncome);

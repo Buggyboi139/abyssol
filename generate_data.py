@@ -34,10 +34,13 @@ def main():
     existing_files = [f for f in os.listdir('data') if f.endswith('.json')]
     if existing_files:
         print(f"Warning: Existing data files detected: {existing_files}")
-        response = input("Overwrite existing data files? (y/N): ").strip().lower()
-        if response not in ('y', 'yes'):
-            print("Aborted. No files were changed.")
-            sys.exit(0)
+        if os.environ.get('CI') or not sys.stdin.isatty():
+            print('Non-interactive environment detected. Proceeding with overwrite.')
+        else:
+            response = input("Overwrite existing data files? (y/N): ").strip().lower()
+            if response not in ('y', 'yes'):
+                print("Aborted. No files were changed.")
+                sys.exit(0)
 
     for loc, meta in LOCATIONS.items():
         data = {

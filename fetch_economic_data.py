@@ -29,13 +29,19 @@ def main():
     if not api_key:
         market_data = fallback_data
     else:
+        mortgage_30yr = fetch_fred_series('MORTGAGE30US', api_key)
+        mortgage_15yr = fetch_fred_series('MORTGAGE15US', api_key)
+        auto_new = fetch_fred_series('RIOSNVA', api_key)
+        fed_funds = fetch_fred_series('FEDFUNDS', api_key)
+        inflation_cpi = fetch_fred_series('CPIAUCSL', api_key)
+
         market_data = {
-            "mortgage_30yr": fetch_fred_series('MORTGAGE30US', api_key) or fallback_data["mortgage_30yr"],
-            "mortgage_15yr": fetch_fred_series('MORTGAGE15US', api_key) or fallback_data["mortgage_15yr"],
-            "auto_new": fetch_fred_series('RIOSNVA', api_key) or fallback_data["auto_new"],
-            "auto_used": fetch_fred_series('RIOSNVA', api_key) + 0.75 or fallback_data["auto_used"],
-            "fed_funds": fetch_fred_series('FEDFUNDS', api_key) or fallback_data["fed_funds"],
-            "inflation_cpi": fetch_fred_series('CPIAUCSL', api_key) or fallback_data["inflation_cpi"],
+            "mortgage_30yr": mortgage_30yr if mortgage_30yr is not None else fallback_data["mortgage_30yr"],
+            "mortgage_15yr": mortgage_15yr if mortgage_15yr is not None else fallback_data["mortgage_15yr"],
+            "auto_new": auto_new if auto_new is not None else fallback_data["auto_new"],
+            "auto_used": (auto_new + 0.75) if auto_new is not None else fallback_data["auto_used"],
+            "fed_funds": fed_funds if fed_funds is not None else fallback_data["fed_funds"],
+            "inflation_cpi": inflation_cpi if inflation_cpi is not None else fallback_data["inflation_cpi"],
             "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
 

@@ -1,6 +1,9 @@
+# generate_data.py
 import json
 import os
 import pandas as pd
+
+INFLATION_MULTIPLIER = 1.06
 
 LOCATIONS = {
     'national': {'tax_rate': 0.22, 'housing_multiplier': 1.0, 'col_multiplier': 1.0, 'alpha': 'us', 'fips': 'us'},
@@ -30,12 +33,11 @@ def generate_brackets(df, val_col, weight_col):
         idx = cumsum.searchsorted(target)
         if idx >= len(df_sorted):
             idx = len(df_sorted) - 1
-        income = df_sorted.iloc[idx][val_col]
+        income = df_sorted.iloc[idx][val_col] * INFLATION_MULTIPLIER
         brackets.append({"income": round(float(income), 2), "percentile": percentile})
     return brackets
 
 def find_files(raw_dir, meta, file_type):
-    # For National, handle the A/B split
     if meta['alpha'] == 'us':
         split_a = os.path.join(raw_dir, f"psam_{file_type}usa.csv")
         split_b = os.path.join(raw_dir, f"psam_{file_type}usb.csv")
@@ -47,12 +49,10 @@ def find_files(raw_dir, meta, file_type):
             return [single_us]
         return []
     
-    # Check FIPS format (e.g. psam_p06.csv)
     fips_file = os.path.join(raw_dir, f"psam_{file_type}{meta['fips']}.csv")
     if os.path.exists(fips_file):
         return [fips_file]
         
-    # Check Alpha format (e.g. psam_pca.csv)
     alpha_file = os.path.join(raw_dir, f"psam_{file_type}{meta['alpha']}.csv")
     if os.path.exists(alpha_file):
         return [alpha_file]
@@ -85,11 +85,9 @@ def main():
 
         print(f"  ✅ FOUND FILES! Loading {len(p_files)} Person file(s) and {len(h_files)} Housing file(s)...")
         
-        # Load and combine Person files
         df_p_list = [pd.read_csv(f, usecols=['SERIALNO', 'PINCP', 'PWGTP', 'SEX', 'SCHL', 'RAC1P', 'HISP']) for f in p_files]
         df_p = pd.concat(df_p_list, ignore_index=True)
         
-        # Load and combine Housing files
         df_h_list = [pd.read_csv(f, usecols=['SERIALNO', 'HINCP', 'HHT']) for f in h_files]
         df_h = pd.concat(df_h_list, ignore_index=True)
         

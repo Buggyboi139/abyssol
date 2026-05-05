@@ -624,8 +624,8 @@ document.addEventListener("DOMContentLoaded", function() {
         state.wants = totalNetMonthly * wantsRatio;
         state.savings = totalNetMonthly * savingsRatio;
 
-        state.housingMax = taxableMonthlyGross * 0.28;
-        const totalDebtMax = taxableMonthlyGross * 0.36;
+        state.housingMax = state.totalGross * 0.28;
+        const totalDebtMax = state.totalGross * 0.36;
         const remainingDebtCapacity = Math.max(0, totalDebtMax - state.housingMax - existingDebt);
 
         const microP = getPercentile(fetchedData, ht, sx, ed, rc, totalAnnualEquivalent) ?? null;
@@ -766,7 +766,9 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         els.currentPortfolio.addEventListener('input', calculateFIRE);
         els.marketReturn.addEventListener('input', calculateFIRE);
-        els.inflationRate.addEventListener('input', calculateFIRE);[els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
+        els.inflationRate.addEventListener('input', calculateFIRE);
+
+        [els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
          els.age, els.marketReturn, els.inflationRate].forEach(el => {
             el.addEventListener('input', () => validateNumericInput(el));
         });

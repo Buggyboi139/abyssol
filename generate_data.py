@@ -1,69 +1,85 @@
 import json
 import os
+import sys
 
-locations =['national', 'ny', 'ca', 'tx', 'il', 'fl']
-household_types = ['all', 'single', 'dual']
-sexes = ['all', 'male', 'female']
-educations =['all', 'hs', 'bachelors', 'masters']
-races =['all', 'white', 'black', 'asian', 'hispanic']
+LOCATIONS = {
+    'national': {'tax_rate': 0.22, 'housing_multiplier': 1.0, 'col_multiplier': 1.0},
+    'ny': {'tax_rate': 0.28, 'housing_multiplier': 1.45, 'col_multiplier': 1.40},
+    'ca': {'tax_rate': 0.28, 'housing_multiplier': 1.50, 'col_multiplier': 1.45},
+    'tx': {'tax_rate': 0.18, 'housing_multiplier': 0.85, 'col_multiplier': 0.90},
+    'il': {'tax_rate': 0.24, 'housing_multiplier': 0.95, 'col_multiplier': 1.00},
+    'fl': {'tax_rate': 0.18, 'housing_multiplier': 0.90, 'col_multiplier': 0.92},
+}
 
-os.makedirs('data', exist_ok=True)
+HOUSEHOLD_TYPES = ['all', 'single', 'dual']
+SEXES = ['all', 'male', 'female']
+EDUCATIONS = ['all', 'hs', 'bachelors', 'masters']
+RACES = ['all', 'white', 'black', 'asian', 'hispanic']
+
 
 def generate_brackets(base_income):
-    brackets =[]
+    """Generate percentile brackets using a tapered growth curve."""
+    brackets = []
     for percentile in range(1, 100):
-        income = base_income * (1.045 ** percentile)
+        # Taper growth rate from 4.5% at low percentiles to 1.5% at high percentiles
+        growth_rate = 0.045 - (0.030 * (percentile / 100))
+        income = base_income * ((1 + growth_rate) ** percentile)
         brackets.append({"income": round(income, 2), "percentile": percentile})
     return brackets
 
-for loc in locations:
-    if loc == 'national':
-        tax_rate = 0.22
-    elif loc in ['ny', 'ca']:
-        tax_rate = 0.28
-    elif loc in ['tx', 'fl']:
-        tax_rate = 0.18
-    else:
-        tax_rate = 0.24
-    
-    data = {
-        "location": loc,
-        "tax_rate": tax_rate,
-        "demographics": {}
-    }
-    
-    for ht in household_types:
-        data["demographics"][ht] = {}
-        for sx in sexes:
-            data["demographics"][ht][sx] = {}
-            for ed in educations:
-                data["demographics"][ht][sx][ed] = {}
-                for rc in races:
-                    base_income = 12000
-                    
-                    if ht == 'dual':
-                        base_income += 15000
-                    elif ht == 'single':
-                        base_income -= 2000
-                        
-                    if ed == 'bachelors':
-                        base_income += 8000
-                    elif ed == 'masters':
-                        base_income += 14000
-                    elif ed == 'hs':
-                        base_income -= 3000
-                        
-                    if sx == 'male':
-                        base_income += 2500
-                    elif sx == 'female':
-                        base_income -= 2000
-                        
-                    if rc == 'white' or rc == 'asian':
-                        base_income += 2000
-                    elif rc == 'black' or rc == 'hispanic':
-                        base_income -= 1500
-                    
-                    data["demographics"][ht][sx][ed][rc] = generate_brackets(base_income)
-        
-    with open(f'data/{loc}.json', 'w') as f:
-        json.dump(data, f, indent=4)
+
+def main():
+    os.makedirs('data', exist_ok=True)
+
+    existing_files = [f for f in os.listdir('data') if f.endswith('.json')]
+    if existing_files:
+        print(f"Warning: Existing data files detected: {existing_files}")
+        response = input("Overwrite existing data files? (y/N): ").strip().lower()
+        if response not in ('y', 'yes'):
+            print("Aborted. No files were changed.")
+            sys.exit(0)
+
+    for loc, meta in LOCATIONS.items():
+        data = {
+            "location": loc,
+            "tax_rate": meta["tax_rate"],
+            "housing_multiplier": meta["housing_multiplier"],
+            "col_multiplier": meta["col_multiplier"],
+            "demographics": {}
+        }
+
+        for ht in HOUSEHOLD_TYPES:
+            data["demographics"][ht] = {}
+            for sx in SEXES:
+                data["demographics"][ht][sx] = {}
+                for ed in EDUCATIONS:
+                    data["demographics"][ht][sx][ed] = {}
+                    for rc in RACES:
+                        base_income = 12000
+
+                        if ht == 'dual':
+                            base_income += 15000
+                        elif ht == 'single':
+                            base_income -= 2000
+
+                        if ed == 'bachelors':
+                            base_income += 8000
+                        elif ed == 'masters':
+                            base_income += 14000
+                        elif ed == 'hs':
+                            base_income -= 3000
+
+                        # Deliberately unbiased: sex and race do not affect income in this model.
+                        # Previous versions applied discriminatory adjustments here;
+                        # those have been removed to provide equitable benchmarking.
+
+                        data["demographics"][ht][sx][ed][rc] = generate_brackets(base_income)
+
+        filepath = f'data/{loc}.json'
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"Generated {filepath}")
+
+
+if __name__ == "__main__":
+    main()

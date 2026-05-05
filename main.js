@@ -2,93 +2,59 @@ document.addEventListener("DOMContentLoaded", function() {
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
 
-    let bellChartInst = null;
-    let donutChartInst = null;
-    let fireChartInst = null;
+    const charts = {
+        bell: null,
+        donut: null,
+        fire: null
+    };
 
-    const calculateBtn = document.getElementById("calculateBtn");
-    const backBtn = document.getElementById("backBtn");
-    const setupView = document.getElementById("setup-view");
-    const resultsView = document.getElementById("results-view");
-    
-    const incomeTypeTabs = document.querySelectorAll(".menu-tab-btn");
-    let currentIncomeType = "annual";
-    
-    const baseIncomeInput = document.getElementById("baseIncome");
-    const baseIncomeLabel = document.getElementById("baseIncomeLabel");
-    const hoursWrapper = document.getElementById("hoursWrapper");
-    const hoursPerWeekInput = document.getElementById("hoursPerWeek");
-    const taxExemptIncomeInput = document.getElementById("taxExemptIncome");
-    const monthlyDebtInput = document.getElementById("monthlyDebt");
-    const locationSelect = document.getElementById("location");
-    const ageInput = document.getElementById("age");
-    const householdTypeSelect = document.getElementById("householdType");
-    const sexSelect = document.getElementById("sex");
-    const educationSelect = document.getElementById("education");
-    const raceSelect = document.getElementById("race");
-    
-    const percentileValue = document.getElementById("percentileValue");
-    const detailedPercentiles = document.getElementById("detailedPercentiles");
-    const netIncomeValue = document.getElementById("netIncomeValue");
-    
-    const budgetTitle = document.getElementById("budgetTitle");
-    const labelNeeds = document.getElementById("labelNeeds");
-    const labelWants = document.getElementById("labelWants");
-    const labelSavings = document.getElementById("labelSavings");
-    const budgetNeeds = document.getElementById("budgetNeeds");
-    const budgetWants = document.getElementById("budgetWants");
-    const budgetSavings = document.getElementById("budgetSavings");
-    
-    const remainingWantsValue = document.getElementById("remainingWantsValue");
-    const lifestyleInputs = document.querySelectorAll(".lifestyle-input");
-
-    const maxHousing = document.getElementById("maxHousing");
-    const maxTotalDebt = document.getElementById("maxTotalDebt");
-    const availableDebtCapacity = document.getElementById("availableDebtCapacity");
-    
-    const maxTransport = document.getElementById("maxTransport");
-    const maxCarPrice = document.getElementById("maxCarPrice");
-
-    const loanTypeSelect = document.getElementById("loanType");
-    const loanTermSelect = document.getElementById("loanTerm");
-    const interestRateSlider = document.getElementById("interestRate");
-    const downPaymentSlider = document.getElementById("downPayment");
-    const rateLabel = document.getElementById("rateLabel");
-    const downLabel = document.getElementById("downLabel");
-    const propertyTaxSlider = document.getElementById("propertyTax");
-    const propTaxLabel = document.getElementById("propTaxLabel");
-    const homeInsuranceSlider = document.getElementById("homeInsurance");
-    const homeInsLabel = document.getElementById("homeInsLabel");
-    const vetExemptCheckbox = document.getElementById("vetExempt");
-    const maxHomePriceValue = document.getElementById("maxHomePriceValue");
-
-    const autoTypeSelect = document.getElementById("autoType");
-    const autoTermSelect = document.getElementById("autoTerm");
-    const autoRateSlider = document.getElementById("autoRate");
-    const autoRateLabel = document.getElementById("autoRateLabel");
-    const autoCountSelect = document.getElementById("autoCount");
-
-    const geoCompareSelect = document.getElementById("geoCompare");
-    const altNetIncome = document.getElementById("altNetIncome");
-    const altMaxHousing = document.getElementById("altMaxHousing");
-
-    const fireContributionInput = document.getElementById("fireContribution");
-    const currentPortfolioInput = document.getElementById("currentPortfolio");
-    const marketReturnInput = document.getElementById("marketReturn");
-    const inflationRateInput = document.getElementById("inflationRate");
-    const fiNumberValue = document.getElementById("fiNumberValue");
-    const fiAgeValue = document.getElementById("fiAgeValue");
-
-    let currentCalculatedTotalGross = 0;
-    let currentCalculatedHousingMax = 0;
-    let currentCalculatedWants = 0;
-    let currentCalculatedSavings = 0;
-    let currentCalculatedNeeds = 0;
-    let currentTaxExempt = 0;
-    let currentTaxRate = 0.22;
+    let abortController = null;
+    let userEditedDownPayment = false;
     let userEditedFIRE = false;
 
+    const state = {
+        incomeType: 'annual',
+        taxableMonthlyGross: 0,
+        totalGross: 0,
+        annualGross: 0,
+        taxExempt: 0,
+        taxRate: 0.22,
+        needs: 0,
+        wants: 0,
+        savings: 0,
+        housingMax: 0,
+        locationData: null,
+        location: 'national'
+    };
+
+    const els = {};
+
+    function cacheElements() {
+        const ids = [
+            'calculateBtn','backBtn','setupForm','setup-view','results-view','errorBanner',
+            'baseIncome','baseIncomeLabel','hoursWrapper','hoursPerWeek','taxExemptIncome',
+            'monthlyDebt','location','age','householdType','sex','education','race',
+            'percentileValue','detailedPercentiles','netIncomeValue',
+            'budgetTitle','labelNeeds','labelWants','labelSavings',
+            'budgetNeeds','budgetWants','budgetSavings',
+            'remainingWantsValue','maxHousing','maxTotalDebt','availableDebtCapacity',
+            'maxTransport','maxCarPrice','loanType','loanTerm','interestRate','downPayment',
+            'rateLabel','downLabel','propertyTax','propTaxLabel','homeInsurance','homeInsLabel',
+            'vetExempt','maxHomePriceValue','autoType','autoTerm','autoRate','autoRateLabel',
+            'autoCount','geoCompare','altNetIncome','altMaxHousing','fiNumberValue','fiAgeValue',
+            'fireContribution','currentPortfolio','marketReturn','inflationRate',
+            'targetHomePrice','targetHomePriceDisplay','actualHousingPayment',
+            'targetCarPrice','targetCarPriceDisplay','actualAutoPayment',
+            'benchMedian','benchTop25','benchTop10','benchTop1',
+            'geoNetLabel','geoHousingLabel','geoDiffText'
+        ];
+        ids.forEach(id => els[id] = document.getElementById(id));
+        els.incomeTypeTabs = document.querySelectorAll('.menu-tab-btn');
+        els.lifestyleInputs = document.querySelectorAll('.lifestyle-input');
+    }
+
     function formatCurrency(amount) {
+        if (!isFinite(amount)) return '$—';
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'USD',
@@ -96,40 +62,105 @@ document.addEventListener("DOMContentLoaded", function() {
         }).format(amount);
     }
 
-    incomeTypeTabs.forEach(tab => {
-        tab.addEventListener("click", function() {
-            incomeTypeTabs.forEach(t => t.classList.remove("active"));
-            this.classList.add("active");
-            currentIncomeType = this.getAttribute("data-type");
+    function showError(message) {
+        els.errorBanner.textContent = message;
+        els.errorBanner.classList.add('visible');
+    }
 
-            if (currentIncomeType === "annual") {
-                baseIncomeLabel.innerText = "Annual Base Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "monthly") {
-                baseIncomeLabel.innerText = "Monthly Gross Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "hourly") {
-                baseIncomeLabel.innerText = "Hourly Wage";
-                hoursWrapper.classList.remove("hidden-element");
+    function clearError() {
+        els.errorBanner.textContent = '';
+        els.errorBanner.classList.remove('visible');
+    }
+
+    function validateNumericInput(el, minVal = 0, maxVal = Infinity) {
+        const val = parseFloat(el.value);
+        if (el.value === '' || isNaN(val)) {
+            el.classList.remove('invalid');
+            return true;
+        }
+        if (val < minVal || val > maxVal || !isFinite(val)) {
+            el.classList.add('invalid');
+            return false;
+        }
+        el.classList.remove('invalid');
+        return true;
+    }
+
+    function validateAll() {
+        let ok = true;
+        ok = validateNumericInput(els.baseIncome, 0, 1e12) && ok;
+        ok = validateNumericInput(els.hoursPerWeek, 1, 168) && ok;
+        ok = validateNumericInput(els.taxExemptIncome, 0, 1e12) && ok;
+        ok = validateNumericInput(els.monthlyDebt, 0, 1e12) && ok;
+        ok = validateNumericInput(els.age, 18, 100) && ok;
+        ok = validateNumericInput(els.marketReturn, 0, 100) && ok;
+        ok = validateNumericInput(els.inflationRate, 0, 100) && ok;
+        return ok;
+    }
+
+    async function fetchLocationData(loc) {
+        if (abortController) abortController.abort();
+        abortController = new AbortController();
+        try {
+            const res = await fetch(`data/${loc}.json`, { signal: abortController.signal });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error('Failed to load location data:', err);
+                showError(`Unable to load data for ${loc.toUpperCase()}. Using national defaults.`);
             }
-            baseIncomeInput.value = "";
-        });
-    });
+            return null;
+        }
+    }
+
+    function getPercentile(data, ht, sx, ed, rc, income) {
+        const brackets = data?.demographics?.[ht]?.[sx]?.[ed]?.[rc];
+        if (!Array.isArray(brackets) || brackets.length === 0) return null;
+        const idx = brackets.findIndex(b => b.income >= income);
+        if (idx === -1) return 1;
+        if (idx === 0 && income < brackets[0].income) return 99;
+        return Math.max(1, 100 - brackets[idx].percentile);
+    }
+
+    function getBenchmarkIncome(data, ht, sx, ed, rc, targetPercentile) {
+        const brackets = data?.demographics?.[ht]?.[sx]?.[ed]?.[rc];
+        if (!Array.isArray(brackets)) return 0;
+        const match = brackets.find(b => b.percentile >= targetPercentile);
+        return match ? match.income : (brackets[brackets.length - 1]?.income || 0);
+    }
+
+    function updateIncomeTabs() {
+        els.incomeTypeTabs.forEach(t => t.classList.remove('active'));
+        const active = document.querySelector(`.menu-tab-btn[data-type="${state.incomeType}"]`);
+        if (active) active.classList.add('active');
+
+        if (state.incomeType === 'annual') {
+            els.baseIncomeLabel.textContent = 'Annual Base Salary';
+            els.hoursWrapper.classList.add('hidden-element');
+        } else if (state.incomeType === 'monthly') {
+            els.baseIncomeLabel.textContent = 'Monthly Gross Salary';
+            els.hoursWrapper.classList.add('hidden-element');
+        } else if (state.incomeType === 'hourly') {
+            els.baseIncomeLabel.textContent = 'Hourly Wage';
+            els.hoursWrapper.classList.remove('hidden-element');
+        }
+        els.baseIncome.value = '';
+    }
 
     function calculateHousingMatrix() {
-        if (currentCalculatedHousingMax <= 0) {
-            maxHomePriceValue.innerText = "$0";
+        if (state.housingMax <= 0) {
+            els.maxHomePriceValue.textContent = '$0';
             return;
         }
+        const maxMonthlyPayment = state.housingMax;
+        const annualRate = parseFloat(els.interestRate.value) || 0;
+        const termYears = parseInt(els.loanTerm.value) || 30;
+        const downPct = (parseFloat(els.downPayment.value) || 0) / 100;
+        const loanType = els.loanType.value;
 
-        const maxMonthlyPayment = currentCalculatedHousingMax;
-        const annualInterestRate = parseFloat(interestRateSlider.value);
-        const loanTermYears = parseInt(loanTermSelect.value);
-        const downPaymentPct = parseFloat(downPaymentSlider.value) / 100;
-        const loanType = loanTypeSelect.value;
-
-        const r = annualInterestRate / 100 / 12;
-        const n = loanTermYears * 12;
+        const r = annualRate / 100 / 12;
+        const n = termYears * 12;
 
         let amortizationFactor = 0;
         if (r === 0) {
@@ -138,79 +169,101 @@ document.addEventListener("DOMContentLoaded", function() {
             amortizationFactor = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
         }
 
-        let monthlyPropertyTaxRate = (parseFloat(propertyTaxSlider.value) / 100) / 12;
-        if (vetExemptCheckbox.checked) {
-            monthlyPropertyTaxRate = 0;
-            propertyTaxSlider.disabled = true;
-            propTaxLabel.innerText = "0% (Exempt)";
+        let monthlyPropTaxRate = (parseFloat(els.propertyTax.value) || 0) / 100 / 12;
+        if (els.vetExempt.checked) {
+            monthlyPropTaxRate = 0;
+            els.propertyTax.disabled = true;
+            els.propTaxLabel.textContent = '0% (Exempt)';
         } else {
-            propertyTaxSlider.disabled = false;
-            propTaxLabel.innerText = `${parseFloat(propertyTaxSlider.value).toFixed(1)}%`;
+            els.propertyTax.disabled = false;
+            els.propTaxLabel.textContent = `${parseFloat(els.propertyTax.value).toFixed(1)}%`;
         }
 
-        const monthlyInsuranceRate = (parseFloat(homeInsuranceSlider.value) / 100) / 12;
+        const monthlyInsRate = (parseFloat(els.homeInsurance.value) || 0) / 100 / 12;
 
-        let monthlyPMIRate = 0;
-        if (loanType === 'fha' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.0085 / 12;
-        } else if (loanType === 'conv' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.005 / 12;
+        let monthlyPMI = 0;
+        if (loanType === 'fha' && downPct < 0.20) {
+            monthlyPMI = 0.0085 / 12;
+        } else if (loanType === 'conv' && downPct < 0.20) {
+            monthlyPMI = 0.005 / 12;
         } else if (loanType === 'va') {
-            monthlyPMIRate = 0;
+            monthlyPMI = 0;
         }
 
-        const combinedFactor = ((1 - downPaymentPct) * amortizationFactor) + 
-                               monthlyPropertyTaxRate + 
-                               monthlyInsuranceRate + 
-                               ((1 - downPaymentPct) * monthlyPMIRate);
+        const combinedFactor = ((1 - downPct) * amortizationFactor) +
+                               monthlyPropTaxRate +
+                               monthlyInsRate +
+                               ((1 - downPct) * monthlyPMI);
 
         let maxHomePrice = 0;
         if (combinedFactor > 0) {
             maxHomePrice = maxMonthlyPayment / combinedFactor;
         }
-
-        maxHomePriceValue.innerText = formatCurrency(maxHomePrice);
+        els.maxHomePriceValue.textContent = formatCurrency(maxHomePrice);
+        calculateTargetHomePayment();
     }
 
-    loanTypeSelect.addEventListener("change", function() {
-        if (this.value === 'va') {
-            downPaymentSlider.value = 0;
-        } else if (this.value === 'fha') {
-            downPaymentSlider.value = 3.5;
-        } else if (this.value === 'conv') {
-            downPaymentSlider.value = 20;
-        }
-        downLabel.innerText = `${parseFloat(downPaymentSlider.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
+    function calculateTargetHomePayment() {
+        const price = parseFloat(els.targetHomePrice.value) || 0;
+        els.targetHomePriceDisplay.textContent = formatCurrency(price);
 
-    loanTermSelect.addEventListener("change", calculateHousingMatrix);
-    interestRateSlider.addEventListener("input", function() {
-        rateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
-    downPaymentSlider.addEventListener("input", function() {
-        downLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
-    propertyTaxSlider.addEventListener("input", calculateHousingMatrix);
-    homeInsuranceSlider.addEventListener("input", function() {
-        homeInsLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
-    vetExemptCheckbox.addEventListener("change", calculateHousingMatrix);
+        const annualRate = parseFloat(els.interestRate.value) || 0;
+        const termYears = parseInt(els.loanTerm.value) || 30;
+        const downPct = (parseFloat(els.downPayment.value) || 0) / 100;
+        const loanType = els.loanType.value;
+        const loanAmount = price * (1 - downPct);
+
+        const r = annualRate / 100 / 12;
+        const n = termYears * 12;
+
+        let pmt = 0;
+        if (loanAmount > 0) {
+            if (r === 0) {
+                pmt = loanAmount / n;
+            } else {
+                pmt = loanAmount * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+            }
+        }
+
+        let monthlyPropTax = 0;
+        if (!els.vetExempt.checked) {
+            monthlyPropTax = price * ((parseFloat(els.propertyTax.value) || 0) / 100) / 12;
+        }
+        const monthlyIns = price * ((parseFloat(els.homeInsurance.value) || 0) / 100) / 12;
+
+        let monthlyPMI = 0;
+        if (loanType === 'fha' && downPct < 0.20) {
+            monthlyPMI = loanAmount * 0.0085 / 12;
+        } else if (loanType === 'conv' && downPct < 0.20) {
+            monthlyPMI = loanAmount * 0.005 / 12;
+        }
+
+        const totalMonthly = pmt + monthlyPropTax + monthlyIns + monthlyPMI;
+        els.actualHousingPayment.textContent = formatCurrency(totalMonthly) + '/mo';
+
+        if (totalMonthly > state.housingMax + 0.01) {
+            els.actualHousingPayment.style.color = '#fb7185';
+        } else {
+            els.actualHousingPayment.style.color = '';
+        }
+    }
 
     function calculateAuto() {
-        const transportMax = currentCalculatedTotalGross * 0.10;
-        maxTransport.innerText = formatCurrency(transportMax);
+        const transportMax = state.totalGross * 0.10;
+        els.maxTransport.textContent = formatCurrency(transportMax);
 
-        const autoType = autoTypeSelect.value;
-        const term = parseInt(autoTermSelect.value);
-        const rate = parseFloat(autoRateSlider.value) / 100 / 12;
-        const count = parseInt(autoCountSelect.value);
+        const autoType = els.autoType.value;
+        const term = parseInt(els.autoTerm.value) || 48;
+        const rate = (parseFloat(els.autoRate.value) || 0) / 100 / 12;
+        const count = parseInt(els.autoCount.value) || 1;
+
+        if (count <= 0) {
+            els.maxCarPrice.textContent = '$0';
+            calculateTargetAutoPayment();
+            return;
+        }
 
         const budgetPerCar = transportMax / count;
-
         let maxPrice = 0;
         if (rate === 0) {
             if (autoType === 'buy') {
@@ -226,75 +279,116 @@ document.addEventListener("DOMContentLoaded", function() {
                 maxPrice = pv / 0.45;
             }
         }
-
-        maxCarPrice.innerText = formatCurrency(maxPrice);
+        els.maxCarPrice.textContent = formatCurrency(maxPrice);
+        calculateTargetAutoPayment();
     }
 
-    autoTypeSelect.addEventListener("change", calculateAuto);
-    autoTermSelect.addEventListener("change", calculateAuto);
-    autoCountSelect.addEventListener("change", calculateAuto);
-    autoRateSlider.addEventListener("input", function() {
-        autoRateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateAuto();
-    });
+    function calculateTargetAutoPayment() {
+        const price = parseFloat(els.targetCarPrice.value) || 0;
+        els.targetCarPriceDisplay.textContent = formatCurrency(price);
 
-    function updateLifestyleTracker() {
-        let spent = 0;
-        lifestyleInputs.forEach(input => {
-            spent += parseFloat(input.value) || 0;
-        });
-        const remaining = currentCalculatedWants - spent;
-        remainingWantsValue.innerText = formatCurrency(remaining);
-        if (remaining < 0) {
-            remainingWantsValue.style.color = "#fb7185";
+        const autoType = els.autoType.value;
+        const term = parseInt(els.autoTerm.value) || 48;
+        const rate = (parseFloat(els.autoRate.value) || 0) / 100 / 12;
+        const count = parseInt(els.autoCount.value) || 1;
+        const transportMax = state.totalGross * 0.10;
+        const budgetPerCar = transportMax / count;
+
+        let pmt = 0;
+        if (rate === 0) {
+            pmt = price / term;
         } else {
-            remainingWantsValue.style.color = "";
+            pmt = price * (rate * Math.pow(1 + rate, term)) / (Math.pow(1 + rate, term) - 1);
+        }
+
+        if (autoType === 'lease') {
+            pmt = price * 0.45 / term;
+            if (rate !== 0) {
+                pmt = (price * 0.45) * (rate * Math.pow(1 + rate, term)) / (Math.pow(1 + rate, term) - 1);
+            }
+        }
+
+        els.actualAutoPayment.textContent = formatCurrency(pmt) + '/mo';
+        if (pmt > budgetPerCar + 0.01) {
+            els.actualAutoPayment.style.color = '#fb7185';
+        } else {
+            els.actualAutoPayment.style.color = '';
         }
     }
 
-    lifestyleInputs.forEach(input => {
-        input.addEventListener("input", updateLifestyleTracker);
-    });
-
-    async function calculateGeoArbitrage() {
-        const compareLoc = geoCompareSelect.value;
-        let compareTaxRate = 0.22;
-        
-        try {
-            const res = await fetch(`data/${compareLoc}.json`);
-            const data = await res.json();
-            compareTaxRate = data.tax_rate;
-        } catch (e) {}
-        
-        const taxableMonthlyGross = currentCalculatedTotalGross - currentTaxExempt;
-        const altNet = (taxableMonthlyGross * (1 - compareTaxRate)) + currentTaxExempt;
-        
-        altNetIncome.innerText = formatCurrency(altNet);
-        altMaxHousing.innerText = formatCurrency(currentCalculatedTotalGross * 0.28);
+    function updateLifestyleTracker() {
+        let spent = 0;
+        els.lifestyleInputs.forEach(input => {
+            const v = parseFloat(input.value);
+            if (!isNaN(v) && v > 0) spent += v;
+        });
+        const remaining = state.wants - spent;
+        els.remainingWantsValue.textContent = formatCurrency(remaining);
+        els.remainingWantsValue.style.color = remaining < 0 ? '#fb7185' : '';
     }
 
-    geoCompareSelect.addEventListener("change", calculateGeoArbitrage);
+    async function calculateGeoArbitrage() {
+        const compareLoc = els.geoCompare.value;
+        let compareData = null;
+        try {
+            const res = await fetch(`data/${compareLoc}.json`);
+            if (res.ok) compareData = await res.json();
+        } catch (e) {
+            console.warn('Geo compare fetch failed:', e);
+        }
+
+        const compareTaxRate = compareData?.tax_rate ?? 0.22;
+        const compareHousingMult = compareData?.housing_multiplier ?? 1.0;
+        const currentHousingMult = state.locationData?.housing_multiplier ?? 1.0;
+
+        const taxableMonthlyGross = state.taxableMonthlyGross;
+        const altNet = (taxableMonthlyGross * (1 - compareTaxRate)) + state.taxExempt;
+        els.altNetIncome.textContent = formatCurrency(altNet);
+
+        const equivalentHousing = state.housingMax * (compareHousingMult / currentHousingMult);
+        els.altMaxHousing.textContent = formatCurrency(equivalentHousing);
+
+        const locNames = {
+            national: 'National Average',
+            ny: 'New York, NY',
+            ca: 'San Francisco, CA',
+            tx: 'Austin, TX',
+            il: 'Chicago, IL',
+            fl: 'Miami, FL'
+        };
+        const name = locNames[compareLoc] || compareLoc;
+        els.geoNetLabel.textContent = `Take-Home in ${name}`;
+        els.geoHousingLabel.textContent = `Equiv. Housing in ${name}`;
+
+        const netDiff = altNet - ((taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt);
+        const housingDiff = equivalentHousing - state.housingMax;
+        const diffText = [];
+        if (netDiff > 0) diffText.push(`+${formatCurrency(netDiff)} take-home`);
+        else if (netDiff < 0) diffText.push(`${formatCurrency(netDiff)} take-home`);
+        if (housingDiff > 0) diffText.push(`+${formatCurrency(housingDiff)} housing budget`);
+        else if (housingDiff < 0) diffText.push(`${formatCurrency(housingDiff)} housing budget`);
+        els.geoDiffText.textContent = diffText.length ? diffText.join(' • ') : 'No change in purchasing power.';
+    }
 
     function drawCharts(percentile, needs, wants, savings) {
-        if (bellChartInst) bellChartInst.destroy();
-        if (donutChartInst) donutChartInst.destroy();
+        if (charts.bell) charts.bell.destroy();
+        if (charts.donut) charts.donut.destroy();
 
         const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
         const xValues = [];
-        const yValues =[];
+        const yValues = [];
         for (let i = 0; i <= 100; i += 2) {
             xValues.push(i);
             const y = Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)));
             yValues.push(y);
         }
-
         const pointIndex = xValues.findIndex(x => x >= (100 - percentile));
 
-        bellChartInst = new Chart(bellCtx, {
+        charts.bell = new Chart(bellCtx, {
             type: 'line',
             data: {
                 labels: xValues,
-                datasets:[{
+                datasets: [{
                     label: 'Population Distribution',
                     data: yValues,
                     borderColor: 'rgba(59, 130, 246, 0.5)',
@@ -335,13 +429,13 @@ document.addEventListener("DOMContentLoaded", function() {
         });
 
         const donutCtx = document.getElementById('budgetDonutChart').getContext('2d');
-        donutChartInst = new Chart(donutCtx, {
+        charts.donut = new Chart(donutCtx, {
             type: 'doughnut',
             data: {
                 labels: ['Needs', 'Wants', 'Savings/Debt'],
                 datasets: [{
-                    data:[needs, wants, savings],
-                    backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'],
+                    data: [needs, wants, savings],
+                    backgroundColor: ['#3b82f6', '#0ea5e9', '#38bdf8'],
                     borderWidth: 0,
                     hoverOffset: 4
                 }]
@@ -361,54 +455,54 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function calculateFIRE() {
-        let age = parseInt(ageInput.value) || 25;
-        let portfolio = parseFloat(currentPortfolioInput.value) || 0;
-        let returnRate = parseFloat(marketReturnInput.value) || 7;
-        let inflation = parseFloat(inflationRateInput.value) || 3;
-        let contribution = parseFloat(fireContributionInput.value) || 0;
-        
-        const annualExpenses = (currentCalculatedNeeds + currentCalculatedWants) * 12;
+        const age = parseInt(els.age.value) || 25;
+        let portfolio = parseFloat(els.currentPortfolio.value) || 0;
+        const returnRate = parseFloat(els.marketReturn.value) || 7;
+        const inflation = parseFloat(els.inflationRate.value) || 3;
+        let contribution = parseFloat(els.fireContribution.value) || 0;
+
+        const annualExpenses = (state.needs + state.wants) * 12;
         const fiNumber = annualExpenses * 25;
-        const annualSavings = contribution * 12;
+        const realReturn = (returnRate - inflation) / 100;
 
-        fiNumberValue.innerText = formatCurrency(fiNumber);
+        els.fiNumberValue.textContent = formatCurrency(fiNumber);
 
-        const r = (returnRate - inflation) / 100;
-
-        if (annualSavings <= 0 && portfolio < fiNumber && r <= 0) {
-            fiAgeValue.innerText = "Never";
-            if (fireChartInst) {
-                fireChartInst.destroy();
-                fireChartInst = null;
+        if (contribution <= 0 && portfolio < fiNumber && realReturn <= 0) {
+            els.fiAgeValue.textContent = 'Never';
+            if (charts.fire) {
+                charts.fire.destroy();
+                charts.fire = null;
             }
             return;
         }
 
         let currentAge = age;
-        let ages =[currentAge];
+        let ages = [currentAge];
         let balances = [portfolio];
+        let annualSavings = contribution * 12;
 
         while (portfolio < fiNumber && currentAge < 100) {
-            portfolio = portfolio * (1 + r) + annualSavings;
+            portfolio = portfolio * (1 + realReturn) + annualSavings;
             currentAge++;
             ages.push(currentAge);
             balances.push(portfolio);
+            annualSavings = annualSavings * (1 + inflation / 100);
         }
 
         if (portfolio >= fiNumber) {
-            fiAgeValue.innerText = currentAge;
+            els.fiAgeValue.textContent = currentAge;
         } else {
-            fiAgeValue.innerText = "100+";
+            els.fiAgeValue.textContent = '100+';
         }
 
-        if (fireChartInst) fireChartInst.destroy();
+        if (charts.fire) charts.fire.destroy();
 
         const fireCtx = document.getElementById('fireChart').getContext('2d');
-        fireChartInst = new Chart(fireCtx, {
+        charts.fire = new Chart(fireCtx, {
             type: 'line',
             data: {
                 labels: ages,
-                datasets:[{
+                datasets: [{
                     label: 'Portfolio Balance',
                     data: balances,
                     borderColor: '#34d399',
@@ -429,11 +523,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { 
+                    x: {
                         title: { display: true, text: 'Age', color: '#94a3b8' },
                         grid: { color: 'rgba(255,255,255,0.05)' }
                     },
-                    y: { 
+                    y: {
                         grid: { color: 'rgba(255,255,255,0.05)' },
                         ticks: {
                             callback: function(value) {
@@ -454,140 +548,225 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    fireContributionInput.addEventListener("input", function() {
-        userEditedFIRE = true;
-        calculateFIRE();
-    });
-    currentPortfolioInput.addEventListener("input", calculateFIRE);
-    marketReturnInput.addEventListener("input", calculateFIRE);
-    inflationRateInput.addEventListener("input", calculateFIRE);
+    async function handleCalculate(e) {
+        if (e) e.preventDefault();
+        clearError();
 
-    function getPercentile(data, ht, sx, ed, rc, income) {
-        if (!data || !data.demographics || !data.demographics[ht] || !data.demographics[ht][sx] || !data.demographics[ht][sx][ed] || !data.demographics[ht][sx][ed][rc]) return null;
-        const brackets = data.demographics[ht][sx][ed][rc];
-        const match = brackets.find(b => b.income >= income);
-        return match ? match.percentile : 99;
-    }
+        if (!validateAll()) {
+            showError('Please correct the highlighted fields.');
+            return;
+        }
 
-    calculateBtn.addEventListener("click", async function() {
-        let baseIncomeRaw = parseFloat(baseIncomeInput.value) || 0;
-        let taxExemptMonthly = parseFloat(taxExemptIncomeInput.value) || 0;
-        currentTaxExempt = taxExemptMonthly;
-        let existingDebt = parseFloat(monthlyDebtInput.value) || 0;
-        let hours = parseFloat(hoursPerWeekInput.value) || 40;
-        
-        const location = locationSelect.value;
-        const ht = householdTypeSelect.value;
-        const sx = sexSelect.value;
-        const ed = educationSelect.value;
-        const rc = raceSelect.value;
+        const baseIncomeRaw = parseFloat(els.baseIncome.value) || 0;
+        const taxExemptMonthly = parseFloat(els.taxExemptIncome.value) || 0;
+        const existingDebt = parseFloat(els.monthlyDebt.value) || 0;
+        const hours = parseFloat(els.hoursPerWeek.value) || 40;
+
+        const location = els.location.value;
+        const ht = els.householdType.value;
+        const sx = els.sex.value;
+        const ed = els.education.value;
+        const rc = els.race.value;
 
         let taxableMonthlyGross = 0;
         let annualGross = 0;
 
-        if (currentIncomeType === "annual") {
+        if (state.incomeType === 'annual') {
             taxableMonthlyGross = baseIncomeRaw / 12;
             annualGross = baseIncomeRaw;
-        } else if (currentIncomeType === "monthly") {
+        } else if (state.incomeType === 'monthly') {
             taxableMonthlyGross = baseIncomeRaw;
             annualGross = baseIncomeRaw * 12;
-        } else if (currentIncomeType === "hourly") {
+        } else if (state.incomeType === 'hourly') {
             taxableMonthlyGross = (baseIncomeRaw * hours * 52) / 12;
             annualGross = baseIncomeRaw * hours * 52;
         }
 
-        currentCalculatedTotalGross = taxableMonthlyGross + taxExemptMonthly;
-        
-        let fetchedData = null;
-        try {
-            const response = await fetch(`data/${location}.json`);
-            fetchedData = await response.json();
-        } catch (error) {}
+        state.taxableMonthlyGross = taxableMonthlyGross;
+        state.taxExempt = taxExemptMonthly;
+        state.totalGross = taxableMonthlyGross + taxExemptMonthly;
+        state.annualGross = annualGross;
+        state.location = location;
 
-        currentTaxRate = fetchedData ? fetchedData.tax_rate : 0.22;
-        
-        const netTaxableIncome = taxableMonthlyGross * (1 - currentTaxRate);
+        const fetchedData = await fetchLocationData(location);
+        state.locationData = fetchedData;
+        state.taxRate = fetchedData ? fetchedData.tax_rate : 0.22;
+
+        const netTaxableIncome = taxableMonthlyGross * (1 - state.taxRate);
         const totalNetMonthly = netTaxableIncome + taxExemptMonthly;
-        
+
         let needsRatio = 0.50;
         let wantsRatio = 0.30;
         let savingsRatio = 0.20;
 
-        if (location === "ca" || location === "ny") {
+        if (location === 'ca' || location === 'ny') {
             needsRatio = 0.65;
             wantsRatio = 0.15;
             savingsRatio = 0.20;
-            budgetTitle.innerText = `65/15/20 Budgeting Framework (HCOL Adjusted)`;
-            labelNeeds.innerText = `Needs (65%)`;
-            labelWants.innerText = `Wants (15%)`;
-            labelSavings.innerText = `Savings & Debt (20%)`;
+            els.budgetTitle.textContent = '65/15/20 Budgeting Framework (HCOL Adjusted)';
+            els.labelNeeds.textContent = 'Needs (65%)';
+            els.labelWants.textContent = 'Wants (15%)';
+            els.labelSavings.textContent = 'Savings & Debt (20%)';
         } else {
-            budgetTitle.innerText = `50/30/20 Budgeting Framework`;
-            labelNeeds.innerText = `Needs (50%)`;
-            labelWants.innerText = `Wants (30%)`;
-            labelSavings.innerText = `Savings & Debt (20%)`;
+            els.budgetTitle.textContent = '50/30/20 Budgeting Framework';
+            els.labelNeeds.textContent = 'Needs (50%)';
+            els.labelWants.textContent = 'Wants (30%)';
+            els.labelSavings.textContent = 'Savings & Debt (20%)';
         }
 
-        currentCalculatedNeeds = totalNetMonthly * needsRatio;
-        currentCalculatedWants = totalNetMonthly * wantsRatio;
-        currentCalculatedSavings = totalNetMonthly * savingsRatio;
+        state.needs = totalNetMonthly * needsRatio;
+        state.wants = totalNetMonthly * wantsRatio;
+        state.savings = totalNetMonthly * savingsRatio;
 
-        currentCalculatedHousingMax = currentCalculatedTotalGross * 0.28;
-        const totalDebtMax = currentCalculatedTotalGross * 0.36;
-        const remainingDebtCapacity = Math.max(0, totalDebtMax - currentCalculatedHousingMax - existingDebt);
-        
-        let microP = getPercentile(fetchedData, ht, sx, ed, rc, annualGross);
-        let macroP = getPercentile(fetchedData, 'all', 'all', 'all', 'all', annualGross);
-        let sexP = getPercentile(fetchedData, 'all', sx, 'all', 'all', annualGross);
-        let raceP = getPercentile(fetchedData, 'all', 'all', 'all', rc, annualGross);
-        
-        let fallbackP = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
-        microP = microP || fallbackP;
-        macroP = macroP || fallbackP;
-        sexP = sexP || fallbackP;
-        raceP = raceP || fallbackP;
+        state.housingMax = taxableMonthlyGross * 0.28;
+        const totalDebtMax = taxableMonthlyGross * 0.36;
+        const remainingDebtCapacity = Math.max(0, totalDebtMax - state.housingMax - existingDebt);
 
-        percentileValue.innerText = `Top ${microP}%`;
-        
-        let details = `Overall: Top ${macroP}% National`;
-        if (sx !== 'all') details += ` • Top ${sexP}% of ${sexSelect.options[sexSelect.selectedIndex].text}`;
-        if (rc !== 'all') details += ` • Top ${raceP}% of ${raceSelect.options[raceSelect.selectedIndex].text}`;
-        
-        detailedPercentiles.innerText = details;
+        const microP = getPercentile(fetchedData, ht, sx, ed, rc, annualGross) ?? null;
+        const macroP = getPercentile(fetchedData, 'all', 'all', 'all', 'all', annualGross) ?? null;
+        const sexP = getPercentile(fetchedData, 'all', sx, 'all', 'all', annualGross) ?? null;
+        const raceP = getPercentile(fetchedData, 'all', 'all', 'all', rc, annualGross) ?? null;
 
-        netIncomeValue.innerText = formatCurrency(totalNetMonthly);
-        
-        budgetNeeds.innerText = formatCurrency(currentCalculatedNeeds);
-        budgetWants.innerText = formatCurrency(currentCalculatedWants);
-        budgetSavings.innerText = formatCurrency(currentCalculatedSavings);
+        let fallbackP = null;
+        if (microP === null) {
+            fallbackP = Math.max(1, Math.min(99, 100 - Math.floor(taxableMonthlyGross / 150)));
+        }
+        const finalMicro = microP ?? fallbackP ?? 50;
+        const finalMacro = macroP ?? fallbackP ?? 50;
+        const finalSex = sexP ?? fallbackP ?? 50;
+        const finalRace = raceP ?? fallbackP ?? 50;
+
+        els.percentileValue.textContent = `Top ${finalMicro}%`;
+
+        let details = `Overall: Top ${finalMacro}% National`;
+        if (sx !== 'all') {
+            details += ` \u2022 Top ${finalSex}% of ${els.sex.options[els.sex.selectedIndex].text}`;
+        }
+        if (rc !== 'all') {
+            details += ` \u2022 Top ${finalRace}% of ${els.race.options[els.race.selectedIndex].text}`;
+        }
+        els.detailedPercentiles.textContent = details;
+
+        els.netIncomeValue.textContent = formatCurrency(totalNetMonthly);
+        els.budgetNeeds.textContent = formatCurrency(state.needs);
+        els.budgetWants.textContent = formatCurrency(state.wants);
+        els.budgetSavings.textContent = formatCurrency(state.savings);
 
         if (!userEditedFIRE) {
-            fireContributionInput.value = Math.round(currentCalculatedSavings);
+            els.fireContribution.value = Math.round(state.savings);
         }
 
-        maxHousing.innerText = formatCurrency(currentCalculatedHousingMax);
-        maxTotalDebt.innerText = formatCurrency(totalDebtMax);
-        availableDebtCapacity.innerText = formatCurrency(remainingDebtCapacity);
+        els.maxHousing.textContent = formatCurrency(state.housingMax);
+        els.maxTotalDebt.textContent = formatCurrency(totalDebtMax);
+        els.availableDebtCapacity.textContent = formatCurrency(remainingDebtCapacity);
+
+        // Benchmarks
+        if (fetchedData) {
+            els.benchMedian.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 50));
+            els.benchTop25.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 75));
+            els.benchTop10.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 90));
+            els.benchTop1.textContent = formatCurrency(getBenchmarkIncome(fetchedData, ht, sx, ed, rc, 99));
+        } else {
+            els.benchMedian.textContent = '$0';
+            els.benchTop25.textContent = '$0';
+            els.benchTop10.textContent = '$0';
+            els.benchTop1.textContent = '$0';
+        }
 
         calculateAuto();
         calculateHousingMatrix();
         updateLifestyleTracker();
         calculateGeoArbitrage();
-        drawCharts(microP, currentCalculatedNeeds, currentCalculatedWants, currentCalculatedSavings);
+        drawCharts(finalMicro, state.needs, state.wants, state.savings);
         calculateFIRE();
 
-        setupView.classList.remove("active-view");
-        setupView.classList.add("hidden-view");
-        resultsView.classList.remove("hidden-view");
-        resultsView.classList.add("active-view");
+        els.setupView.classList.remove('active-view');
+        els.setupView.classList.add('hidden-view');
+        els.resultsView.classList.remove('hidden-view');
+        els.resultsView.classList.add('active-view');
         window.scrollTo(0, 0);
-    });
+    }
 
-    backBtn.addEventListener("click", function() {
-        resultsView.classList.remove("active-view");
-        resultsView.classList.add("hidden-view");
-        setupView.classList.remove("hidden-view");
-        setupView.classList.add("active-view");
+    function handleBack() {
+        els.resultsView.classList.remove('active-view');
+        els.resultsView.classList.add('hidden-view');
+        els.setupView.classList.remove('hidden-view');
+        els.setupView.classList.add('active-view');
         window.scrollTo(0, 0);
-    });
+    }
+
+    function bindEvents() {
+        els.setupForm.addEventListener('submit', handleCalculate);
+        els.backBtn.addEventListener('click', handleBack);
+
+        els.incomeTypeTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                state.incomeType = tab.getAttribute('data-type');
+                updateIncomeTabs();
+            });
+        });
+
+        els.loanType.addEventListener('change', function() {
+            if (!userEditedDownPayment) {
+                if (this.value === 'va') els.downPayment.value = 0;
+                else if (this.value === 'fha') els.downPayment.value = 3.5;
+                else if (this.value === 'conv') els.downPayment.value = 20;
+                els.downLabel.textContent = `${parseFloat(els.downPayment.value).toFixed(1)}%`;
+            }
+            calculateHousingMatrix();
+        });
+
+        els.downPayment.addEventListener('input', function() {
+            userEditedDownPayment = true;
+            els.downLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
+            calculateHousingMatrix();
+        });
+
+        els.loanTerm.addEventListener('change', calculateHousingMatrix);
+        els.interestRate.addEventListener('input', function() {
+            els.rateLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
+            calculateHousingMatrix();
+        });
+        els.propertyTax.addEventListener('input', calculateHousingMatrix);
+        els.homeInsurance.addEventListener('input', function() {
+            els.homeInsLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
+            calculateHousingMatrix();
+        });
+        els.vetExempt.addEventListener('change', calculateHousingMatrix);
+
+        els.targetHomePrice.addEventListener('input', calculateTargetHomePayment);
+
+        els.autoType.addEventListener('change', calculateAuto);
+        els.autoTerm.addEventListener('change', calculateAuto);
+        els.autoCount.addEventListener('change', calculateAuto);
+        els.autoRate.addEventListener('input', function() {
+            els.autoRateLabel.textContent = `${parseFloat(this.value).toFixed(1)}%`;
+            calculateAuto();
+        });
+        els.targetCarPrice.addEventListener('input', calculateTargetAutoPayment);
+
+        els.lifestyleInputs.forEach(input => {
+            input.addEventListener('input', updateLifestyleTracker);
+        });
+
+        els.geoCompare.addEventListener('change', calculateGeoArbitrage);
+
+        els.fireContribution.addEventListener('input', function() {
+            userEditedFIRE = true;
+            calculateFIRE();
+        });
+        els.currentPortfolio.addEventListener('input', calculateFIRE);
+        els.marketReturn.addEventListener('input', calculateFIRE);
+        els.inflationRate.addEventListener('input', calculateFIRE);
+
+        // Validation listeners
+        [els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
+         els.age, els.marketReturn, els.inflationRate].forEach(el => {
+            el.addEventListener('input', () => validateNumericInput(el));
+        });
+    }
+
+    cacheElements();
+    bindEvents();
+    updateIncomeTabs();
 });

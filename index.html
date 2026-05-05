@@ -2,12 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;">
 <title>Abyssol | Financial Intelligence</title>
 <link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="vendor/chart.umd.js" defer></script>
 </head>
 <body>
+<noscript>
+    <div class="noscript-banner">JavaScript is required to run Abyssol. Please enable JavaScript in your browser settings.</div>
+</noscript>
+
 <div id="left-color-bar"></div>
 
 <nav>
@@ -25,29 +30,31 @@
         <h1>Financial Intelligence</h1>
         <p class="subtitle">Socioeconomic benchmarking and local affordability metrics.</p>
 
-        <div class="control-panel">
+        <form id="setupForm" class="control-panel" novalidate>
+            <div id="errorBanner" class="error-banner" role="alert" aria-live="assertive"></div>
+
             <div class="module-container active">
                 <div class="module-header">
                     <span>Income Engine</span>
                 </div>
                 <div class="module-content">
-                    <div class="menu-tabs" id="incomeTypeTabs">
-                        <button class="menu-tab-btn active" data-type="annual">Annual</button>
-                        <button class="menu-tab-btn" data-type="monthly">Monthly</button>
-                        <button class="menu-tab-btn" data-type="hourly">Hourly</button>
+                    <div class="menu-tabs" id="incomeTypeTabs" role="tablist">
+                        <button type="button" class="menu-tab-btn active" data-type="annual" role="tab" aria-selected="true">Annual</button>
+                        <button type="button" class="menu-tab-btn" data-type="monthly" role="tab" aria-selected="false">Monthly</button>
+                        <button type="button" class="menu-tab-btn" data-type="hourly" role="tab" aria-selected="false">Hourly</button>
                     </div>
                     
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label id="baseIncomeLabel">Annual Base Salary</label>
+                                <label for="baseIncome" id="baseIncomeLabel">Annual Base Salary</label>
                                 <div class="unit-wrapper icon-prefix">
                                     <span class="prefix">$</span>
-                                    <input type="number" id="baseIncome" class="glass-input" placeholder="0" min="0">
+                                    <input type="number" id="baseIncome" class="glass-input" placeholder="0" min="0" required>
                                 </div>
                             </div>
                             <div class="input-group hidden-element" id="hoursWrapper">
-                                <label>Hours Per Week</label>
+                                <label for="hoursPerWeek">Hours Per Week</label>
                                 <input type="number" id="hoursPerWeek" class="glass-input" placeholder="40" value="40" min="1" max="168">
                             </div>
                         </div>
@@ -56,14 +63,14 @@
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Tax-Exempt Monthly Income</label>
+                                <label for="taxExemptIncome">Tax-Exempt Monthly Income</label>
                                 <div class="unit-wrapper icon-prefix">
                                     <span class="prefix">$</span>
                                     <input type="number" id="taxExemptIncome" class="glass-input" placeholder="0" min="0">
                                 </div>
                             </div>
                             <div class="input-group">
-                                <label>Existing Monthly Debt</label>
+                                <label for="monthlyDebt">Existing Monthly Debt</label>
                                 <div class="unit-wrapper icon-prefix">
                                     <span class="prefix">$</span>
                                     <input type="number" id="monthlyDebt" class="glass-input" placeholder="0" min="0">
@@ -82,11 +89,11 @@
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Age</label>
+                                <label for="age">Age</label>
                                 <input type="number" id="age" class="glass-input" placeholder="25" min="18" max="100" value="25">
                             </div>
                             <div class="input-group">
-                                <label>State / Metro</label>
+                                <label for="location">State / Metro</label>
                                 <select id="location" class="glass-input">
                                     <option value="national">National Average</option>
                                     <option value="ny">New York, NY</option>
@@ -101,11 +108,7 @@
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Household Size</label>
-                                <input type="number" id="householdSize" class="glass-input" placeholder="1" min="1">
-                            </div>
-                            <div class="input-group">
-                                <label>Household Type</label>
+                                <label for="householdType">Household Type</label>
                                 <select id="householdType" class="glass-input">
                                     <option value="all">All Types</option>
                                     <option value="single">Single Earner</option>
@@ -117,7 +120,7 @@
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Sex</label>
+                                <label for="sex">Sex</label>
                                 <select id="sex" class="glass-input">
                                     <option value="all">All</option>
                                     <option value="male">Male</option>
@@ -125,7 +128,7 @@
                                 </select>
                             </div>
                             <div class="input-group">
-                                <label>Education</label>
+                                <label for="education">Education</label>
                                 <select id="education" class="glass-input">
                                     <option value="all">All Levels</option>
                                     <option value="hs">High School</option>
@@ -138,7 +141,7 @@
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Race / Ethnicity</label>
+                                <label for="race">Race / Ethnicity</label>
                                 <select id="race" class="glass-input">
                                     <option value="all">All Races</option>
                                     <option value="white">White</option>
@@ -149,32 +152,32 @@
                             </div>
                         </div>
                     </div>
-                    <button id="calculateBtn" class="primary-btn">Calculate Metrics</button>
+                    <button type="submit" id="calculateBtn" class="primary-btn">Calculate Metrics</button>
                 </div>
             </div>
-        </div>
+        </form>
     </div>
 
     <div id="results-view" class="view-section hidden-view">
-        <button id="backBtn" class="secondary-btn" style="margin-bottom: 20px;">&larr; Reconfigure Profile</button>
+        <button type="button" id="backBtn" class="secondary-btn mb-20">&larr; Reconfigure Profile</button>
         
         <div class="dashboard-grid">
             <div class="dash-card">
                 <div class="gt-label">Socioeconomic Percentile</div>
                 <div class="gt-value" id="percentileValue">Top --%</div>
-                <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;" id="detailedPercentiles">
+                <div class="fs-09 text-center mb-15" id="detailedPercentiles" style="color: var(--text-muted);">
                     Loading detailed metrics...
                 </div>
                 <div class="chart-container">
                     <canvas id="bellCurveChart"></canvas>
                 </div>
-                <div style="margin-top: 25px;">
-                    <div class="gt-label" style="margin-bottom: 10px; font-size: 0.8rem;">Comparative Benchmarks</div>
+                <div class="mt-25">
+                    <div class="gt-label mb-10 fs-08">Comparative Benchmarks</div>
                     <div class="line-items" style="padding: 10px 15px;">
                         <div class="item-row"><span>Top 50% (Median)</span><span id="benchMedian">$0</span></div>
                         <div class="item-row"><span>Top 25%</span><span id="benchTop25">$0</span></div>
                         <div class="item-row"><span>Top 10%</span><span id="benchTop10">$0</span></div>
-                        <div class="item-row" style="border-bottom:none;"><span>Top 1%</span><span id="benchTop1">$0</span></div>
+                        <div class="item-row no-border-bottom"><span>Top 1%</span><span id="benchTop1">$0</span></div>
                     </div>
                 </div>
             </div>
@@ -183,7 +186,7 @@
                 <div class="gt-label">Estimated Net Monthly</div>
                 <div class="gt-value" id="netIncomeValue">$0</div>
                 <div class="geo-arbitrage-box">
-                    <label>Compare against:</label>
+                    <label for="geoCompare">Compare against:</label>
                     <select id="geoCompare" class="glass-input">
                         <option value="tx">Austin, TX</option>
                         <option value="ny">New York, NY</option>
@@ -192,17 +195,17 @@
                         <option value="fl">Miami, FL</option>
                         <option value="national">National Average</option>
                     </select>
-                    <div class="line-items" style="margin-top:15px; padding: 10px 15px;">
+                    <div class="line-items mt-15" style="padding: 10px 15px;">
                         <div class="item-row">
-                            <span id="geoNetLabel" style="font-size: 0.9rem">Take-Home in ...</span>
-                            <span id="altNetIncome" style="font-size: 0.9rem">$0</span>
+                            <span id="geoNetLabel" class="fs-09">Take-Home in ...</span>
+                            <span id="altNetIncome" class="fs-09">$0</span>
                         </div>
-                        <div class="item-row" style="border-bottom:none;">
-                            <span id="geoHousingLabel" style="font-size: 0.9rem">Max Housing in ...</span>
-                            <span id="altMaxHousing" style="font-size: 0.9rem">$0</span>
+                        <div class="item-row no-border-bottom">
+                            <span id="geoHousingLabel" class="fs-09">Max Housing in ...</span>
+                            <span id="altMaxHousing" class="fs-09">$0</span>
                         </div>
                     </div>
-                    <p id="geoDiffText" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;"></p>
+                    <p id="geoDiffText" class="fs-085 mt-15 lh-14" style="color: var(--text-muted);"></p>
                 </div>
             </div>
         </div>
@@ -222,13 +225,13 @@
                             <span id="labelWants">Wants</span>
                             <span id="budgetWants">$0</span>
                         </div>
-                        <div class="item-row" style="border-bottom: none;">
+                        <div class="item-row no-border-bottom">
                             <span id="labelSavings">Savings & Debt</span>
                             <span id="budgetSavings">$0</span>
                         </div>
                     </div>
                 </div>
-                <div style="flex: 1; min-width: 250px;" class="chart-container-donut">
+                <div class="chart-container-donut" style="flex: 1; min-width: 250px;">
                     <canvas id="budgetDonutChart"></canvas>
                 </div>
             </div>
@@ -239,39 +242,39 @@
                 <span>Lifestyle & Discretionary Tracker</span>
             </div>
             <div class="module-content">
-                <div class="gt-label" style="text-align:center; margin-bottom: 5px;">Remaining Discretionary Funds</div>
-                <div class="budget-display" id="remainingWantsValue" style="margin-bottom: 20px;">$0</div>
+                <div class="gt-label text-center mb-5">Remaining Discretionary Funds</div>
+                <div class="budget-display mb-20" id="remainingWantsValue">$0</div>
                 
                 <div class="calc-row">
                     <div class="input-row">
                         <div class="input-group">
-                            <label>Dining & Entertainment</label>
+                            <label for="lifestyleDining">Dining & Entertainment</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
-                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                                <input type="number" id="lifestyleDining" class="glass-input lifestyle-input" placeholder="0" min="0">
                             </div>
                         </div>
                         <div class="input-group">
-                            <label>Pet Care</label>
+                            <label for="lifestylePet">Pet Care</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
-                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                                <input type="number" id="lifestylePet" class="glass-input lifestyle-input" placeholder="0" min="0">
                             </div>
                         </div>
                     </div>
-                    <div class="input-row" style="margin-top: 15px;">
+                    <div class="input-row mt-15">
                         <div class="input-group">
-                            <label>Fitness & Memberships</label>
+                            <label for="lifestyleFitness">Fitness & Memberships</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
-                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                                <input type="number" id="lifestyleFitness" class="glass-input lifestyle-input" placeholder="0" min="0">
                             </div>
                         </div>
                         <div class="input-group">
-                            <label>Travel Fund</label>
+                            <label for="lifestyleTravel">Travel Fund</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
-                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                                <input type="number" id="lifestyleTravel" class="glass-input lifestyle-input" placeholder="0" min="0">
                             </div>
                         </div>
                     </div>
@@ -284,7 +287,7 @@
                 <span>28/36 Housing Rule & Purchase Matrix</span>
             </div>
             <div class="module-content">
-                <div class="line-items" style="margin-bottom: 25px;">
+                <div class="line-items mb-25">
                     <div class="item-row">
                         <span>Max Monthly Housing (28% Gross)</span>
                         <span id="maxHousing">$0</span>
@@ -297,26 +300,26 @@
                         <span>Recommended Max Purchase Price</span>
                         <span id="maxHomePriceValue">$0</span>
                     </div>
-                    <div class="item-row" style="border-bottom: none;">
+                    <div class="item-row no-border-bottom">
                         <span>Available Debt Capacity</span>
                         <span id="availableDebtCapacity">$0</span>
                     </div>
                 </div>
 
                 <div class="slider-container" style="max-width: 100%;">
-                    <div class="gt-label" style="text-align: center; margin-bottom: 10px;">Target Home Purchase Price</div>
+                    <div class="gt-label text-center mb-10">Target Home Purchase Price</div>
                     <div class="budget-display" id="targetHomePriceDisplay">$0</div>
                     <div class="slider-wrapper">
                         <input type="range" id="targetHomePrice" min="50000" max="2000000" step="5000" value="350000">
                     </div>
 
-                    <div class="gt-label" style="text-align: center; margin-top: 25px; margin-bottom: 5px;">Estimated Monthly Payment</div>
-                    <div class="budget-display" id="actualHousingPayment" style="font-size: 2.5rem; transition: color 0.3s;">$0/mo</div>
+                    <div class="gt-label text-center mt-25 mb-5">Estimated Monthly Payment</div>
+                    <div class="budget-display transition-color" id="actualHousingPayment" style="font-size: 2.5rem;">$0/mo</div>
                     
-                    <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
+                    <div class="calc-row mt-25 bg-dark">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Loan Type</label>
+                                <label for="loanType">Loan Type</label>
                                 <select id="loanType" class="glass-input">
                                     <option value="conv">Conventional</option>
                                     <option value="fha">FHA (w/ PMI)</option>
@@ -324,44 +327,44 @@
                                 </select>
                             </div>
                             <div class="input-group">
-                                <label>Loan Term</label>
+                                <label for="loanTerm">Loan Term</label>
                                 <select id="loanTerm" class="glass-input">
                                     <option value="30">30-Year Fixed</option>
                                     <option value="15">15-Year Fixed</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="input-row" style="margin-top: 15px;">
-                            <div class="input-group" style="flex: 1;">
-                                <label>Interest Rate: <span id="rateLabel">6.5%</span></label>
+                        <div class="input-row mt-15">
+                            <div class="input-group flex-1">
+                                <label for="interestRate">Interest Rate: <span id="rateLabel">6.5%</span></label>
                                 <div class="slider-wrapper">
                                     <input type="range" id="interestRate" min="2.0" max="12.0" step="0.1" value="6.5">
                                 </div>
                             </div>
-                            <div class="input-group" style="flex: 1;">
-                                <label>Down Payment: <span id="downLabel">20.0%</span></label>
+                            <div class="input-group flex-1">
+                                <label for="downPayment">Down Payment: <span id="downLabel">20.0%</span></label>
                                 <div class="slider-wrapper">
                                     <input type="range" id="downPayment" min="0" max="50" step="0.5" value="20">
                                 </div>
                             </div>
                         </div>
-                        <div class="input-row" style="margin-top: 15px;">
-                            <div class="input-group" style="flex: 1;">
-                                <label>Property Tax: <span id="propTaxLabel">1.2%</span></label>
+                        <div class="input-row mt-15">
+                            <div class="input-group flex-1">
+                                <label for="propertyTax">Property Tax: <span id="propTaxLabel">1.2%</span></label>
                                 <div class="slider-wrapper">
                                     <input type="range" id="propertyTax" min="0" max="3" step="0.1" value="1.2">
                                 </div>
                             </div>
-                            <div class="input-group" style="flex: 1;">
-                                <label>Home Insurance: <span id="homeInsLabel">0.5%</span></label>
+                            <div class="input-group flex-1">
+                                <label for="homeInsurance">Home Insurance: <span id="homeInsLabel">0.5%</span></label>
                                 <div class="slider-wrapper">
                                     <input type="range" id="homeInsurance" min="0" max="2" step="0.1" value="0.5">
                                 </div>
                             </div>
                         </div>
-                        <div class="input-row" style="margin-top: 15px;">
+                        <div class="input-row mt-15">
                             <div class="input-group">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem;">
+                                <label for="vetExempt" style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem;">
                                     <input type="checkbox" id="vetExempt" style="width:18px; height:18px;">
                                     100% Disabled Veteran (Tax Exempt)
                                 </label>
@@ -377,38 +380,38 @@
                 <span>20/4/10 Auto Financing</span>
             </div>
             <div class="module-content">
-                <div class="line-items" style="margin-bottom: 25px;">
+                <div class="line-items mb-25">
                     <div class="item-row">
                         <span>Max Monthly Transport Costs (10% Gross)</span>
                         <span id="maxTransport">$0</span>
                     </div>
-                    <div class="item-row" style="border-bottom: none;">
+                    <div class="item-row no-border-bottom">
                         <span>Recommended Max Car Price</span>
                         <span id="maxCarPrice">$0</span>
                     </div>
                 </div>
 
                 <div class="slider-container" style="max-width: 100%;">
-                    <div class="gt-label" style="text-align: center; margin-bottom: 10px;">Target Vehicle Price</div>
+                    <div class="gt-label text-center mb-10">Target Vehicle Price</div>
                     <div class="budget-display" id="targetCarPriceDisplay">$0</div>
                     <div class="slider-wrapper">
                         <input type="range" id="targetCarPrice" min="5000" max="150000" step="1000" value="25000">
                     </div>
 
-                    <div class="gt-label" style="text-align: center; margin-top: 25px; margin-bottom: 5px;">Estimated Monthly Payment</div>
-                    <div class="budget-display" id="actualAutoPayment" style="font-size: 2.5rem; transition: color 0.3s;">$0/mo</div>
+                    <div class="gt-label text-center mt-25 mb-5">Estimated Monthly Payment</div>
+                    <div class="budget-display transition-color" id="actualAutoPayment" style="font-size: 2.5rem;">$0/mo</div>
                     
-                    <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
+                    <div class="calc-row mt-25 bg-dark">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Financing Type</label>
+                                <label for="autoType">Financing Type</label>
                                 <select id="autoType" class="glass-input">
                                     <option value="buy">Buy (Finance)</option>
                                     <option value="lease">Lease</option>
                                 </select>
                             </div>
                             <div class="input-group">
-                                <label>Loan Term</label>
+                                <label for="autoTerm">Loan Term</label>
                                 <select id="autoTerm" class="glass-input">
                                     <option value="36">36 Months</option>
                                     <option value="48" selected>48 Months</option>
@@ -417,15 +420,15 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="input-row" style="margin-top: 15px;">
-                            <div class="input-group" style="flex: 1;">
-                                <label>Interest Rate: <span id="autoRateLabel">7.0%</span></label>
+                        <div class="input-row mt-15">
+                            <div class="input-group flex-1">
+                                <label for="autoRate">Interest Rate: <span id="autoRateLabel">7.0%</span></label>
                                 <div class="slider-wrapper">
                                     <input type="range" id="autoRate" min="0.0" max="15.0" step="0.1" value="7.0">
                                 </div>
                             </div>
-                            <div class="input-group" style="flex: 1;">
-                                <label>Number of Vehicles</label>
+                            <div class="input-group flex-1">
+                                <label for="autoCount">Number of Vehicles</label>
                                 <select id="autoCount" class="glass-input">
                                     <option value="1">1 Vehicle</option>
                                     <option value="2">2 Vehicles</option>
@@ -442,13 +445,13 @@
                 <span>FIRE Projector</span>
             </div>
             <div class="module-content">
-                <div class="dashboard-grid" style="grid-template-columns: 1fr; margin-bottom: 20px;">
-                    <div class="line-items" style="background: transparent; border: none; padding: 0;">
+                <div class="dashboard-grid grid-1fr mb-20">
+                    <div class="line-items bg-transparent">
                         <div class="item-row">
                             <span>Projected FI Number</span>
                             <span id="fiNumberValue">$0</span>
                         </div>
-                        <div class="item-row" style="border-bottom: none;">
+                        <div class="item-row no-border-bottom">
                             <span>Financial Independence Age</span>
                             <span id="fiAgeValue">--</span>
                         </div>
@@ -458,39 +461,39 @@
                 <div class="calc-row">
                     <div class="input-row">
                         <div class="input-group">
-                            <label>Monthly Contribution</label>
+                            <label for="fireContribution">Monthly Contribution</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
-                                <input type="number" id="fireContribution" class="glass-input" placeholder="0" value="0">
+                                <input type="number" id="fireContribution" class="glass-input" placeholder="0" value="0" min="0">
                             </div>
                         </div>
                         <div class="input-group">
-                            <label>Current Portfolio Balance</label>
+                            <label for="currentPortfolio">Current Portfolio Balance</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
-                                <input type="number" id="currentPortfolio" class="glass-input" placeholder="0" value="0">
+                                <input type="number" id="currentPortfolio" class="glass-input" placeholder="0" value="0" min="0">
                             </div>
                         </div>
                     </div>
-                    <div class="input-row" style="margin-top: 15px;">
+                    <div class="input-row mt-15">
                         <div class="input-group">
-                            <label>Expected Market Return</label>
+                            <label for="marketReturn">Expected Market Return</label>
                             <div class="unit-wrapper">
-                                <input type="number" id="marketReturn" class="glass-input" placeholder="7" value="7">
+                                <input type="number" id="marketReturn" class="glass-input" placeholder="7" value="7" min="0">
                                 <span class="unit">%</span>
                             </div>
                         </div>
                         <div class="input-group">
-                            <label>Expected Inflation</label>
+                            <label for="inflationRate">Expected Inflation</label>
                             <div class="unit-wrapper">
-                                <input type="number" id="inflationRate" class="glass-input" placeholder="3" value="3">
+                                <input type="number" id="inflationRate" class="glass-input" placeholder="3" value="3" min="0">
                                 <span class="unit">%</span>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="chart-container" style="height: 300px; margin-top: 20px;">
+                <div class="chart-container chart-h-300 mt-20">
                     <canvas id="fireChart"></canvas>
                 </div>
             </div>

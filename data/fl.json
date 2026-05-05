@@ -1,8 +1,8 @@
 {
-  "location": "ny",
-  "tax_rate": 0.28,
-  "housing_multiplier": 1.45,
-  "col_multiplier": 1.4,
+  "location": "fl",
+  "tax_rate": 0.18,
+  "housing_multiplier": 0.9,
+  "col_multiplier": 0.92,
   "demographics": {
     "all": {
       "all": {

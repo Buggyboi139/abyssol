@@ -14,7 +14,6 @@
     box-sizing: border-box; 
     margin: 0; 
     padding: 0; 
-    -webkit-tap-highlight-color: transparent; 
 }
 
 html, body { 
@@ -33,7 +32,6 @@ body {
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    overscroll-behavior-y: none;
 }
 
 input, textarea, [contenteditable] {
@@ -50,14 +48,12 @@ body::before {
     content: '';
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    width: 100%; height: 100%;
     background-image: radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0, transparent 40%), 
                       radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.1) 0, transparent 40%), 
                       radial-gradient(at 50% 100%, rgba(96, 165, 250, 0.05) 0, transparent 50%);
     background-repeat: no-repeat;
     background-size: cover;
     z-index: -10;
-    will-change: background-image;
 }
 
 input[type="text"], 
@@ -69,7 +65,7 @@ input[type="password"],
 select, 
 textarea, 
 .glass-input { 
-    font-size: 16px !important; 
+    font-size: 16px; 
 }
 
 select option {
@@ -83,6 +79,28 @@ select option {
 
 .text-danger {
     color: #fb7185 !important;
+}
+
+.noscript-banner {
+    background: #7f1d1d;
+    color: #fecaca;
+    padding: 16px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.error-banner {
+    background: rgba(127, 29, 29, 0.6);
+    color: #fecaca;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    font-weight: 600;
+    display: none;
+}
+
+.error-banner.visible {
+    display: block;
 }
 
 #left-color-bar { 
@@ -180,6 +198,7 @@ input[type=number] { -moz-appearance: textfield; }
 .glass-input { position: relative; z-index: 10; background: linear-gradient(145deg, rgba(14, 165, 233, 0.03) 0%, rgba(15, 23, 42, 0.3) 100%); border: 1px solid var(--border-highlight); color: var(--text-main); padding: 14px 15px; border-radius: 10px; outline: none; transition: 0.3s; width: 100%; box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); box-sizing: border-box; }
 .glass-input:focus { border-color: #38bdf8; background: linear-gradient(145deg, rgba(14, 165, 233, 0.1) 0%, rgba(15, 23, 42, 0.5) 100%); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); }
 .glass-input::placeholder { color: rgba(255, 255, 255, 0.5); opacity: 1; }
+.glass-input.invalid { border-color: #fb7185; box-shadow: 0 0 10px rgba(251, 113, 133, 0.3); }
 
 .unit-wrapper { position: relative; display: flex; align-items: center; flex: 1; min-width: 100px; width: 100%; box-sizing: border-box; }
 .unit-wrapper input { padding-right: 35px; color: #ffffff; font-weight: 700; width: 100%; }
@@ -212,7 +231,39 @@ input[type=number] { -moz-appearance: textfield; }
 .footer-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 10px; }
 .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: color 0.2s; font-weight: 600; }
 
+/* Utility classes extracted from inline styles */
+.text-center { text-align: center; }
+.mb-5 { margin-bottom: 5px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-15 { margin-bottom: 15px; }
+.mb-20 { margin-bottom: 20px; }
+.mb-25 { margin-bottom: 25px; }
+.mt-15 { margin-top: 15px; }
+.mt-20 { margin-top: 20px; }
+.mt-25 { margin-top: 25px; }
+.fs-08 { font-size: 0.8rem; }
+.fs-085 { font-size: 0.85rem; }
+.fs-09 { font-size: 0.9rem; }
+.lh-14 { line-height: 1.4; }
+.no-border-bottom { border-bottom: none; }
+.bg-dark { background: rgba(0,0,0,0.2); }
+.bg-transparent { background: transparent; border: none; padding: 0; }
+.flex-1 { flex: 1; }
+.grid-1fr { grid-template-columns: 1fr; }
+.chart-h-300 { height: 300px; }
+.transition-color { transition: color 0.3s; }
+.pointer-none { pointer-events: none; }
+
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .view-section { transition: none; }
+}
 
 @media (max-width: 768px) { 
     body { padding-left: 0; padding-top: 4px; }

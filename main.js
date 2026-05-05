@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", function() {
             'baseIncome','baseIncomeLabel','hoursWrapper','hoursPerWeek','taxExemptIncome',
             'monthlyDebt','location','age','householdType','sex','education','race',
             'percentileValue','detailedPercentiles','netIncomeValue',
+            'grossMonthlyValue','netMonthlyValue','totalAnnualValue',
             'budgetTitle','labelNeeds','labelWants','labelSavings',
             'budgetNeeds','budgetWants','budgetSavings',
             'remainingWantsValue','maxHousing','maxTotalDebt','availableDebtCapacity',
@@ -436,7 +437,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'doughnut',
             data: {
                 labels:['Needs', 'Wants', 'Savings/Debt'],
-                datasets: [{
+                datasets:[{
                     data: [needs, wants, savings],
                     backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'],
                     borderWidth: 0,
@@ -591,6 +592,8 @@ document.addEventListener("DOMContentLoaded", function() {
         state.annualGross = annualGross;
         state.location = location;
 
+        const totalAnnualEquivalent = annualGross + (taxExemptMonthly * 12);
+
         const fetchedData = await fetchLocationData(location);
         state.locationData = fetchedData;
         state.taxRate = fetchedData ? fetchedData.tax_rate : 0.22;
@@ -625,14 +628,14 @@ document.addEventListener("DOMContentLoaded", function() {
         const totalDebtMax = taxableMonthlyGross * 0.36;
         const remainingDebtCapacity = Math.max(0, totalDebtMax - state.housingMax - existingDebt);
 
-        const microP = getPercentile(fetchedData, ht, sx, ed, rc, annualGross) ?? null;
-        const macroP = getPercentile(fetchedData, 'all', 'all', 'all', 'all', annualGross) ?? null;
-        const sexP = getPercentile(fetchedData, 'all', sx, 'all', 'all', annualGross) ?? null;
-        const raceP = getPercentile(fetchedData, 'all', 'all', 'all', rc, annualGross) ?? null;
+        const microP = getPercentile(fetchedData, ht, sx, ed, rc, totalAnnualEquivalent) ?? null;
+        const macroP = getPercentile(fetchedData, 'all', 'all', 'all', 'all', totalAnnualEquivalent) ?? null;
+        const sexP = getPercentile(fetchedData, 'all', sx, 'all', 'all', totalAnnualEquivalent) ?? null;
+        const raceP = getPercentile(fetchedData, 'all', 'all', 'all', rc, totalAnnualEquivalent) ?? null;
 
         let fallbackP = null;
         if (microP === null) {
-            fallbackP = Math.max(1, Math.min(99, 100 - Math.floor(taxableMonthlyGross / 150)));
+            fallbackP = Math.max(1, Math.min(99, 100 - Math.floor(totalAnnualEquivalent / 150)));
         }
         const finalMicro = microP ?? fallbackP ?? 50;
         const finalMacro = macroP ?? fallbackP ?? 50;
@@ -651,6 +654,10 @@ document.addEventListener("DOMContentLoaded", function() {
         els.detailedPercentiles.textContent = details;
 
         els.netIncomeValue.textContent = formatCurrency(totalNetMonthly);
+        els.grossMonthlyValue.textContent = formatCurrency(state.totalGross);
+        els.netMonthlyValue.textContent = formatCurrency(totalNetMonthly);
+        els.totalAnnualValue.textContent = formatCurrency(totalAnnualEquivalent);
+
         els.budgetNeeds.textContent = formatCurrency(state.needs);
         els.budgetWants.textContent = formatCurrency(state.wants);
         els.budgetSavings.textContent = formatCurrency(state.savings);

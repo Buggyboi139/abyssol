@@ -1,25 +1,30 @@
 import json
 import os
-import random
 
 locations =['national', 'ny', 'ca', 'tx', 'il', 'fl']
 household_types = ['all', 'single', 'dual']
 sexes = ['all', 'male', 'female']
 educations =['all', 'hs', 'bachelors', 'masters']
-races = ['all', 'white', 'black', 'asian', 'hispanic']
+races =['all', 'white', 'black', 'asian', 'hispanic']
 
 os.makedirs('data', exist_ok=True)
 
-def generate_brackets(base_income, increment_range):
+def generate_brackets(base_income):
     brackets =[]
-    income = base_income
     for percentile in range(1, 100):
-        brackets.append({"income": income, "percentile": percentile})
-        income += random.randint(*increment_range)
+        income = base_income * (1.045 ** percentile)
+        brackets.append({"income": round(income, 2), "percentile": percentile})
     return brackets
 
 for loc in locations:
-    tax_rate = 0.22 if loc == 'national' else round(random.uniform(0.18, 0.28), 2)
+    if loc == 'national':
+        tax_rate = 0.22
+    elif loc in ['ny', 'ca']:
+        tax_rate = 0.28
+    elif loc in ['tx', 'fl']:
+        tax_rate = 0.18
+    else:
+        tax_rate = 0.24
     
     data = {
         "location": loc,
@@ -34,38 +39,31 @@ for loc in locations:
             for ed in educations:
                 data["demographics"][ht][sx][ed] = {}
                 for rc in races:
-                    base_income = 1000
-                    increment_min, increment_max = 100, 300
+                    base_income = 12000
                     
                     if ht == 'dual':
-                        base_income += 2000
-                        increment_min += 50
-                        increment_max += 150
+                        base_income += 15000
                     elif ht == 'single':
-                        base_income -= 200
+                        base_income -= 2000
                         
                     if ed == 'bachelors':
-                        base_income += 1000
-                        increment_min += 50
-                        increment_max += 100
+                        base_income += 8000
                     elif ed == 'masters':
-                        base_income += 2000
-                        increment_min += 100
-                        increment_max += 200
+                        base_income += 14000
                     elif ed == 'hs':
-                        base_income -= 300
+                        base_income -= 3000
                         
                     if sx == 'male':
-                        base_income += 300
+                        base_income += 2500
                     elif sx == 'female':
-                        base_income -= 200
+                        base_income -= 2000
                         
                     if rc == 'white' or rc == 'asian':
-                        base_income += 200
+                        base_income += 2000
                     elif rc == 'black' or rc == 'hispanic':
-                        base_income -= 100
+                        base_income -= 1500
                     
-                    data["demographics"][ht][sx][ed][rc] = generate_brackets(base_income, (increment_min, increment_max))
+                    data["demographics"][ht][sx][ed][rc] = generate_brackets(base_income)
         
     with open(f'data/{loc}.json', 'w') as f:
         json.dump(data, f, indent=4)

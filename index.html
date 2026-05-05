@@ -244,45 +244,180 @@
 
         <div class="module-container active">
             <div class="module-header">
-                <span>Lifestyle & Discretionary Tracker</span>
+                <span>Cash Flow & Expense Engine</span>
             </div>
             <div class="module-content">
-                <div class="gt-label text-center mb-5">Remaining Discretionary Funds</div>
-                <div class="budget-display mb-20" id="remainingWantsValue">$0</div>
+                <div class="dashboard-grid grid-1fr mb-20">
+                    <div class="line-items bg-transparent">
+                        <div class="item-row">
+                            <span>Total Monthly Net Income</span>
+                            <span id="cashFlowNetIncome">$0</span>
+                        </div>
+                        <div class="item-row">
+                            <span>Total Tracked Expenses</span>
+                            <span id="cashFlowTotalExpenses">$0</span>
+                        </div>
+                        <div class="item-row no-border-bottom">
+                            <span>Remaining Free Cash Flow</span>
+                            <span id="cashFlowRemaining" style="font-size: 1.5rem; color: #34d399;">$0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <details class="expense-category" open>
+                    <summary class="category-header">
+                        Housing & Utilities <span class="category-total" id="catTotalHousing">$0</span>
+                    </summary>
+                    <div class="category-body">
+                        <div class="calc-row">
+                            <div class="input-row">
+                                <div class="input-group">
+                                    <label>Mortgage / Rent (Auto-Synced)</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" id="expHousingPrimary" class="glass-input expense-input sync-housing" readonly>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>Electricity & Gas</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="input-row mt-15">
+                                <div class="input-group">
+                                    <label>Internet & Streaming</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>Water & Trash</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="housing">+ Add Custom Expense</button>
+                    </div>
+                </details>
+
+                <details class="expense-category">
+                    <summary class="category-header">
+                        Transportation <span class="category-total" id="catTotalTransport">$0</span>
+                    </summary>
+                    <div class="category-body">
+                        <div class="calc-row">
+                            <div class="input-row">
+                                <div class="input-group">
+                                    <label>Auto Loan / Lease (Auto-Synced)</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" id="expAutoPrimary" class="glass-input expense-input sync-auto" readonly>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>Fuel / Charging</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="transport">+ Add Custom Expense</button>
+                    </div>
+                </details>
+
+                <details class="expense-category">
+                    <summary class="category-header">
+                        Food & Dining <span class="category-total" id="catTotalFood">$0</span>
+                    </summary>
+                    <div class="category-body">
+                        <div class="calc-row">
+                            <div class="input-row">
+                                <div class="input-group">
+                                    <label>Groceries</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>Restaurants & Takeout</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="food">+ Add Custom Expense</button>
+                    </div>
+                </details>
+
+                <details class="expense-category">
+                    <summary class="category-header">
+                        Insurance & Healthcare <span class="category-total" id="catTotalInsurance">$0</span>
+                    </summary>
+                    <div class="category-body">
+                        <div class="calc-row">
+                            <div class="input-row">
+                                <div class="input-group">
+                                    <label>Health Insurance</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>Out of Pocket & Pharmacy</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="insurance">+ Add Custom Expense</button>
+                    </div>
+                </details>
+
+                <details class="expense-category">
+                    <summary class="category-header">
+                        Lifestyle & Personal <span class="category-total" id="catTotalLifestyle">$0</span>
+                    </summary>
+                    <div class="category-body">
+                        <div class="calc-row">
+                            <div class="input-row">
+                                <div class="input-group">
+                                    <label>Fitness & Memberships</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label>Pet Care</label>
+                                    <div class="unit-wrapper icon-prefix">
+                                        <span class="prefix">$</span>
+                                        <input type="number" class="glass-input expense-input" placeholder="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="secondary-btn btn-small add-custom-btn" data-category="lifestyle">+ Add Custom Expense</button>
+                    </div>
+                </details>
                 
-                <div class="calc-row">
-                    <div class="input-row">
-                        <div class="input-group">
-                            <label for="lifestyleDining">Dining & Entertainment</label>
-                            <div class="unit-wrapper icon-prefix">
-                                <span class="prefix">$</span>
-                                <input type="number" id="lifestyleDining" class="glass-input lifestyle-input" placeholder="0" min="0">
-                            </div>
-                        </div>
-                        <div class="input-group">
-                            <label for="lifestylePet">Pet Care</label>
-                            <div class="unit-wrapper icon-prefix">
-                                <span class="prefix">$</span>
-                                <input type="number" id="lifestylePet" class="glass-input lifestyle-input" placeholder="0" min="0">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="input-row mt-15">
-                        <div class="input-group">
-                            <label for="lifestyleFitness">Fitness & Memberships</label>
-                            <div class="unit-wrapper icon-prefix">
-                                <span class="prefix">$</span>
-                                <input type="number" id="lifestyleFitness" class="glass-input lifestyle-input" placeholder="0" min="0">
-                            </div>
-                        </div>
-                        <div class="input-group">
-                            <label for="lifestyleTravel">Travel Fund</label>
-                            <div class="unit-wrapper icon-prefix">
-                                <span class="prefix">$</span>
-                                <input type="number" id="lifestyleTravel" class="glass-input lifestyle-input" placeholder="0" min="0">
-                            </div>
-                        </div>
-                    </div>
+                <div class="ai-suggestion-box mt-25 hidden-element" id="cashFlowInsights">
+                    <div class="gt-label mb-10">Intelligence Routing Suggestion</div>
+                    <p id="routingSuggestionText" class="fs-09 lh-14"></p>
                 </div>
             </div>
         </div>

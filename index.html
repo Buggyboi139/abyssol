@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Abyssol | Financial Intelligence</title>
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div id="left-color-bar"></div>
@@ -55,7 +56,7 @@
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Tax-Exempt Monthly Income (VA, SSDI, Pension)</label>
+                                <label>Tax-Exempt Monthly Income</label>
                                 <div class="unit-wrapper icon-prefix">
                                     <span class="prefix">$</span>
                                     <input type="number" id="taxExemptIncome" class="glass-input" placeholder="0" min="0">
@@ -82,7 +83,7 @@
                         <div class="input-row">
                             <div class="input-group">
                                 <label>Age</label>
-                                <input type="number" id="age" class="glass-input" placeholder="25" min="18" max="100">
+                                <input type="number" id="age" class="glass-input" placeholder="25" min="18" max="100" value="25">
                             </div>
                             <div class="input-group">
                                 <label>State / Metro</label>
@@ -147,13 +148,35 @@
             <div class="dash-card">
                 <div class="gt-label">Socioeconomic Percentile</div>
                 <div class="gt-value" id="percentileValue">Top --%</div>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">Compared to your selected demographic and geographic peers.</p>
+                <div class="chart-container">
+                    <canvas id="bellCurveChart"></canvas>
+                </div>
             </div>
             
             <div class="dash-card">
                 <div class="gt-label">Estimated Net Monthly</div>
                 <div class="gt-value" id="netIncomeValue">$0</div>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">After taxes. Tax-exempt income included intact.</p>
+                <div class="geo-arbitrage-box">
+                    <label>Compare against:</label>
+                    <select id="geoCompare" class="glass-input">
+                        <option value="tx">Austin, TX</option>
+                        <option value="ny">New York, NY</option>
+                        <option value="ca">San Francisco, CA</option>
+                        <option value="il">Chicago, IL</option>
+                        <option value="fl">Miami, FL</option>
+                        <option value="national">National Average</option>
+                    </select>
+                    <div class="line-items" style="margin-top:15px; padding: 10px;">
+                        <div class="item-row">
+                            <span style="font-size: 0.9rem">Alt. Net Income</span>
+                            <span id="altNetIncome" style="font-size: 0.9rem">$0</span>
+                        </div>
+                        <div class="item-row" style="border-bottom:none;">
+                            <span style="font-size: 0.9rem">Alt. Max Housing</span>
+                            <span id="altMaxHousing" style="font-size: 0.9rem">$0</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -161,19 +184,69 @@
             <div class="module-header">
                 <span id="budgetTitle">Budgeting Framework</span>
             </div>
+            <div class="module-content" style="display: flex; flex-wrap: wrap; gap: 30px;">
+                <div style="flex: 1; min-width: 250px;">
+                    <div class="line-items">
+                        <div class="item-row">
+                            <span id="labelNeeds">Needs</span>
+                            <span id="budgetNeeds">$0</span>
+                        </div>
+                        <div class="item-row">
+                            <span id="labelWants">Wants</span>
+                            <span id="budgetWants">$0</span>
+                        </div>
+                        <div class="item-row" style="border-bottom: none;">
+                            <span id="labelSavings">Savings & Debt</span>
+                            <span id="budgetSavings">$0</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 250px;" class="chart-container-donut">
+                    <canvas id="budgetDonutChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="module-container active">
+            <div class="module-header">
+                <span>Lifestyle & Discretionary Tracker</span>
+            </div>
             <div class="module-content">
-                <div class="line-items">
-                    <div class="item-row">
-                        <span id="labelNeeds">Needs</span>
-                        <span id="budgetNeeds">$0</span>
+                <div class="gt-label" style="text-align:center; margin-bottom: 5px;">Remaining Discretionary Funds</div>
+                <div class="budget-display" id="remainingWantsValue" style="margin-bottom: 20px;">$0</div>
+                
+                <div class="calc-row">
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label>Dining & Entertainment</label>
+                            <div class="unit-wrapper icon-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Pet Care</label>
+                            <div class="unit-wrapper icon-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                            </div>
+                        </div>
                     </div>
-                    <div class="item-row">
-                        <span id="labelWants">Wants</span>
-                        <span id="budgetWants">$0</span>
-                    </div>
-                    <div class="item-row" style="border-bottom: none;">
-                        <span id="labelSavings">Savings & Debt</span>
-                        <span id="budgetSavings">$0</span>
+                    <div class="input-row" style="margin-top: 15px;">
+                        <div class="input-group">
+                            <label>Fitness & Memberships</label>
+                            <div class="unit-wrapper icon-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Travel Fund</label>
+                            <div class="unit-wrapper icon-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" class="glass-input lifestyle-input" placeholder="0">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -236,6 +309,49 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="module-container active">
+            <div class="module-header">
+                <span>FIRE Projector</span>
+            </div>
+            <div class="module-content">
+                <div class="dashboard-grid" style="grid-template-columns: 1fr; margin-bottom: 20px;">
+                    <div class="line-items" style="background: transparent; border: none; padding: 0;">
+                        <div class="item-row">
+                            <span>Projected FI Number</span>
+                            <span id="fiNumberValue">$0</span>
+                        </div>
+                        <div class="item-row" style="border-bottom: none;">
+                            <span>Financial Independence Age</span>
+                            <span id="fiAgeValue">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="calc-row">
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label>Current Portfolio Balance</label>
+                            <div class="unit-wrapper icon-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" id="currentPortfolio" class="glass-input" placeholder="0" value="0">
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Expected Market Return</label>
+                            <div class="unit-wrapper">
+                                <input type="number" id="marketReturn" class="glass-input" placeholder="7" value="7">
+                                <span class="unit">%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container" style="height: 300px; margin-top: 20px;">
+                    <canvas id="fireChart"></canvas>
                 </div>
             </div>
         </div>

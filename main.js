@@ -30,8 +30,8 @@ document.addEventListener("DOMContentLoaded", function() {
     const els = {};
 
     function cacheElements() {
-        const ids =[
-            'calculateBtn','backBtn','setupForm','setup-view','results-view','errorBanner',
+        const ids = [
+            'calculateBtn','setupForm','welcome-splash','dashboardWorkspace','errorBanner',
             'baseIncome','baseIncomeLabel','hoursWrapper','hoursPerWeek','taxExemptIncome',
             'monthlyDebt','location','age','householdType','sex','education','race',
             'percentileValue','detailedPercentiles','netIncomeValue',
@@ -55,6 +55,8 @@ document.addEventListener("DOMContentLoaded", function() {
         els.incomeTypeTabs = document.querySelectorAll('.menu-tab-btn');
         els.expenseInputs = document.querySelectorAll('.expense-input');
         els.addCustomBtns = document.querySelectorAll('.add-custom-btn');
+        els.tabLinks = document.querySelectorAll('.tab-link');
+        els.tabPanes = document.querySelectorAll('.tab-pane');
     }
 
     function formatCurrency(amount) {
@@ -198,9 +200,9 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const combinedFactor = ((1 - downPct) * amortizationFactor) +
-                               monthlyPropTaxRate +
-                               monthlyInsRate +
-                               ((1 - downPct) * monthlyPMI);
+            monthlyPropTaxRate +
+            monthlyInsRate +
+            ((1 - downPct) * monthlyPMI);
 
         let maxHomePrice = 0;
         if (combinedFactor > 0) {
@@ -373,9 +375,7 @@ document.addEventListener("DOMContentLoaded", function() {
         try {
             const res = await fetch(`data/${compareLoc}.json`);
             if (res.ok) compareData = await res.json();
-        } catch (e) {
-            
-        }
+        } catch (e) {}
 
         const compareTaxRate = compareData?.tax_rate ?? 0.22;
         const compareHousingMult = compareData?.housing_multiplier ?? 1.0;
@@ -402,7 +402,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const netDiff = altNet - ((taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt);
         const housingDiff = equivalentHousing - state.housingMax;
-        const diffText =[];
+        const diffText = [];
         if (netDiff > 0) diffText.push(`+${formatCurrency(netDiff)} take-home`);
         else if (netDiff < 0) diffText.push(`${formatCurrency(netDiff)} take-home`);
         if (housingDiff > 0) diffText.push(`+${formatCurrency(housingDiff)} housing budget`);
@@ -415,8 +415,8 @@ document.addEventListener("DOMContentLoaded", function() {
         if (charts.donut) charts.donut.destroy();
 
         const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
-        const xValues =[];
-        const yValues =[];
+        const xValues = [];
+        const yValues = [];
         for (let i = 0; i <= 100; i += 2) {
             xValues.push(i);
             const y = Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)));
@@ -428,7 +428,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'line',
             data: {
                 labels: xValues,
-                datasets:[{
+                datasets: [{
                     label: 'Population Distribution',
                     data: yValues,
                     borderColor: 'rgba(59, 130, 246, 0.5)',
@@ -472,10 +472,10 @@ document.addEventListener("DOMContentLoaded", function() {
         charts.donut = new Chart(donutCtx, {
             type: 'doughnut',
             data: {
-                labels:['Needs', 'Wants', 'Savings/Debt'],
-                datasets:[{
+                labels: ['Needs', 'Wants', 'Savings/Debt'],
+                datasets: [{
                     data: [needs, wants, savings],
-                    backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'],
+                    backgroundColor: ['#3b82f6', '#0ea5e9', '#38bdf8'],
                     borderWidth: 0,
                     hoverOffset: 4
                 }]
@@ -542,7 +542,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'line',
             data: {
                 labels: ages,
-                datasets:[{
+                datasets: [{
                     label: 'Portfolio Balance',
                     data: balances,
                     borderColor: '#34d399',
@@ -645,7 +645,7 @@ document.addEventListener("DOMContentLoaded", function() {
             needsRatio = 0.65;
             wantsRatio = 0.15;
             savingsRatio = 0.20;
-            els.budgetTitle.textContent = '65/15/20 Budgeting Framework (HCOL Adjusted)';
+            els.budgetTitle.textContent = '65/15/20 Budgeting (HCOL)';
             els.labelNeeds.textContent = 'Needs (65%)';
             els.labelWants.textContent = 'Wants (15%)';
             els.labelSavings.textContent = 'Savings & Debt (20%)';
@@ -725,24 +725,32 @@ document.addEventListener("DOMContentLoaded", function() {
         drawCharts(finalMicro, state.needs, state.wants, state.savings);
         calculateFIRE();
 
-        els['setup-view'].classList.remove('active-view');
-        els['setup-view'].classList.add('hidden-view');
-        els['results-view'].classList.remove('hidden-view');
-        els['results-view'].classList.add('active-view');
-        window.scrollTo(0, 0);
-    }
+        document.getElementById('welcome-splash').classList.remove('active-view');
+        document.getElementById('welcome-splash').classList.add('hidden-view');
+        document.getElementById('dashboardWorkspace').classList.remove('hidden-view');
+        document.getElementById('dashboardWorkspace').classList.add('active-view');
 
-    function handleBack() {
-        els['results-view'].classList.remove('active-view');
-        els['results-view'].classList.add('hidden-view');
-        els['setup-view'].classList.remove('hidden-view');
-        els['setup-view'].classList.add('active-view');
-        window.scrollTo(0, 0);
+        if (window.innerWidth <= 1024) {
+            document.getElementById('dashboardWorkspace').scrollIntoView({ behavior: 'smooth' });
+        }
     }
 
     function bindEvents() {
         els.setupForm.addEventListener('submit', handleCalculate);
-        els.backBtn.addEventListener('click', handleBack);
+
+        els.tabLinks.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                els.tabLinks.forEach(l => l.classList.remove('active'));
+                els.tabPanes.forEach(p => p.classList.remove('active'));
+                e.target.classList.add('active');
+                const targetId = e.target.getAttribute('data-tab');
+                document.getElementById(targetId).classList.add('active');
+
+                if (targetId === 'tab-overview' && charts.bell) charts.bell.resize();
+                if (targetId === 'tab-budget' && charts.donut) charts.donut.resize();
+                if (targetId === 'tab-fire' && charts.fire) charts.fire.resize();
+            });
+        });
 
         els.incomeTypeTabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -799,7 +807,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 const targetContainer = this.previousElementSibling;
                 
                 const newRow = document.createElement('div');
-                newRow.className = 'input-row mt-15';
+                newRow.className = 'input-row clean-row';
                 newRow.innerHTML = `
                     <div class="input-group flex-1">
                         <label>Custom Expense Name</label>
@@ -836,9 +844,8 @@ document.addEventListener("DOMContentLoaded", function() {
         els.currentPortfolio.addEventListener('input', calculateFIRE);
         els.marketReturn.addEventListener('input', calculateFIRE);
         els.inflationRate.addEventListener('input', calculateFIRE);
-
         [els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt,
-         els.age, els.marketReturn, els.inflationRate].forEach(el => {
+        els.age, els.marketReturn, els.inflationRate].forEach(el => {
             el.addEventListener('input', () => validateNumericInput(el));
         });
     }

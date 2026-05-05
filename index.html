@@ -135,6 +135,20 @@
                             </div>
                         </div>
                     </div>
+                    <div class="calc-row">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>Race / Ethnicity</label>
+                                <select id="race" class="glass-input">
+                                    <option value="all">All Races</option>
+                                    <option value="white">White</option>
+                                    <option value="black">Black</option>
+                                    <option value="asian">Asian</option>
+                                    <option value="hispanic">Hispanic or Latino</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                     <button id="calculateBtn" class="primary-btn">Calculate Metrics</button>
                 </div>
             </div>
@@ -148,6 +162,9 @@
             <div class="dash-card">
                 <div class="gt-label">Socioeconomic Percentile</div>
                 <div class="gt-value" id="percentileValue">Top --%</div>
+                <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;" id="detailedPercentiles">
+                    Loading detailed metrics...
+                </div>
                 <div class="chart-container">
                     <canvas id="bellCurveChart"></canvas>
                 </div>
@@ -304,9 +321,85 @@
                             <div class="input-group" style="flex: 1;">
                                 <label>Down Payment: <span id="downLabel">20%</span></label>
                                 <div class="slider-wrapper">
-                                    <input type="range" id="downPayment" min="0" max="50" step="1" value="20">
+                                    <input type="range" id="downPayment" min="0" max="50" step="0.1" value="20">
                                 </div>
                             </div>
+                        </div>
+                        <div class="input-row" style="margin-top: 15px;">
+                            <div class="input-group" style="flex: 1;">
+                                <label>Property Tax: <span id="propTaxLabel">1.2%</span></label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="propertyTax" min="0" max="3" step="0.1" value="1.2">
+                                </div>
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label>Home Insurance: <span id="homeInsLabel">0.5%</span></label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="homeInsurance" min="0" max="2" step="0.1" value="0.5">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top: 15px;">
+                            <div class="input-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 0.9rem;">
+                                    <input type="checkbox" id="vetExempt" style="width:18px; height:18px;">
+                                    100% Disabled Veteran (Tax Exempt)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="module-container active">
+            <div class="module-header">
+                <span>20/4/10 Auto Financing</span>
+            </div>
+            <div class="module-content">
+                <div class="line-items">
+                    <div class="item-row">
+                        <span>Max Monthly Transport Costs (10% Gross)</span>
+                        <span id="maxTransport">$0</span>
+                    </div>
+                    <div class="item-row" style="border-bottom: none;">
+                        <span>Recommended Max Car Price</span>
+                        <span id="maxCarPrice">$0</span>
+                    </div>
+                </div>
+
+                <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label>Financing Type</label>
+                            <select id="autoType" class="glass-input">
+                                <option value="buy">Buy (Finance)</option>
+                                <option value="lease">Lease</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Loan Term</label>
+                            <select id="autoTerm" class="glass-input">
+                                <option value="36">36 Months</option>
+                                <option value="48" selected>48 Months</option>
+                                <option value="60">60 Months</option>
+                                <option value="72">72 Months</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-row" style="margin-top: 15px;">
+                        <div class="input-group" style="flex: 1;">
+                            <label>Interest Rate: <span id="autoRateLabel">7.0%</span></label>
+                            <div class="slider-wrapper">
+                                <input type="range" id="autoRate" min="0.0" max="15.0" step="0.1" value="7.0">
+                            </div>
+                        </div>
+                        <div class="input-group" style="flex: 1;">
+                            <label>Number of Vehicles</label>
+                            <select id="autoCount" class="glass-input">
+                                <option value="1">1 Vehicle</option>
+                                <option value="2">2 Vehicles</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -334,16 +427,32 @@
                 <div class="calc-row">
                     <div class="input-row">
                         <div class="input-group">
+                            <label>Monthly Contribution</label>
+                            <div class="unit-wrapper icon-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" id="fireContribution" class="glass-input" placeholder="0" value="0">
+                            </div>
+                        </div>
+                        <div class="input-group">
                             <label>Current Portfolio Balance</label>
                             <div class="unit-wrapper icon-prefix">
                                 <span class="prefix">$</span>
                                 <input type="number" id="currentPortfolio" class="glass-input" placeholder="0" value="0">
                             </div>
                         </div>
+                    </div>
+                    <div class="input-row" style="margin-top: 15px;">
                         <div class="input-group">
                             <label>Expected Market Return</label>
                             <div class="unit-wrapper">
                                 <input type="number" id="marketReturn" class="glass-input" placeholder="7" value="7">
+                                <span class="unit">%</span>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Expected Inflation</label>
+                            <div class="unit-wrapper">
+                                <input type="number" id="inflationRate" class="glass-input" placeholder="3" value="3">
                                 <span class="unit">%</span>
                             </div>
                         </div>
@@ -352,24 +461,6 @@
                 
                 <div class="chart-container" style="height: 300px; margin-top: 20px;">
                     <canvas id="fireChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="module-container active">
-            <div class="module-header">
-                <span>20/4/10 Auto Financing</span>
-            </div>
-            <div class="module-content">
-                <div class="line-items">
-                    <div class="item-row">
-                        <span>Max Monthly Transport Costs (10% Gross)</span>
-                        <span id="maxTransport">$0</span>
-                    </div>
-                    <div class="item-row" style="border-bottom: none;">
-                        <span>Recommended Max Car Price</span>
-                        <span id="maxCarPrice">$0</span>
-                    </div>
                 </div>
             </div>
         </div>

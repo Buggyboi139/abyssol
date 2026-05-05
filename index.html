@@ -27,16 +27,38 @@
         <div class="control-panel">
             <div class="module-container active">
                 <div class="module-header">
-                    <span>Your Demographic Profile</span>
+                    <span>Income Engine</span>
                 </div>
                 <div class="module-content">
+                    <div class="menu-tabs" id="incomeTypeTabs">
+                        <button class="menu-tab-btn active" data-type="annual">Annual</button>
+                        <button class="menu-tab-btn" data-type="monthly">Monthly</button>
+                        <button class="menu-tab-btn" data-type="hourly">Hourly</button>
+                    </div>
+                    
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
-                                <label>Gross Monthly Income</label>
+                                <label id="baseIncomeLabel">Annual Base Salary</label>
                                 <div class="unit-wrapper icon-prefix">
                                     <span class="prefix">$</span>
-                                    <input type="number" id="grossIncome" class="glass-input" placeholder="0" min="0">
+                                    <input type="number" id="baseIncome" class="glass-input" placeholder="0" min="0">
+                                </div>
+                            </div>
+                            <div class="input-group hidden-element" id="hoursWrapper">
+                                <label>Hours Per Week</label>
+                                <input type="number" id="hoursPerWeek" class="glass-input" placeholder="40" value="40" min="1" max="168">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="calc-row">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>Tax-Exempt Monthly Income (VA, SSDI, Pension)</label>
+                                <div class="unit-wrapper icon-prefix">
+                                    <span class="prefix">$</span>
+                                    <input type="number" id="taxExemptIncome" class="glass-input" placeholder="0" min="0">
                                 </div>
                             </div>
                             <div class="input-group">
@@ -48,20 +70,20 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="module-container active">
+                <div class="module-header">
+                    <span>Deep Demographics</span>
+                </div>
+                <div class="module-content">
                     <div class="calc-row">
                         <div class="input-row">
                             <div class="input-group">
                                 <label>Age</label>
                                 <input type="number" id="age" class="glass-input" placeholder="25" min="18" max="100">
                             </div>
-                            <div class="input-group">
-                                <label>Household Size</label>
-                                <input type="number" id="householdSize" class="glass-input" placeholder="1" min="1">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="calc-row">
-                        <div class="input-row">
                             <div class="input-group">
                                 <label>State / Metro</label>
                                 <select id="location" class="glass-input">
@@ -73,14 +95,41 @@
                                     <option value="fl">Miami, FL</option>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+                    <div class="calc-row">
+                        <div class="input-row">
                             <div class="input-group">
-                                <label>Race / Ethnicity (Optional)</label>
-                                <select id="race" class="glass-input">
+                                <label>Household Size</label>
+                                <input type="number" id="householdSize" class="glass-input" placeholder="1" min="1">
+                            </div>
+                            <div class="input-group">
+                                <label>Household Type</label>
+                                <select id="householdType" class="glass-input">
+                                    <option value="all">All Types</option>
+                                    <option value="single">Single Earner</option>
+                                    <option value="dual">Dual Income</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="calc-row">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>Sex</label>
+                                <select id="sex" class="glass-input">
                                     <option value="all">All</option>
-                                    <option value="white">White</option>
-                                    <option value="black">Black or African American</option>
-                                    <option value="asian">Asian</option>
-                                    <option value="hispanic">Hispanic or Latino</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Education</label>
+                                <select id="education" class="glass-input">
+                                    <option value="all">All Levels</option>
+                                    <option value="hs">High School</option>
+                                    <option value="bachelors">Bachelor's Degree</option>
+                                    <option value="masters">Master's / Doctorate</option>
                                 </select>
                             </div>
                         </div>
@@ -104,26 +153,26 @@
             <div class="dash-card">
                 <div class="gt-label">Estimated Net Monthly</div>
                 <div class="gt-value" id="netIncomeValue">$0</div>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">After estimated federal and state taxes.</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">After taxes. Tax-exempt income included intact.</p>
             </div>
         </div>
 
         <div class="module-container active">
             <div class="module-header">
-                <span>50/30/20 Budgeting Framework</span>
+                <span id="budgetTitle">Budgeting Framework</span>
             </div>
             <div class="module-content">
                 <div class="line-items">
                     <div class="item-row">
-                        <span>Needs (50%)</span>
+                        <span id="labelNeeds">Needs</span>
                         <span id="budgetNeeds">$0</span>
                     </div>
                     <div class="item-row">
-                        <span>Wants (30%)</span>
+                        <span id="labelWants">Wants</span>
                         <span id="budgetWants">$0</span>
                     </div>
                     <div class="item-row" style="border-bottom: none;">
-                        <span>Savings & Debt (20%)</span>
+                        <span id="labelSavings">Savings & Debt</span>
                         <span id="budgetSavings">$0</span>
                     </div>
                 </div>
@@ -132,12 +181,12 @@
 
         <div class="module-container active">
             <div class="module-header">
-                <span>28/36 Housing Rule</span>
+                <span>28/36 Housing Rule & Purchase Matrix</span>
             </div>
             <div class="module-content">
-                <div class="line-items">
+                <div class="line-items" style="margin-bottom: 20px;">
                     <div class="item-row">
-                        <span>Max Housing Payment (28% Gross)</span>
+                        <span>Max Monthly Housing (28% Gross)</span>
                         <span id="maxHousing">$0</span>
                     </div>
                     <div class="item-row">
@@ -147,6 +196,45 @@
                     <div class="item-row" style="border-bottom: none;">
                         <span>Available Debt Capacity</span>
                         <span id="availableDebtCapacity">$0</span>
+                    </div>
+                </div>
+
+                <div class="slider-container" style="max-width: 100%;">
+                    <div class="gt-label" style="text-align: center; margin-bottom: 10px;">Max Home Purchase Price</div>
+                    <div class="budget-display" id="maxHomePriceValue">$0</div>
+                    
+                    <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>Loan Type</label>
+                                <select id="loanType" class="glass-input">
+                                    <option value="conv">Conventional</option>
+                                    <option value="fha">FHA (w/ PMI)</option>
+                                    <option value="va">VA (Zero PMI)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Loan Term</label>
+                                <select id="loanTerm" class="glass-input">
+                                    <option value="30">30-Year Fixed</option>
+                                    <option value="15">15-Year Fixed</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="input-row" style="margin-top: 15px;">
+                            <div class="input-group" style="flex: 1;">
+                                <label>Interest Rate: <span id="rateLabel">6.5%</span></label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="interestRate" min="2.0" max="12.0" step="0.1" value="6.5">
+                                </div>
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label>Down Payment: <span id="downLabel">20%</span></label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="downPayment" min="0" max="50" step="1" value="20">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

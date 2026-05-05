@@ -15,6 +15,10 @@ document.addEventListener("DOMContentLoaded", function() {
     const monthlyDebtInput = document.getElementById("monthlyDebt");
     const locationSelect = document.getElementById("location");
     
+    const householdTypeSelect = document.getElementById("householdType");
+    const sexSelect = document.getElementById("sex");
+    const educationSelect = document.getElementById("education");
+    
     const percentileValue = document.getElementById("percentileValue");
     const netIncomeValue = document.getElementById("netIncomeValue");
     
@@ -43,6 +47,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     let currentCalculatedTotalGross = 0;
     let currentCalculatedHousingMax = 0;
+    const demoCache = {};
 
     function formatCurrency(amount) {
         return new Intl.NumberFormat('en-US', {
@@ -50,6 +55,21 @@ document.addEventListener("DOMContentLoaded", function() {
             currency: 'USD',
             maximumFractionDigits: 0
         }).format(amount);
+    }
+
+    async function fetchDemographics(location) {
+        if (demoCache[location]) {
+            return demoCache[location];
+        }
+        try {
+            const response = await fetch("data/" + location + ".json");
+            if (!response.ok) throw new Error("Network error");
+            const data = await response.json();
+            demoCache[location] = data;
+            return data;
+        } catch (error) {
+            return null;
+        }
     }
 
     incomeTypeTabs.forEach(tab => {
@@ -130,12 +150,16 @@ document.addEventListener("DOMContentLoaded", function() {
         calculateHousingMatrix();
     });
 
-    calculateBtn.addEventListener("click", function() {
+    calculateBtn.addEventListener("click", async function() {
         let baseIncomeRaw = parseFloat(baseIncomeInput.value) || 0;
         let taxExemptMonthly = parseFloat(taxExemptIncomeInput.value) || 0;
         let existingDebt = parseFloat(monthlyDebtInput.value) || 0;
         let hours = parseFloat(hoursPerWeekInput.value) || 40;
         const location = locationSelect.value;
+
+        const originalBtnText = calculateBtn.innerText;
+        calculateBtn.innerText = "Processing...";
+        calculateBtn.disabled = true;
 
         let taxableMonthlyGross = 0;
 
@@ -149,7 +173,25 @@ document.addEventListener("DOMContentLoaded", function() {
 
         currentCalculatedTotalGross = taxableMonthlyGross + taxExemptMonthly;
         
-        const effectiveTaxRate = 0.22;
+        const demoData = await fetchDemographics(location);
+        
+        let effectiveTaxRate = 0.22;
+        let percentile = 99;
+
+        if (demoData) {
+            effectiveTaxRate = demoData.tax_rate;
+            percentile = 1;
+            for (const bracket of demoData.brackets) {
+                if (currentCalculatedTotalGross >= bracket.income) {
+                    percentile = bracket.percentile;
+                } else {
+                    break;
+                }
+            }
+        } else if (currentCalculatedTotalGross > 0) {
+            percentile = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
+        }
+
         const netTaxableIncome = taxableMonthlyGross * (1 - effectiveTaxRate);
         const totalNetMonthly = netTaxableIncome + taxExemptMonthly;
         
@@ -187,11 +229,6 @@ document.addEventListener("DOMContentLoaded", function() {
         const autoMonthlyCapacity = transportMax;
         const estimatedCarPrice = (autoMonthlyCapacity * autoTermMonths) / (1 - autoDownPaymentPct);
 
-        let percentile = 99;
-        if (currentCalculatedTotalGross > 0) {
-            percentile = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
-        }
-
         percentileValue.innerText = `Top ${percentile}%`;
         netIncomeValue.innerText = formatCurrency(totalNetMonthly);
         
@@ -207,6 +244,9 @@ document.addEventListener("DOMContentLoaded", function() {
         maxCarPrice.innerText = formatCurrency(estimatedCarPrice);
 
         calculateHousingMatrix();
+
+        calculateBtn.innerText = originalBtnText;
+        calculateBtn.disabled = false;
 
         setupView.classList.remove("active-view");
         setupView.classList.add("hidden-view");

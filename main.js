@@ -25,8 +25,10 @@ document.addEventListener("DOMContentLoaded", function() {
     const householdTypeSelect = document.getElementById("householdType");
     const sexSelect = document.getElementById("sex");
     const educationSelect = document.getElementById("education");
+    const raceSelect = document.getElementById("race");
     
     const percentileValue = document.getElementById("percentileValue");
+    const detailedPercentiles = document.getElementById("detailedPercentiles");
     const netIncomeValue = document.getElementById("netIncomeValue");
     
     const budgetTitle = document.getElementById("budgetTitle");
@@ -53,14 +55,27 @@ document.addEventListener("DOMContentLoaded", function() {
     const downPaymentSlider = document.getElementById("downPayment");
     const rateLabel = document.getElementById("rateLabel");
     const downLabel = document.getElementById("downLabel");
+    const propertyTaxSlider = document.getElementById("propertyTax");
+    const propTaxLabel = document.getElementById("propTaxLabel");
+    const homeInsuranceSlider = document.getElementById("homeInsurance");
+    const homeInsLabel = document.getElementById("homeInsLabel");
+    const vetExemptCheckbox = document.getElementById("vetExempt");
     const maxHomePriceValue = document.getElementById("maxHomePriceValue");
+
+    const autoTypeSelect = document.getElementById("autoType");
+    const autoTermSelect = document.getElementById("autoTerm");
+    const autoRateSlider = document.getElementById("autoRate");
+    const autoRateLabel = document.getElementById("autoRateLabel");
+    const autoCountSelect = document.getElementById("autoCount");
 
     const geoCompareSelect = document.getElementById("geoCompare");
     const altNetIncome = document.getElementById("altNetIncome");
     const altMaxHousing = document.getElementById("altMaxHousing");
 
+    const fireContributionInput = document.getElementById("fireContribution");
     const currentPortfolioInput = document.getElementById("currentPortfolio");
     const marketReturnInput = document.getElementById("marketReturn");
+    const inflationRateInput = document.getElementById("inflationRate");
     const fiNumberValue = document.getElementById("fiNumberValue");
     const fiAgeValue = document.getElementById("fiAgeValue");
 
@@ -71,6 +86,7 @@ document.addEventListener("DOMContentLoaded", function() {
     let currentCalculatedNeeds = 0;
     let currentTaxExempt = 0;
     let currentTaxRate = 0.22;
+    let userEditedFIRE = false;
 
     function formatCurrency(amount) {
         return new Intl.NumberFormat('en-US', {
@@ -122,8 +138,17 @@ document.addEventListener("DOMContentLoaded", function() {
             amortizationFactor = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
         }
 
-        const monthlyPropertyTaxRate = 0.012 / 12;
-        const monthlyInsuranceRate = 0.005 / 12;
+        let monthlyPropertyTaxRate = (parseFloat(propertyTaxSlider.value) / 100) / 12;
+        if (vetExemptCheckbox.checked) {
+            monthlyPropertyTaxRate = 0;
+            propertyTaxSlider.disabled = true;
+            propTaxLabel.innerText = "0% (Exempt)";
+        } else {
+            propertyTaxSlider.disabled = false;
+            propTaxLabel.innerText = `${parseFloat(propertyTaxSlider.value).toFixed(1)}%`;
+        }
+
+        const monthlyInsuranceRate = (parseFloat(homeInsuranceSlider.value) / 100) / 12;
 
         let monthlyPMIRate = 0;
         if (loanType === 'fha' && downPaymentPct < 0.20) {
@@ -147,15 +172,70 @@ document.addEventListener("DOMContentLoaded", function() {
         maxHomePriceValue.innerText = formatCurrency(maxHomePrice);
     }
 
-    loanTypeSelect.addEventListener("change", calculateHousingMatrix);
+    loanTypeSelect.addEventListener("change", function() {
+        if (this.value === 'va') {
+            downPaymentSlider.value = 0;
+        } else if (this.value === 'fha') {
+            downPaymentSlider.value = 3.5;
+        } else if (this.value === 'conv') {
+            downPaymentSlider.value = 20;
+        }
+        downLabel.innerText = `${parseFloat(downPaymentSlider.value).toFixed(1)}%`;
+        calculateHousingMatrix();
+    });
+
     loanTermSelect.addEventListener("change", calculateHousingMatrix);
     interestRateSlider.addEventListener("input", function() {
         rateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
         calculateHousingMatrix();
     });
     downPaymentSlider.addEventListener("input", function() {
-        downLabel.innerText = `${this.value}%`;
+        downLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
         calculateHousingMatrix();
+    });
+    propertyTaxSlider.addEventListener("input", calculateHousingMatrix);
+    homeInsuranceSlider.addEventListener("input", function() {
+        homeInsLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
+        calculateHousingMatrix();
+    });
+    vetExemptCheckbox.addEventListener("change", calculateHousingMatrix);
+
+    function calculateAuto() {
+        const transportMax = currentCalculatedTotalGross * 0.10;
+        maxTransport.innerText = formatCurrency(transportMax);
+
+        const autoType = autoTypeSelect.value;
+        const term = parseInt(autoTermSelect.value);
+        const rate = parseFloat(autoRateSlider.value) / 100 / 12;
+        const count = parseInt(autoCountSelect.value);
+
+        const budgetPerCar = transportMax / count;
+
+        let maxPrice = 0;
+        if (rate === 0) {
+            if (autoType === 'buy') {
+                maxPrice = (budgetPerCar * term) / 0.8;
+            } else {
+                maxPrice = (budgetPerCar * term) / 0.45;
+            }
+        } else {
+            const pv = budgetPerCar * ((1 - Math.pow(1 + rate, -term)) / rate);
+            if (autoType === 'buy') {
+                maxPrice = pv / 0.8;
+            } else {
+                maxPrice = pv / 0.45;
+            }
+        }
+
+        maxCarPrice.innerText = formatCurrency(maxPrice);
+    }
+
+    autoTypeSelect.addEventListener("change", calculateAuto);
+    autoTermSelect.addEventListener("change", calculateAuto);
+    autoCountSelect.addEventListener("change", calculateAuto);
+    autoRateSlider.addEventListener("input", function() {
+        autoRateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
+        calculateAuto();
     });
 
     function updateLifestyleTracker() {
@@ -201,7 +281,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
         const xValues = [];
-        const yValues = [];
+        const yValues =[];
         for (let i = 0; i <= 100; i += 2) {
             xValues.push(i);
             const y = Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)));
@@ -214,7 +294,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'line',
             data: {
                 labels: xValues,
-                datasets: [{
+                datasets:[{
                     label: 'Population Distribution',
                     data: yValues,
                     borderColor: 'rgba(59, 130, 246, 0.5)',
@@ -260,8 +340,8 @@ document.addEventListener("DOMContentLoaded", function() {
             data: {
                 labels: ['Needs', 'Wants', 'Savings/Debt'],
                 datasets: [{
-                    data: [needs, wants, savings],
-                    backgroundColor: ['#3b82f6', '#0ea5e9', '#38bdf8'],
+                    data:[needs, wants, savings],
+                    backgroundColor:['#3b82f6', '#0ea5e9', '#38bdf8'],
                     borderWidth: 0,
                     hoverOffset: 4
                 }]
@@ -284,14 +364,18 @@ document.addEventListener("DOMContentLoaded", function() {
         let age = parseInt(ageInput.value) || 25;
         let portfolio = parseFloat(currentPortfolioInput.value) || 0;
         let returnRate = parseFloat(marketReturnInput.value) || 7;
+        let inflation = parseFloat(inflationRateInput.value) || 3;
+        let contribution = parseFloat(fireContributionInput.value) || 0;
         
         const annualExpenses = (currentCalculatedNeeds + currentCalculatedWants) * 12;
         const fiNumber = annualExpenses * 25;
-        const annualSavings = currentCalculatedSavings * 12;
+        const annualSavings = contribution * 12;
 
         fiNumberValue.innerText = formatCurrency(fiNumber);
 
-        if (annualSavings <= 0 && portfolio < fiNumber) {
+        const r = (returnRate - inflation) / 100;
+
+        if (annualSavings <= 0 && portfolio < fiNumber && r <= 0) {
             fiAgeValue.innerText = "Never";
             if (fireChartInst) {
                 fireChartInst.destroy();
@@ -300,9 +384,8 @@ document.addEventListener("DOMContentLoaded", function() {
             return;
         }
 
-        const r = returnRate / 100;
         let currentAge = age;
-        let ages = [currentAge];
+        let ages =[currentAge];
         let balances = [portfolio];
 
         while (portfolio < fiNumber && currentAge < 100) {
@@ -325,7 +408,7 @@ document.addEventListener("DOMContentLoaded", function() {
             type: 'line',
             data: {
                 labels: ages,
-                datasets: [{
+                datasets:[{
                     label: 'Portfolio Balance',
                     data: balances,
                     borderColor: '#34d399',
@@ -371,627 +454,21 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
+    fireContributionInput.addEventListener("input", function() {
+        userEditedFIRE = true;
+        calculateFIRE();
+    });
     currentPortfolioInput.addEventListener("input", calculateFIRE);
     marketReturnInput.addEventListener("input", calculateFIRE);
-document.addEventListener("DOMContentLoaded", function() {
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    inflationRateInput.addEventListener("input", calculateFIRE);
 
-    let bellChartInst = null;
-    let donutChartInst = null;
-    let fireChartInst = null;
-
-    const calculateBtn = document.getElementById("calculateBtn");
-    const backBtn = document.getElementById("backBtn");
-    const setupView = document.getElementById("setup-view");
-    const resultsView = document.getElementById("results-view");
-    
-    const incomeTypeTabs = document.querySelectorAll(".menu-tab-btn");
-    let currentIncomeType = "annual";
-    
-    const baseIncomeInput = document.getElementById("baseIncome");
-    const baseIncomeLabel = document.getElementById("baseIncomeLabel");
-    const hoursWrapper = document.getElementById("hoursWrapper");
-    const hoursPerWeekInput = document.getElementById("hoursPerWeek");
-    const taxExemptIncomeInput = document.getElementById("taxExemptIncome");
-    const monthlyDebtInput = document.getElementById("monthlyDebt");
-    const locationSelect = document.getElementById("location");
-    const ageInput = document.getElementById("age");
-    const householdTypeSelect = document.getElementById("householdType");
-    const sexSelect = document.getElementById("sex");
-    const educationSelect = document.getElementById("education");
-    
-    const percentileValue = document.getElementById("percentileValue");
-    const netIncomeValue = document.getElementById("netIncomeValue");
-    
-    const budgetTitle = document.getElementById("budgetTitle");
-    const labelNeeds = document.getElementById("labelNeeds");
-    const labelWants = document.getElementById("labelWants");
-    const labelSavings = document.getElementById("labelSavings");
-    const budgetNeeds = document.getElementById("budgetNeeds");
-    const budgetWants = document.getElementById("budgetWants");
-    const budgetSavings = document.getElementById("budgetSavings");
-    
-    const remainingWantsValue = document.getElementById("remainingWantsValue");
-    const lifestyleInputs = document.querySelectorAll(".lifestyle-input");
-
-    const maxHousing = document.getElementById("maxHousing");
-    const maxTotalDebt = document.getElementById("maxTotalDebt");
-    const availableDebtCapacity = document.getElementById("availableDebtCapacity");
-    
-    const maxTransport = document.getElementById("maxTransport");
-    const maxCarPrice = document.getElementById("maxCarPrice");
-
-    const loanTypeSelect = document.getElementById("loanType");
-    const loanTermSelect = document.getElementById("loanTerm");
-    const interestRateSlider = document.getElementById("interestRate");
-    const downPaymentSlider = document.getElementById("downPayment");
-    const rateLabel = document.getElementById("rateLabel");
-    const downLabel = document.getElementById("downLabel");
-    const maxHomePriceValue = document.getElementById("maxHomePriceValue");
-
-    const geoCompareSelect = document.getElementById("geoCompare");
-    const altNetIncome = document.getElementById("altNetIncome");
-    const altMaxHousing = document.getElementById("altMaxHousing");
-
-    const currentPortfolioInput = document.getElementById("currentPortfolio");
-    const marketReturnInput = document.getElementById("marketReturn");
-    const fiNumberValue = document.getElementById("fiNumberValue");
-    const fiAgeValue = document.getElementById("fiAgeValue");
-
-    let currentCalculatedTotalGross = 0;
-    let currentCalculatedHousingMax = 0;
-    let currentCalculatedWants = 0;
-    let currentCalculatedSavings = 0;
-    let currentCalculatedNeeds = 0;
-    let currentTaxExempt = 0;
-    let currentTaxRate = 0.22;
-
-    function formatCurrency(amount) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            maximumFractionDigits: 0
-        }).format(amount);
+    function getPercentile(data, ht, sx, ed, rc, income) {
+        if (!data || !data.demographics || !data.demographics[ht] || !data.demographics[ht][sx] || !data.demographics[ht][sx][ed] || !data.demographics[ht][sx][ed][rc]) return null;
+        const brackets = data.demographics[ht][sx][ed][rc];
+        const match = brackets.find(b => b.income >= income);
+        return match ? match.percentile : 99;
     }
 
-    incomeTypeTabs.forEach(tab => {
-        tab.addEventListener("click", function() {
-            incomeTypeTabs.forEach(t => t.classList.remove("active"));
-            this.classList.add("active");
-            currentIncomeType = this.getAttribute("data-type");
-
-            if (currentIncomeType === "annual") {
-                baseIncomeLabel.innerText = "Annual Base Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "monthly") {
-                baseIncomeLabel.innerText = "Monthly Gross Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "hourly") {
-                baseIncomeLabel.innerText = "Hourly Wage";
-                hoursWrapper.classList.remove("hidden-element");
-            }
-            baseIncomeInput.value = "";
-        });
-    });
-
-    function calculateHousingMatrix() {
-        if (currentCalculatedHousingMax <= 0) {
-            maxHomePriceValue.innerText = "$0";
-            return;
-        }
-
-        const maxMonthlyPayment = currentCalculatedHousingMax;
-        const annualInterestRate = parseFloat(interestRateSlider.value);
-        const loanTermYears = parseInt(loanTermSelect.value);
-        const downPaymentPct = parseFloat(downPaymentSlider.value) / 100;
-        const loanType = loanTypeSelect.value;
-
-        const r = annualInterestRate / 100 / 12;
-        const n = loanTermYears * 12;
-
-        let amortizationFactor = 0;
-        if (r === 0) {
-            amortizationFactor = 1 / n;
-        } else {
-            amortizationFactor = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-        }
-
-        const monthlyPropertyTaxRate = 0.012 / 12;
-        const monthlyInsuranceRate = 0.005 / 12;
-
-        let monthlyPMIRate = 0;
-        if (loanType === 'fha' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.0085 / 12;
-        } else if (loanType === 'conv' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.005 / 12;
-        } else if (loanType === 'va') {
-            monthlyPMIRate = 0;
-        }
-
-        const combinedFactor = ((1 - downPaymentPct) * amortizationFactor) + 
-                               monthlyPropertyTaxRate + 
-                               monthlyInsuranceRate + 
-                               ((1 - downPaymentPct) * monthlyPMIRate);
-
-        let maxHomePrice = 0;
-        if (combinedFactor > 0) {
-            maxHomePrice = maxMonthlyPayment / combinedFactor;
-        }
-
-        maxHomePriceValue.innerText = formatCurrency(maxHomePrice);
-    }
-
-    loanTypeSelect.addEventListener("change", calculateHousingMatrix);
-    loanTermSelect.addEventListener("change", calculateHousingMatrix);
-    interestRateSlider.addEventListener("input", function() {
-        rateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
-    downPaymentSlider.addEventListener("input", function() {
-        downLabel.innerText = `${this.value}%`;
-        calculateHousingMatrix();
-    });
-
-    function updateLifestyleTracker() {
-        let spent = 0;
-        lifestyleInputs.forEach(input => {
-            spent += parseFloat(input.value) || 0;
-        });
-        const remaining = currentCalculatedWants - spent;
-        remainingWantsValue.innerText = formatCurrency(remaining);
-        if (remaining < 0) {
-            remainingWantsValue.style.color = "#fb7185";
-        } else {
-            remainingWantsValue.style.color = "";
-        }
-    }
-
-    lifestyleInputs.forEach(input => {
-        input.addEventListener("input", updateLifestyleTracker);
-    });
-
-    async function calculateGeoArbitrage() {
-        const compareLoc = geoCompareSelect.value;
-        let compareTaxRate = 0.22;
-        
-        try {
-            const res = await fetch(`data/${compareLoc}.json`);
-            const data = await res.json();
-            compareTaxRate = data.tax_rate;
-        } catch (e) {}
-        
-        const taxableMonthlyGross = currentCalculatedTotalGross - currentTaxExempt;
-        const altNet = (taxableMonthlyGross * (1 - compareTaxRate)) + currdocument.addEventListener("DOMContentLoaded", function() {
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
-
-    let bellChartInst = null;
-    let donutChartInst = null;
-    let fireChartInst = null;
-
-    const calculateBtn = document.getElementById("calculateBtn");
-    const backBtn = document.getElementById("backBtn");
-    const setupView = document.getElementById("setup-view");
-    const resultsView = document.getElementById("results-view");
-    
-    const incomeTypeTabs = document.querySelectorAll(".menu-tab-btn");
-    let currentIncomeType = "annual";
-    
-    const baseIncomeInput = document.getElementById("baseIncome");
-    const baseIncomeLabel = document.getElementById("baseIncomeLabel");
-    const hoursWrapper = document.getElementById("hoursWrapper");
-    const hoursPerWeekInput = document.getElementById("hoursPerWeek");
-    const taxExemptIncomeInput = document.getElementById("taxExemptIncome");
-    const monthlyDebtInput = document.getElementById("monthlyDebt");
-    const locationSelect = document.getElementById("location");
-    const ageInput = document.getElementById("age");
-    const householdTypeSelect = document.getElementById("householdType");
-    const sexSelect = document.getElementById("sex");
-    const educationSelect = document.getElementById("education");
-    
-    const percentileValue = document.getElementById("percentileValue");
-    const netIncomeValue = document.getElementById("netIncomeValue");
-    
-    const budgetTitle = document.getElementById("budgetTitle");
-    const labelNeeds = document.getElementById("labelNeeds");
-    const labelWants = document.getElementById("labelWants");
-    const labelSavings = document.getElementById("labelSavings");
-    const budgetNeeds = document.getElementById("budgetNeeds");
-    const budgetWants = document.getElementById("budgetWants");
-    const budgetSavings = document.getElementById("budgetSavings");
-    
-    const remainingWantsValue = document.getElementById("remainingWantsValue");
-    const lifestyleInputs = document.querySelectorAll(".lifestyle-input");
-
-    const maxHousing = document.getElementById("maxHousing");
-    const maxTotalDebt = document.getElementById("maxTotalDebt");
-    const availableDebtCapacity = document.getElementById("availableDebtCapacity");
-    
-    const maxTransport = document.getElementById("maxTransport");
-    const maxCarPrice = document.getElementById("maxCarPrice");
-
-    const loanTypeSelect = document.getElementById("loanType");
-    const loanTermSelect = document.getElementById("loanTerm");
-    const interestRateSlider = document.getElementById("interestRate");
-    const downPaymentSlider = document.getElementById("downPayment");
-    const rateLabel = document.getElementById("rateLabel");
-    const downLabel = document.getElementById("downLabel");
-    const maxHomePriceValue = document.getElementById("maxHomePriceValue");
-
-    const geoCompareSelect = document.getElementById("geoCompare");
-    const altNetIncome = document.getElementById("altNetIncome");
-    const altMaxHousing = document.getElementById("altMaxHousing");
-
-    const currentPortfolioInput = document.getElementById("currentPortfolio");
-    const marketReturnInput = document.getElementById("marketReturn");
-    const fiNumberValue = document.getElementById("fiNumberValue");
-    const fiAgeValue = document.getElementById("fiAgeValue");
-
-    let currentCalculatedTotalGross = 0;
-    let currentCalculatedHousingMax = 0;
-    let currentCalculatedWants = 0;
-    let currentCalculatedSavings = 0;
-    let currentCalculatedNeeds = 0;
-    let currentTaxExempt = 0;
-    let currentTaxRate = 0.22;
-
-    function formatCurrency(amount) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            maximumFractionDigits: 0
-        }).format(amount);
-    }
-
-    incomeTypeTabs.forEach(tab => {
-        tab.addEventListener("click", function() {
-            incomeTypeTabs.forEach(t => t.classList.remove("active"));
-            this.classList.add("active");
-            currentIncomeType = this.getAttribute("data-type");
-
-            if (currentIncomeType === "annual") {
-                baseIncomeLabel.innerText = "Annual Base Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "monthly") {
-                baseIncomeLabel.innerText = "Monthly Gross Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "hourly") {
-                baseIncomeLabel.innerText = "Hourly Wage";
-                hoursWrapper.classList.remove("hidden-element");
-            }
-            baseIncomeInput.value = "";
-        });
-    });
-
-    function calculateHousingMatrix() {
-        if (currentCalculatedHousingMax <= 0) {
-            maxHomePriceValue.innerText = "$0";
-            return;
-        }
-
-        const maxMonthlyPayment = currentCalculatedHousingMax;
-        const annualInterestRate = parseFloat(interestRateSlider.value);
-        const loanTermYears = parseInt(loanTermSelect.value);
-        const downPaymentPct = parseFloat(downPaymentSlider.value) / 100;
-        const loanType = loanTypeSelect.value;
-
-        const r = annualInterestRate / 100 / 12;
-        const n = loanTermYears * 12;
-
-        let amortizationFactor = 0;
-        if (r === 0) {
-            amortizationFactor = 1 / n;
-        } else {
-            amortizationFactor = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-        }
-
-        const monthlyPropertyTaxRate = 0.012 / 12;
-        const monthlyInsuranceRate = 0.005 / 12;
-
-        let monthlyPMIRate = 0;
-        if (loanType === 'fha' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.0085 / 12;
-        } else if (loanType === 'conv' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.005 / 12;
-        } else if (loanType === 'va') {
-            monthlyPMIRate = 0;
-        }
-
-        const combinedFactor = ((1 - downPaymentPct) * amortizationFactor) + 
-                               monthlyPropertyTaxRate + 
-                               monthlyInsuranceRate + 
-                               ((1 - downPaymentPct) * monthlyPMIRate);
-
-        let maxHomePrice = 0;
-        if (combinedFactor > 0) {
-            maxHomePrice = maxMonthlyPayment / combinedFactor;
-        }
-
-        maxHomePriceValue.innerText = formatCurrency(maxHomePrice);
-    }
-
-    loanTypeSelect.addEventListener("change", calculateHousingMatrix);
-    loanTermSelect.addEventListener("change", calculateHousingMatrix);
-    interestRateSlider.addEventListener("input", function() {
-        rateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
-    downPaymentSlider.addEventListener("input", function() {
-        downLabel.innerText = `${this.value}%`;
-        calculateHousingMatrix();
-    });
-
-    function updateLifestyleTracker() {
-        let spent = 0;
-        lifestyleInputs.forEach(input => {
-            spent += parseFloat(input.value) || 0;
-        });
-        const remaining = currentCalculatedWants - spent;
-        remainingWantsValue.innerText = formatCurrency(remaining);
-        if (remaining < 0) {
-            remainingWantsValue.style.color = "#fb7185";
-        } else {
-            remainingWantsValue.style.color = "";
-        }
-    }
-
-    lifestyleInputs.forEach(input => {
-        input.addEventListener("input", updateLifestyleTracker);
-    });
-
-    async function calculateGeoArbitrage() {
-        const compareLoc = geoCompareSelect.value;
-        let compareTaxRate = 0.22;
-        
-        try {
-            const res = await fetch(`data/${compareLoc}.json`);
-            const data = await res.json();
-            compareTaxRate = data.tax_rate;
-        } catch (e) {}
-        
-        const taxableMonthlyGross = currentCalculatedTotalGross - currentTaxExempt;
-        const altNet = (taxableMonthlyGross * (1 - compareTaxRate)) + currentTaxExempt;
-        
-        altNetIncome.innerText = formatCurrency(altNet);document.addEventListener("DOMContentLoaded", function() {
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
-
-    let bellChartInst = null;
-    let donutChartInst = null;
-    let fireChartInst = null;
-
-    const calculateBtn = document.getElementById("calculateBtn");
-    const backBtn = document.getElementById("backBtn");
-    const setupView = document.getElementById("setup-view");
-    const resultsView = document.getElementById("results-view");
-    
-    const incomeTypeTabs = document.querySelectorAll(".menu-tab-btn");
-    let currentIncomeType = "annual";
-    
-    const baseIncomeInput = document.getElementById("baseIncome");
-    const baseIncomeLabel = document.getElementById("baseIncomeLabel");
-    const hoursWrapper = document.getElementById("hoursWrapper");
-    const hoursPerWeekInput = document.getElementById("hoursPerWeek");
-    const taxExemptIncomeInput = document.getElementById("taxExemptIncome");
-    const monthlyDebtInput = document.getElementById("monthlyDebt");
-    const locationSelect = document.getElementById("location");
-    const ageInput = document.getElementById("age");
-    const householdTypeSelect = document.getElementById("householdType");
-    const sexSelect = document.getElementById("sex");
-    const educationSelect = document.getElementById("education");
-    
-    const percentileValue = document.getElementById("percentileValue");
-    const netIncomeValue = document.getElementById("netIncomeValue");
-    
-    const budgetTitle = document.getElementById("budgetTitle");
-    const labelNeeds = document.getElementById("labelNeeds");
-    const labelWants = document.getElementById("labelWants");
-    const labelSavings = document.getElementById("labelSavings");
-    const budgetNeeds = document.getElementById("budgetNeeds");
-    const budgetWants = document.getElementById("budgetWants");
-    const budgetSavings = document.getElementById("budgetSavings");
-    
-    const remainingWantsValue = document.getElementById("remainingWantsValue");
-    const lifestyleInputs = document.querySelectorAll(".lifestyle-input");
-
-    const maxHousing = document.getElementById("maxHousing");
-    const maxTotalDebt = document.getElementById("maxTotalDebt");
-    const availableDebtCapacity = document.getElementById("availableDebtCapacity");
-    
-    const maxTransport = document.getElementById("maxTransport");
-    const maxCarPrice = document.getElementById("maxCarPrice");
-
-    const loanTypeSelect = document.getElementById("loanType");
-    const loanTermSelect = document.getElementById("loanTerm");
-    const interestRateSlider = document.getElementById("interestRate");
-    const downPaymentSlider = document.getElementById("downPayment");
-    const rateLabel = document.getElementById("rateLabel");
-    const downLabel = document.getElementById("downLabel");
-    const maxHomePriceValue = document.getElementById("maxHomePriceValue");
-
-    const geoCompareSelect = document.getElementById("geoCompare");
-    const altNetIncome = document.getElementById("altNetIncome");
-    const altMaxHousing = document.getElementById("altMaxHousing");
-
-    const currentPortfolioInput = document.getElementById("currentPortfolio");
-    const marketReturnInput = document.getElementById("marketReturn");
-    const fiNumberValue = document.getElementById("fiNumberValue");
-    const fiAgeValue = document.getElementById("fiAgeValue");
-
-    let currentCalculatedTotalGross = 0;
-    let currentCalculatedHousingMax = 0;
-    let currentCalculatedWants = 0;
-    let currentCalculatedSavings = 0;
-    let currentCalculatedNeeds = 0;
-    let currentTaxExempt = 0;
-    let currentTaxRate = 0.22;
-
-    function formatCurrency(amount) {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            maximumFractionDigits: 0
-        }).format(amount);
-    }
-
-    incomeTypeTabs.forEach(tab => {
-        tab.addEventListener("click", function() {
-            incomeTypeTabs.forEach(t => t.classList.remove("active"));
-            this.classList.add("active");
-            currentIncomeType = this.getAttribute("data-type");
-
-            if (currentIncomeType === "annual") {
-                baseIncomeLabel.innerText = "Annual Base Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "monthly") {
-                baseIncomeLabel.innerText = "Monthly Gross Salary";
-                hoursWrapper.classList.add("hidden-element");
-            } else if (currentIncomeType === "hourly") {
-                baseIncomeLabel.innerText = "Hourly Wage";
-                hoursWrapper.classList.remove("hidden-element");
-            }
-            baseIncomeInput.value = "";
-        });
-    });
-
-    function calculateHousingMatrix() {
-        if (currentCalculatedHousingMax <= 0) {
-            maxHomePriceValue.innerText = "$0";
-            return;
-        }
-
-        const maxMonthlyPayment = currentCalculatedHousingMax;
-        const annualInterestRate = parseFloat(interestRateSlider.value);
-        const loanTermYears = parseInt(loanTermSelect.value);
-        const downPaymentPct = parseFloat(downPaymentSlider.value) / 100;
-        const loanType = loanTypeSelect.value;
-
-        const r = annualInterestRate / 100 / 12;
-        const n = loanTermYears * 12;
-
-        let amortizationFactor = 0;
-        if (r === 0) {
-            amortizationFactor = 1 / n;
-        } else {
-            amortizationFactor = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-        }
-
-        const monthlyPropertyTaxRate = 0.012 / 12;
-        const monthlyInsuranceRate = 0.005 / 12;
-
-        let monthlyPMIRate = 0;
-        if (loanType === 'fha' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.0085 / 12;
-        } else if (loanType === 'conv' && downPaymentPct < 0.20) {
-            monthlyPMIRate = 0.005 / 12;
-        } else if (loanType === 'va') {
-            monthlyPMIRate = 0;
-        }
-
-        const combinedFactor = ((1 - downPaymentPct) * amortizationFactor) + 
-                               monthlyPropertyTaxRate + 
-                               monthlyInsuranceRate + 
-                               ((1 - downPaymentPct) * monthlyPMIRate);
-
-        let maxHomePrice = 0;
-        if (combinedFactor > 0) {
-            maxHomePrice = maxMonthlyPayment / combinedFactor;
-        }
-
-        maxHomePriceValue.innerText = formatCurrency(maxHomePrice);
-    }
-
-    loanTypeSelect.addEventListener("change", calculateHousingMatrix);
-    loanTermSelect.addEventListener("change", calculateHousingMatrix);
-    interestRateSlider.addEventListener("input", function() {
-        rateLabel.innerText = `${parseFloat(this.value).toFixed(1)}%`;
-        calculateHousingMatrix();
-    });
-    downPaymentSlider.addEventListener("input", function() {
-        downLabel.innerText = `${this.value}%`;
-        calculateHousingMatrix();
-    });
-
-    function updateLifestyleTracker() {
-        let spent = 0;
-        lifestyleInputs.forEach(input => {
-            spent += parseFloat(input.value) || 0;
-        });
-        const remaining = currentCalculatedWants - spent;
-        remainingWantsValue.innerText = formatCurrency(remaining);
-        if (remaining < 0) {
-            remainingWantsValue.style.color = "#fb7185";
-        } else {
-            remainingWantsValue.style.color = "";
-        }
-    }
-
-    lifestyleInputs.forEach(input => {
-        input.addEventListener("input", updateLifestyleTracker);
-    });
-
-    async function calculateGeoArbitrage() {
-        const compareLoc = geoCompareSelect.value;
-        let compareTaxRate = 0.22;
-        
-        try {
-            const res = await fetch(`data/${compareLoc}.json`);
-            const data = await res.json();
-            compareTaxRate = data.tax_rate;
-        } catch (e) {}
-        
-        const taxableMonthlyGross = currentCalculatedTotalGross - currentTaxExempt;
-        const altNet = (taxableMonthlyGross * (1 - compareTaxRate)) + currentTaxExempt;
-        
-        altNetIncome.innerText = formatCurrency(altNet);
-        altMaxHousing.innerText = formatCurrency(currentCalculatedTotalGross * 0.28);
-    }
-
-    geoCompareSelect.addEventListener("change", calculateGeoArbitrage);
-
-    function drawCharts(percentile, needs, wants, savings) {
-        if (bellChartInst) bellChartInst.destroy();
-        if (donutChartInst) donutChartInst.destroy();
-
-        const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
-        const xValues = [];
-        const yValues = [];
-        for (let i = 0; i <= 100; i += 2) {
-            xValues.push(i);
-            const y = Math.exp(-Math.pow(i - 50,
-        altMaxHousing.innerText = formatCurrency(currentCalculatedTotalGross * 0.28);
-    }
-
-    geoCompareSelect.addEventListener("change", calculateGeoArbitrage);
-
-    function drawCharts(percentile, needs, wants, savings) {
-        if (bellChartInst) bellChartInst.destroy();
-        if (donutChartInst) donutChartInst.destroy();
-
-        const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
-        const xValues = [];
-        const yValues = [];
-        for (let i = 0; i <= 100; i += 2) {
-            xValues.push(i);
-            const y = Math.exp(-Math.pow(i - 50,entTaxExempt;
-        
-        altNetIncome.innerText = formatCurrency(altNet);
-        altMaxHousing.innerText = formatCurrency(currentCalculatedTotalGross * 0.28);
-    }
-
-    geoCompareSelect.addEventListener("change", calculateGeoArbitrage);
-
-    function drawCharts(percentile, needs, wants, savings) {
-        if (bellChartInst) bellChartInst.destroy();
-        if (donutChartInst) donutChartInst.destroy();
-
-        const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
-        const xValues = [];
-        const yValues = [];
-        for (let i = 0; i <= 100; i += 2) {
-            xValues.push(i);
-            const y = Math.exp(-Math.pow(i - 50,
     calculateBtn.addEventListener("click", async function() {
         let baseIncomeRaw = parseFloat(baseIncomeInput.value) || 0;
         let taxExemptMonthly = parseFloat(taxExemptIncomeInput.value) || 0;
@@ -1003,6 +480,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const ht = householdTypeSelect.value;
         const sx = sexSelect.value;
         const ed = educationSelect.value;
+        const rc = raceSelect.value;
 
         let taxableMonthlyGross = 0;
         let annualGross = 0;
@@ -1057,42 +535,45 @@ document.addEventListener("DOMContentLoaded", function() {
         currentCalculatedHousingMax = currentCalculatedTotalGross * 0.28;
         const totalDebtMax = currentCalculatedTotalGross * 0.36;
         const remainingDebtCapacity = Math.max(0, totalDebtMax - currentCalculatedHousingMax - existingDebt);
-
-        const transportMax = currentCalculatedTotalGross * 0.10;
         
-        const autoDownPaymentPct = 0.20;
-        const autoTermMonths = 48;
-        const autoMonthlyCapacity = transportMax;
-        const estimatedCarPrice = (autoMonthlyCapacity * autoTermMonths) / (1 - autoDownPaymentPct);
-
-        let percentile = 99;
+        let microP = getPercentile(fetchedData, ht, sx, ed, rc, annualGross);
+        let macroP = getPercentile(fetchedData, 'all', 'all', 'all', 'all', annualGross);
+        let sexP = getPercentile(fetchedData, 'all', sx, 'all', 'all', annualGross);
+        let raceP = getPercentile(fetchedData, 'all', 'all', 'all', rc, annualGross);
         
-        if (fetchedData && fetchedData.demographics[ht] && fetchedData.demographics[ht][sx] && fetchedData.demographics[ht][sx][ed]) {
-            const brackets = fetchedData.demographics[ht][sx][ed];
-            const match = brackets.find(b => b.income >= annualGross);
-            percentile = match ? match.percentile : 99;
-        } else if (currentCalculatedTotalGross > 0) {
-            percentile = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
-        }
+        let fallbackP = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
+        microP = microP || fallbackP;
+        macroP = macroP || fallbackP;
+        sexP = sexP || fallbackP;
+        raceP = raceP || fallbackP;
 
-        percentileValue.innerText = `Top ${percentile}%`;
+        percentileValue.innerText = `Top ${microP}%`;
+        
+        let details = `Overall: Top ${macroP}% National`;
+        if (sx !== 'all') details += ` • Top ${sexP}% of ${sexSelect.options[sexSelect.selectedIndex].text}`;
+        if (rc !== 'all') details += ` • Top ${raceP}% of ${raceSelect.options[raceSelect.selectedIndex].text}`;
+        
+        detailedPercentiles.innerText = details;
+
         netIncomeValue.innerText = formatCurrency(totalNetMonthly);
         
         budgetNeeds.innerText = formatCurrency(currentCalculatedNeeds);
         budgetWants.innerText = formatCurrency(currentCalculatedWants);
         budgetSavings.innerText = formatCurrency(currentCalculatedSavings);
 
+        if (!userEditedFIRE) {
+            fireContributionInput.value = Math.round(currentCalculatedSavings);
+        }
+
         maxHousing.innerText = formatCurrency(currentCalculatedHousingMax);
         maxTotalDebt.innerText = formatCurrency(totalDebtMax);
         availableDebtCapacity.innerText = formatCurrency(remainingDebtCapacity);
 
-        maxTransport.innerText = formatCurrency(transportMax);
-        maxCarPrice.innerText = formatCurrency(estimatedCarPrice);
-
+        calculateAuto();
         calculateHousingMatrix();
         updateLifestyleTracker();
         calculateGeoArbitrage();
-        drawCharts(percentile, currentCalculatedNeeds, currentCalculatedWants, currentCalculatedSavings);
+        drawCharts(microP, currentCalculatedNeeds, currentCalculatedWants, currentCalculatedSavings);
         calculateFIRE();
 
         setupView.classList.remove("active-view");

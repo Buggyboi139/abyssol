@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", function() {
         ids.forEach(id => els[id] = document.getElementById(id));
         els.incomeTypeTabs = document.querySelectorAll('.menu-tab-btn');
         els.expenseInputs = document.querySelectorAll('.expense-input');
+        els.addCustomBtns = document.querySelectorAll('.add-custom-btn');
     }
 
     function formatCurrency(amount) {
@@ -334,12 +335,21 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function updateCashFlowTracker() {
         let spent = 0;
-        if (els.expenseInputs) {
-            els.expenseInputs.forEach(input => {
+        
+        document.querySelectorAll('.expense-category').forEach(cat => {
+            let catTotal = 0;
+            cat.querySelectorAll('.expense-input').forEach(input => {
                 const v = parseFloat(input.value);
-                if (!isNaN(v) && v > 0) spent += v;
+                if (!isNaN(v) && v > 0) {
+                    spent += v;
+                    catTotal += v;
+                }
             });
-        }
+            const totalSpan = cat.querySelector('.category-total');
+            if (totalSpan) {
+                totalSpan.textContent = formatCurrency(catTotal);
+            }
+        });
         
         const netIncome = (state.taxableMonthlyGross * (1 - state.taxRate)) + state.taxExempt;
         
@@ -782,6 +792,39 @@ document.addEventListener("DOMContentLoaded", function() {
 
         els.expenseInputs.forEach(input => {
             input.addEventListener('input', updateCashFlowTracker);
+        });
+
+        els.addCustomBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const targetContainer = this.previousElementSibling;
+                
+                const newRow = document.createElement('div');
+                newRow.className = 'input-row mt-15';
+                newRow.innerHTML = `
+                    <div class="input-group flex-1">
+                        <label>Custom Expense Name</label>
+                        <input type="text" class="glass-input custom-expense-name" placeholder="Name">
+                    </div>
+                    <div class="input-group flex-1">
+                        <label>Amount</label>
+                        <div class="unit-wrapper icon-prefix" style="display:flex;">
+                            <span class="prefix">$</span>
+                            <input type="number" class="glass-input expense-input" placeholder="0" min="0" value="0">
+                        </div>
+                    </div>
+                    <button type="button" class="remove-custom-btn" style="background:none; border:none; color:#fb7185; cursor:pointer; font-size:1.5rem; align-self:flex-end; margin-bottom:5px; padding:0 10px;">&times;</button>
+                `;
+                
+                targetContainer.appendChild(newRow);
+                
+                const newInput = newRow.querySelector('.expense-input');
+                newInput.addEventListener('input', updateCashFlowTracker);
+                
+                newRow.querySelector('.remove-custom-btn').addEventListener('click', function() {
+                    newRow.remove();
+                    updateCashFlowTracker();
+                });
+            });
         });
 
         els.geoCompare.addEventListener('change', calculateGeoArbitrage);

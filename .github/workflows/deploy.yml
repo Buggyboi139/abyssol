@@ -32,11 +32,15 @@ jobs:
           
       - run: python generate_data.py
       
+      - run: |
+          mkdir public
+          cp -r data index.html main.js styles.css CNAME public/
+          
       - uses: actions/configure-pages@v4
       
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: './public'
           
       - id: deployment
         uses: actions/deploy-pages@v4

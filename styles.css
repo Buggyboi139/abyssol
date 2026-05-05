@@ -37,7 +37,7 @@ body {
     overscroll-behavior-y: none;
 }
 
-input, textarea,[contenteditable] {
+input, textarea, [contenteditable] {
     user-select: auto;
     -webkit-user-select: auto;
 }
@@ -80,6 +80,10 @@ select option {
 
 .hidden-element {
     display: none !important;
+}
+
+.text-danger {
+    color: #fb7185 !important;
 }
 
 #left-color-bar { 
@@ -197,7 +201,7 @@ input[type=number] { -moz-appearance: textfield; }
 .item-row span:first-child { flex: 1 1 auto; word-break: break-word; }
 .item-row span:last-child { flex: 0 0 auto; white-space: nowrap; font-weight: 600; }
 
-.geo-arbitrage-box { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); }
+.geo-arbitrage-box { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding: 10px 0 0 0; }
 .geo-arbitrage-box label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 1px; }
 
 .chart-container { position: relative; width: 100%; height: 200px; margin-top: 20px; }

@@ -1,4 +1,11 @@
 document.addEventListener("DOMContentLoaded", function() {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+
+    let bellChartInst = null;
+    let donutChartInst = null;
+    let fireChartInst = null;
+
     const calculateBtn = document.getElementById("calculateBtn");
     const backBtn = document.getElementById("backBtn");
     const setupView = document.getElementById("setup-view");
@@ -14,10 +21,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const taxExemptIncomeInput = document.getElementById("taxExemptIncome");
     const monthlyDebtInput = document.getElementById("monthlyDebt");
     const locationSelect = document.getElementById("location");
-    
-    const householdTypeSelect = document.getElementById("householdType");
-    const sexSelect = document.getElementById("sex");
-    const educationSelect = document.getElementById("education");
+    const ageInput = document.getElementById("age");
     
     const percentileValue = document.getElementById("percentileValue");
     const netIncomeValue = document.getElementById("netIncomeValue");
@@ -30,6 +34,9 @@ document.addEventListener("DOMContentLoaded", function() {
     const budgetWants = document.getElementById("budgetWants");
     const budgetSavings = document.getElementById("budgetSavings");
     
+    const remainingWantsValue = document.getElementById("remainingWantsValue");
+    const lifestyleInputs = document.querySelectorAll(".lifestyle-input");
+
     const maxHousing = document.getElementById("maxHousing");
     const maxTotalDebt = document.getElementById("maxTotalDebt");
     const availableDebtCapacity = document.getElementById("availableDebtCapacity");
@@ -45,9 +52,30 @@ document.addEventListener("DOMContentLoaded", function() {
     const downLabel = document.getElementById("downLabel");
     const maxHomePriceValue = document.getElementById("maxHomePriceValue");
 
+    const geoCompareSelect = document.getElementById("geoCompare");
+    const altNetIncome = document.getElementById("altNetIncome");
+    const altMaxHousing = document.getElementById("altMaxHousing");
+
+    const currentPortfolioInput = document.getElementById("currentPortfolio");
+    const marketReturnInput = document.getElementById("marketReturn");
+    const fiNumberValue = document.getElementById("fiNumberValue");
+    const fiAgeValue = document.getElementById("fiAgeValue");
+
     let currentCalculatedTotalGross = 0;
     let currentCalculatedHousingMax = 0;
-    const demoCache = {};
+    let currentCalculatedWants = 0;
+    let currentCalculatedSavings = 0;
+    let currentCalculatedNeeds = 0;
+    let currentTaxExempt = 0;
+
+    const mockTaxRates = {
+        national: 0.22,
+        ny: 0.28,
+        ca: 0.29,
+        tx: 0.18,
+        il: 0.24,
+        fl: 0.18
+    };
 
     function formatCurrency(amount) {
         return new Intl.NumberFormat('en-US', {
@@ -55,21 +83,6 @@ document.addEventListener("DOMContentLoaded", function() {
             currency: 'USD',
             maximumFractionDigits: 0
         }).format(amount);
-    }
-
-    async function fetchDemographics(location) {
-        if (demoCache[location]) {
-            return demoCache[location];
-        }
-        try {
-            const response = await fetch("data/" + location + ".json");
-            if (!response.ok) throw new Error("Network error");
-            const data = await response.json();
-            demoCache[location] = data;
-            return data;
-        } catch (error) {
-            return null;
-        }
     }
 
     incomeTypeTabs.forEach(tab => {
@@ -150,16 +163,221 @@ document.addEventListener("DOMContentLoaded", function() {
         calculateHousingMatrix();
     });
 
-    calculateBtn.addEventListener("click", async function() {
+    function updateLifestyleTracker() {
+        let spent = 0;
+        lifestyleInputs.forEach(input => {
+            spent += parseFloat(input.value) || 0;
+        });
+        const remaining = currentCalculatedWants - spent;
+        remainingWantsValue.innerText = formatCurrency(remaining);
+        if (remaining < 0) {
+            remainingWantsValue.style.color = "#fb7185";
+        } else {
+            remainingWantsValue.style.color = "";
+        }
+    }
+
+    lifestyleInputs.forEach(input => {
+        input.addEventListener("input", updateLifestyleTracker);
+    });
+
+    function calculateGeoArbitrage() {
+        const compareLoc = geoCompareSelect.value;
+        const taxRate = mockTaxRates[compareLoc] || 0.22;
+        const taxableMonthlyGross = currentCalculatedTotalGross - currentTaxExempt;
+        const altNet = (taxableMonthlyGross * (1 - taxRate)) + currentTaxExempt;
+        altNetIncome.innerText = formatCurrency(altNet);
+        altMaxHousing.innerText = formatCurrency(currentCalculatedTotalGross * 0.28);
+    }
+
+    geoCompareSelect.addEventListener("change", calculateGeoArbitrage);
+
+    function drawCharts(percentile, needs, wants, savings) {
+        if (bellChartInst) bellChartInst.destroy();
+        if (donutChartInst) donutChartInst.destroy();
+
+        const bellCtx = document.getElementById('bellCurveChart').getContext('2d');
+        const xValues = [];
+        const yValues =[];
+        for (let i = 0; i <= 100; i += 2) {
+            xValues.push(i);
+            const y = Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)));
+            yValues.push(y);
+        }
+
+        const pointIndex = xValues.findIndex(x => x >= (100 - percentile));
+
+        bellChartInst = new Chart(bellCtx, {
+            type: 'line',
+            data: {
+                labels: xValues,
+                datasets:[{
+                    label: 'Population Distribution',
+                    data: yValues,
+                    borderColor: 'rgba(59, 130, 246, 0.5)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }, {
+                    label: 'You',
+                    data: xValues.map((x, i) => i === pointIndex ? yValues[i] : null),
+                    borderColor: '#38bdf8',
+                    backgroundColor: '#38bdf8',
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false },
+                    y: { display: false }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.datasetIndex === 1 && context.raw !== null) {
+                                    return `Your Position: Top ${percentile}%`;
+                                }
+                                return null;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const donutCtx = document.getElementById('budgetDonutChart').getContext('2d');
+        donutChartInst = new Chart(donutCtx, {
+            type: 'doughnut',
+            data: {
+                labels:['Needs', 'Wants', 'Savings/Debt'],
+                datasets: [{
+                    data: [needs, wants, savings],
+                    backgroundColor: ['#3b82f6', '#0ea5e9', '#38bdf8'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#f8fafc' }
+                    }
+                }
+            }
+        });
+    }
+
+    function calculateFIRE() {
+        let age = parseInt(ageInput.value) || 25;
+        let portfolio = parseFloat(currentPortfolioInput.value) || 0;
+        let returnRate = parseFloat(marketReturnInput.value) || 7;
+        
+        const annualExpenses = (currentCalculatedNeeds + currentCalculatedWants) * 12;
+        const fiNumber = annualExpenses * 25;
+        const annualSavings = currentCalculatedSavings * 12;
+
+        fiNumberValue.innerText = formatCurrency(fiNumber);
+
+        if (annualSavings <= 0 && portfolio < fiNumber) {
+            fiAgeValue.innerText = "Never";
+            if (fireChartInst) {
+                fireChartInst.destroy();
+                fireChartInst = null;
+            }
+            return;
+        }
+
+        const r = returnRate / 100;
+        let currentAge = age;
+        let ages = [currentAge];
+        let balances = [portfolio];
+
+        while (portfolio < fiNumber && currentAge < 100) {
+            portfolio = portfolio * (1 + r) + annualSavings;
+            currentAge++;
+            ages.push(currentAge);
+            balances.push(portfolio);
+        }
+
+        if (portfolio >= fiNumber) {
+            fiAgeValue.innerText = currentAge;
+        } else {
+            fiAgeValue.innerText = "100+";
+        }
+
+        if (fireChartInst) fireChartInst.destroy();
+
+        const fireCtx = document.getElementById('fireChart').getContext('2d');
+        fireChartInst = new Chart(fireCtx, {
+            type: 'line',
+            data: {
+                labels: ages,
+                datasets:[{
+                    label: 'Portfolio Balance',
+                    data: balances,
+                    borderColor: '#34d399',
+                    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 2
+                }, {
+                    label: 'FI Target',
+                    data: Array(ages.length).fill(fiNumber),
+                    borderColor: '#fb7185',
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Age', color: '#94a3b8' },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    },
+                    y: { 
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: {
+                            callback: function(value) {
+                                if (value >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M';
+                                if (value >= 1000) return '$' + (value / 1000).toFixed(0) + 'k';
+                                return '$' + value;
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#f8fafc' }
+                    }
+                }
+            }
+        });
+    }
+
+    currentPortfolioInput.addEventListener("input", calculateFIRE);
+    marketReturnInput.addEventListener("input", calculateFIRE);
+
+    calculateBtn.addEventListener("click", function() {
         let baseIncomeRaw = parseFloat(baseIncomeInput.value) || 0;
         let taxExemptMonthly = parseFloat(taxExemptIncomeInput.value) || 0;
+        currentTaxExempt = taxExemptMonthly;
         let existingDebt = parseFloat(monthlyDebtInput.value) || 0;
         let hours = parseFloat(hoursPerWeekInput.value) || 40;
         const location = locationSelect.value;
-
-        const originalBtnText = calculateBtn.innerText;
-        calculateBtn.innerText = "Processing...";
-        calculateBtn.disabled = true;
 
         let taxableMonthlyGross = 0;
 
@@ -173,25 +391,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         currentCalculatedTotalGross = taxableMonthlyGross + taxExemptMonthly;
         
-        const demoData = await fetchDemographics(location);
-        
-        let effectiveTaxRate = 0.22;
-        let percentile = 99;
-
-        if (demoData) {
-            effectiveTaxRate = demoData.tax_rate;
-            percentile = 1;
-            for (const bracket of demoData.brackets) {
-                if (currentCalculatedTotalGross >= bracket.income) {
-                    percentile = bracket.percentile;
-                } else {
-                    break;
-                }
-            }
-        } else if (currentCalculatedTotalGross > 0) {
-            percentile = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
-        }
-
+        const effectiveTaxRate = mockTaxRates[location] || 0.22;
         const netTaxableIncome = taxableMonthlyGross * (1 - effectiveTaxRate);
         const totalNetMonthly = netTaxableIncome + taxExemptMonthly;
         
@@ -214,9 +414,9 @@ document.addEventListener("DOMContentLoaded", function() {
             labelSavings.innerText = `Savings & Debt (20%)`;
         }
 
-        const needs = totalNetMonthly * needsRatio;
-        const wants = totalNetMonthly * wantsRatio;
-        const savings = totalNetMonthly * savingsRatio;
+        currentCalculatedNeeds = totalNetMonthly * needsRatio;
+        currentCalculatedWants = totalNetMonthly * wantsRatio;
+        currentCalculatedSavings = totalNetMonthly * savingsRatio;
 
         currentCalculatedHousingMax = currentCalculatedTotalGross * 0.28;
         const totalDebtMax = currentCalculatedTotalGross * 0.36;
@@ -229,12 +429,17 @@ document.addEventListener("DOMContentLoaded", function() {
         const autoMonthlyCapacity = transportMax;
         const estimatedCarPrice = (autoMonthlyCapacity * autoTermMonths) / (1 - autoDownPaymentPct);
 
+        let percentile = 99;
+        if (currentCalculatedTotalGross > 0) {
+            percentile = Math.max(1, 100 - Math.floor(currentCalculatedTotalGross / 150));
+        }
+
         percentileValue.innerText = `Top ${percentile}%`;
         netIncomeValue.innerText = formatCurrency(totalNetMonthly);
         
-        budgetNeeds.innerText = formatCurrency(needs);
-        budgetWants.innerText = formatCurrency(wants);
-        budgetSavings.innerText = formatCurrency(savings);
+        budgetNeeds.innerText = formatCurrency(currentCalculatedNeeds);
+        budgetWants.innerText = formatCurrency(currentCalculatedWants);
+        budgetSavings.innerText = formatCurrency(currentCalculatedSavings);
 
         maxHousing.innerText = formatCurrency(currentCalculatedHousingMax);
         maxTotalDebt.innerText = formatCurrency(totalDebtMax);
@@ -244,9 +449,10 @@ document.addEventListener("DOMContentLoaded", function() {
         maxCarPrice.innerText = formatCurrency(estimatedCarPrice);
 
         calculateHousingMatrix();
-
-        calculateBtn.innerText = originalBtnText;
-        calculateBtn.disabled = false;
+        updateLifestyleTracker();
+        calculateGeoArbitrage();
+        drawCharts(percentile, currentCalculatedNeeds, currentCalculatedWants, currentCalculatedSavings);
+        calculateFIRE();
 
         setupView.classList.remove("active-view");
         setupView.classList.add("hidden-view");

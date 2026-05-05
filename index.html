@@ -168,6 +168,15 @@
                 <div class="chart-container">
                     <canvas id="bellCurveChart"></canvas>
                 </div>
+                <div style="margin-top: 25px;">
+                    <div class="gt-label" style="margin-bottom: 10px; font-size: 0.8rem;">Comparative Benchmarks</div>
+                    <div class="line-items" style="padding: 10px 15px;">
+                        <div class="item-row"><span>Top 50% (Median)</span><span id="benchMedian">$0</span></div>
+                        <div class="item-row"><span>Top 25%</span><span id="benchTop25">$0</span></div>
+                        <div class="item-row"><span>Top 10%</span><span id="benchTop10">$0</span></div>
+                        <div class="item-row" style="border-bottom:none;"><span>Top 1%</span><span id="benchTop1">$0</span></div>
+                    </div>
+                </div>
             </div>
             
             <div class="dash-card">
@@ -183,16 +192,17 @@
                         <option value="fl">Miami, FL</option>
                         <option value="national">National Average</option>
                     </select>
-                    <div class="line-items" style="margin-top:15px; padding: 10px;">
+                    <div class="line-items" style="margin-top:15px; padding: 10px 15px;">
                         <div class="item-row">
-                            <span style="font-size: 0.9rem">Alt. Net Income</span>
+                            <span id="geoNetLabel" style="font-size: 0.9rem">Take-Home in ...</span>
                             <span id="altNetIncome" style="font-size: 0.9rem">$0</span>
                         </div>
                         <div class="item-row" style="border-bottom:none;">
-                            <span style="font-size: 0.9rem">Alt. Max Housing</span>
+                            <span id="geoHousingLabel" style="font-size: 0.9rem">Max Housing in ...</span>
                             <span id="altMaxHousing" style="font-size: 0.9rem">$0</span>
                         </div>
                     </div>
+                    <p id="geoDiffText" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;"></p>
                 </div>
             </div>
         </div>
@@ -274,14 +284,14 @@
                 <span>28/36 Housing Rule & Purchase Matrix</span>
             </div>
             <div class="module-content">
-                <div class="line-items" style="margin-bottom: 20px;">
+                <div class="line-items" style="margin-bottom: 25px;">
                     <div class="item-row">
                         <span>Max Monthly Housing (28% Gross)</span>
                         <span id="maxHousing">$0</span>
                     </div>
                     <div class="item-row">
-                        <span>Max Total Debt Service (36% Gross)</span>
-                        <span id="maxTotalDebt">$0</span>
+                        <span>Recommended Max Purchase Price</span>
+                        <span id="maxHomePriceValue">$0</span>
                     </div>
                     <div class="item-row" style="border-bottom: none;">
                         <span>Available Debt Capacity</span>
@@ -290,8 +300,14 @@
                 </div>
 
                 <div class="slider-container" style="max-width: 100%;">
-                    <div class="gt-label" style="text-align: center; margin-bottom: 10px;">Max Home Purchase Price</div>
-                    <div class="budget-display" id="maxHomePriceValue">$0</div>
+                    <div class="gt-label" style="text-align: center; margin-bottom: 10px;">Target Home Purchase Price</div>
+                    <div class="budget-display" id="targetHomePriceDisplay">$0</div>
+                    <div class="slider-wrapper">
+                        <input type="range" id="targetHomePrice" min="50000" max="2000000" step="5000" value="350000">
+                    </div>
+
+                    <div class="gt-label" style="text-align: center; margin-top: 25px; margin-bottom: 5px;">Estimated Monthly Payment</div>
+                    <div class="budget-display" id="actualHousingPayment" style="font-size: 2.5rem; transition: color 0.3s;">$0/mo</div>
                     
                     <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
                         <div class="input-row">
@@ -319,9 +335,9 @@
                                 </div>
                             </div>
                             <div class="input-group" style="flex: 1;">
-                                <label>Down Payment: <span id="downLabel">20%</span></label>
+                                <label>Down Payment: <span id="downLabel">20.0%</span></label>
                                 <div class="slider-wrapper">
-                                    <input type="range" id="downPayment" min="0" max="50" step="0.1" value="20">
+                                    <input type="range" id="downPayment" min="0" max="50" step="0.5" value="20">
                                 </div>
                             </div>
                         </div>
@@ -357,7 +373,7 @@
                 <span>20/4/10 Auto Financing</span>
             </div>
             <div class="module-content">
-                <div class="line-items">
+                <div class="line-items" style="margin-bottom: 25px;">
                     <div class="item-row">
                         <span>Max Monthly Transport Costs (10% Gross)</span>
                         <span id="maxTransport">$0</span>
@@ -368,38 +384,49 @@
                     </div>
                 </div>
 
-                <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
-                    <div class="input-row">
-                        <div class="input-group">
-                            <label>Financing Type</label>
-                            <select id="autoType" class="glass-input">
-                                <option value="buy">Buy (Finance)</option>
-                                <option value="lease">Lease</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Loan Term</label>
-                            <select id="autoTerm" class="glass-input">
-                                <option value="36">36 Months</option>
-                                <option value="48" selected>48 Months</option>
-                                <option value="60">60 Months</option>
-                                <option value="72">72 Months</option>
-                            </select>
-                        </div>
+                <div class="slider-container" style="max-width: 100%;">
+                    <div class="gt-label" style="text-align: center; margin-bottom: 10px;">Target Vehicle Price</div>
+                    <div class="budget-display" id="targetCarPriceDisplay">$0</div>
+                    <div class="slider-wrapper">
+                        <input type="range" id="targetCarPrice" min="5000" max="150000" step="1000" value="25000">
                     </div>
-                    <div class="input-row" style="margin-top: 15px;">
-                        <div class="input-group" style="flex: 1;">
-                            <label>Interest Rate: <span id="autoRateLabel">7.0%</span></label>
-                            <div class="slider-wrapper">
-                                <input type="range" id="autoRate" min="0.0" max="15.0" step="0.1" value="7.0">
+
+                    <div class="gt-label" style="text-align: center; margin-top: 25px; margin-bottom: 5px;">Estimated Monthly Payment</div>
+                    <div class="budget-display" id="actualAutoPayment" style="font-size: 2.5rem; transition: color 0.3s;">$0/mo</div>
+                    
+                    <div class="calc-row" style="margin-top: 25px; background: rgba(0,0,0,0.2);">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>Financing Type</label>
+                                <select id="autoType" class="glass-input">
+                                    <option value="buy">Buy (Finance)</option>
+                                    <option value="lease">Lease</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Loan Term</label>
+                                <select id="autoTerm" class="glass-input">
+                                    <option value="36">36 Months</option>
+                                    <option value="48" selected>48 Months</option>
+                                    <option value="60">60 Months</option>
+                                    <option value="72">72 Months</option>
+                                </select>
                             </div>
                         </div>
-                        <div class="input-group" style="flex: 1;">
-                            <label>Number of Vehicles</label>
-                            <select id="autoCount" class="glass-input">
-                                <option value="1">1 Vehicle</option>
-                                <option value="2">2 Vehicles</option>
-                            </select>
+                        <div class="input-row" style="margin-top: 15px;">
+                            <div class="input-group" style="flex: 1;">
+                                <label>Interest Rate: <span id="autoRateLabel">7.0%</span></label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="autoRate" min="0.0" max="15.0" step="0.1" value="7.0">
+                                </div>
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label>Number of Vehicles</label>
+                                <select id="autoCount" class="glass-input">
+                                    <option value="1">1 Vehicle</option>
+                                    <option value="2">2 Vehicles</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>

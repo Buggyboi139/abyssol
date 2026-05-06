@@ -685,10 +685,72 @@ els.authToggleBtn.textContent = isRegistering ? 'Already have an account? Sign i
 });
 els.signOutBtn.addEventListener('click', handleSignOut);
 
+const toBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = error => reject(error);
+});
+
 els.statementUpload.addEventListener('change', async (e) => {
-const file = e.target.files[0];
-if (!file) return;
-if (!currentUser) return;
+    const file = e.target.files[0];
+    if (!file || !currentUser) return;
+
+    try {
+        els.uploadStatus.textContent = "Reading document locally...";
+        els.uploadStatus.style.color = "#60a5fa";
+
+        let fileContent;
+        let mimeType = file.type;
+        
+        if (mimeType === 'application/pdf') {
+            fileContent = await toBase64(file);
+        } else if (mimeType === 'text/csv' || file.name.endsWith('.csv')) {
+            fileContent = await file.text();
+            mimeType = 'text/csv';
+        } else {
+            throw new Error("Unsupported file type. Please upload PDF or CSV.");
+        }
+
+        els.uploadStatus.textContent = "Sending to secure Edge Function for AI processing...";
+
+        // Call your new Edge Function
+        const { data, error: funcError } = await supabase.functions.invoke('process-statement', {
+            body: { fileContent, mimeType }
+        });
+
+        if (funcError) throw new Error(funcError.message);
+        if (data.error) throw new Error(data.error);
+
+        els.uploadStatus.textContent = "Parsing AI response...";
+
+        let transactions = [];
+        try {
+            transactions = JSON.parse(data.result);
+            transactions = transactions.map(t => ({ ...t, user_id: currentUser.id }));
+        } catch (parseError) {
+            throw new Error("AI did not return valid JSON.");
+        }
+
+        els.uploadStatus.textContent = `Saving ${transactions.length} transactions to database...`;
+
+        // Insert into Supabase
+        const { error: insertError } = await supabase
+            .from('transactions')
+            .insert(transactions);
+
+        if (insertError) throw insertError;
+
+        els.uploadStatus.textContent = `Success! ${transactions.length} transactions categorized and synced.`;
+        els.uploadStatus.style.color = "#34d399"; 
+
+    } catch (err) {
+        els.uploadStatus.textContent = "Error: " + err.message;
+        els.uploadStatus.style.color = "#fb7185"; 
+    } finally {
+        els.statementUpload.value = ''; 
+    }
+});
 
 els.uploadStatus.textContent = "Encrypting & Uploading...";
 const fileName = `${currentUser.id}/${Date.now()}_${file.name}`;

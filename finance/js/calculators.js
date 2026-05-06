@@ -1,5 +1,23 @@
 import { state } from './state.js';
 
+export function filterTransactions(transactions, filters) {
+    if (!Array.isArray(transactions)) return[];
+    let filtered = transactions;
+
+    if (filters.dateRange !== 'all') {
+        const days = parseInt(filters.dateRange, 10);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        filtered = filtered.filter(t => new Date(t.date) >= cutoff);
+    }
+
+    if (filters.category !== 'all') {
+        filtered = filtered.filter(t => t.category === filters.category);
+    }
+
+    return filtered;
+}
+
 export function calculateCashFlow(personalExpensesRaw) {
     const taxRate = state.locationData?.tax_rate ?? 0.22;
     const netPersonalMonthly = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
@@ -115,6 +133,24 @@ export function groupTransactionsByCategory(transactions) {
     return grouped;
 }
 
+export function groupTransactionsByMerchant(transactions) {
+    const grouped = {};
+    if (!Array.isArray(transactions)) return grouped;
+    
+    transactions.forEach(t => {
+        const amount = Number(t.amount) || 0;
+        const isIncome = t.type === 'income' || amount > 0;
+        if (isIncome) return;
+        
+        let merchant = (t.clean_merchant || t.description || 'Unknown').trim();
+        if (!grouped[merchant]) grouped[merchant] = { total: 0, items:[] };
+        
+        grouped[merchant].total += Math.abs(amount);
+        grouped[merchant].items.push(t);
+    });
+    return grouped;
+}
+
 export function getPercentile(data, ht, sx, ed, rc, income) {
     const brackets = data?.demographics?.[ht]?.[sx]?.[ed]?.[rc];
     if (!Array.isArray(brackets) || brackets.length === 0) return null;
@@ -122,4 +158,34 @@ export function getPercentile(data, ht, sx, ed, rc, income) {
     if (idx === -1) return 1;
     if (idx === 0 && income < brackets[0].income) return 99;
     return Math.max(1, 100 - brackets[idx].percentile);
+}
+
+export function getPreProcessingSummary(filteredTransactions) {
+    let totalIncome = 0;
+    let totalSpend = 0;
+    const catMap = {};
+    const merchMap = {};
+
+    filteredTransactions.forEach(t => {
+        const amt = Math.abs(Number(t.amount) || 0);
+        const isIncome = t.type === 'income' || Number(t.amount) > 0;
+
+        if (isIncome) {
+            totalIncome += amt;
+        } else {
+            totalSpend += amt;
+            const cat = t.category || 'Uncategorized';
+            catMap[cat] = (catMap[cat] || 0) + amt;
+            
+            const merch = (t.clean_merchant || t.description || 'Unknown').trim();
+            merchMap[merch] = (merchMap[merch] || 0) + amt;
+        }
+    });
+
+    const topMerchants = Object.entries(merchMap)
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(x => ({ name: x[0], amount: x[1] }));
+
+    return { totalIncome, totalSpend, categoryBreakdown: catMap, topMerchants };
 }

@@ -65,7 +65,7 @@ export async function fetchTransactions(userId) {
         .order('date', { ascending: false });
     if (error) {
         console.warn('fetchTransactions error', error);
-        return [];
+        return[];
     }
     return data ||[];
 }
@@ -89,4 +89,25 @@ export async function updateTransactionCategory(id, category) {
         .eq('id', id);
     if (error) console.warn('updateTransactionCategory error', error);
     return error;
+}
+
+export async function deleteTransaction(id) {
+    const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+    if (error) console.warn('deleteTransaction error', error);
+    return error;
+}
+
+export async function addTransaction(transaction) {
+    const { data, error } = await supabase
+        .from('transactions')
+        .insert([transaction])
+        .select();
+    if (error) {
+        console.warn('addTransaction error', error);
+        return { data: null, error };
+    }
+    return { data, error: null };
 }

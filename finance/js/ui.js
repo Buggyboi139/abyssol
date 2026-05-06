@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { fetchLocationData, saveUserProfile, listStatements } from './api.js';
-import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory } from './calculators.js';
-import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart } from './charts.js';
+import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant } from './calculators.js';
+import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart, drawMerchantChart } from './charts.js';
 
 const CATEGORIES =['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'];
 
@@ -103,142 +103,87 @@ export async function triggerCalculations(options = {}) {
     updateBenchmarking();
 }
 
-function renderTimelineView() {
-    const grouped = groupTransactionsByMonth(state.transactions ||[]);
-    const labels = Object.keys(grouped).sort();
-    const inflows = labels.map(l => grouped[l].inflow);
-    const outflows = labels.map(l => grouped[l].outflow);
-
+function renderFlatLedger(filteredTransactions) {
     const ledger = document.getElementById('historicalLedger');
-    if (ledger) {
-        ledger.innerHTML = '';
-        if (labels.length === 0) {
-            ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No transaction history. Upload a statement from the Data Sync tab to populate this view.</span></div>';
-        } else {
-            [...labels].reverse().forEach(month => {
-                const details = document.createElement('details');
-                details.className = 'expense-category';
-                details.open = true; 
-                
-                const itemsHtml = grouped[month].items
-                    .map(t => {
-                        const amt = Number(t.amount) || 0;
-                        const isIncome = t.type === 'income' || amt > 0;
-                        const color = isIncome ? '#34d399' : '#f8fafc';
-                        const prefix = isIncome ? '+' : '';
-                        const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
-                        
-                        return `<div class="item-row" style="align-items:center;">
-                            <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
-                                <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
-                                <span>${desc}</span>
-                            </span>
-                            ${!isIncome ? `
-                            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
-                                ${CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-                            </select>
-                            ` : `<span style="margin-right:10px; font-size:0.8rem; color:var(--text-muted); min-width:120px; display:inline-block; text-align:center;">Deposit</span>`}
-                            <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
-                        </div>`;
-                    })
-                    .join('');
-                
-                const monthTotal = grouped[month].inflow - grouped[month].outflow;
-                const totalColor = monthTotal >= 0 ? '#34d399' : '#fb7185';
-                const totalPrefix = monthTotal >= 0 ? '+' : '';
-
-                details.innerHTML = `<summary class="category-header">${month} <span class="category-total" style="color: ${totalColor};">${totalPrefix}${fmt(Math.abs(monthTotal))}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
-                ledger.appendChild(details);
-            });
-        }
+    if (!ledger) return;
+    
+    if (!filteredTransactions || filteredTransactions.length === 0) {
+        ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No transactions match filters.</span></div>';
+        return;
     }
 
-    if (typeof drawHistoryChart === 'function') {
-        try {
-            drawHistoryChart(labels, inflows, outflows);
-        } catch (e) {
-            console.error(e);
-        }
-    }
-}
-
-function renderCategoryView() {
-    const grouped = groupTransactionsByCategory(state.transactions ||[]);
-    const labels = Object.keys(grouped).sort((a,b) => grouped[b].total - grouped[a].total);
-    const totals = labels.map(l => grouped[l].total);
-
-    const ledger = document.getElementById('historicalLedger');
-    if (ledger) {
-        ledger.innerHTML = '';
-        if (labels.length === 0) {
-            ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No expense history found.</span></div>';
-        } else {
-            labels.forEach(cat => {
-                const details = document.createElement('details');
-                details.className = 'expense-category';
-                details.open = true;
-                
-                const itemsHtml = grouped[cat].items
-                    .map(t => {
-                        const amt = Math.abs(Number(t.amount) || 0);
-                        const desc = (t.clean_merchant || t.description || t.raw_description || 'Transaction').toString();
-                        
-                        return `<div class="item-row" style="align-items:center;">
-                            <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
-                                <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
-                                <span>${desc}</span>
-                            </span>
-                            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
-                                ${CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-                            </select>
-                            <span style="color:#f8fafc; font-weight:600; width:80px; text-align:right;">${fmt(amt)}</span>
-                        </div>`;
-                    })
-                    .join('');
-                
-                details.innerHTML = `<summary class="category-header">${cat} <span class="category-total" style="color: #fb7185;">${fmt(grouped[cat].total)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
-                ledger.appendChild(details);
-            });
-        }
-    }
-
-    if (typeof drawCategoryDonutChart === 'function') {
-        try {
-            drawCategoryDonutChart(labels, totals);
-        } catch (e) {
-            console.error(e);
-        }
-    }
+    ledger.innerHTML = filteredTransactions.map(t => {
+        const amt = Number(t.amount) || 0;
+        const isIncome = t.type === 'income' || amt > 0;
+        const color = isIncome ? '#34d399' : '#f8fafc';
+        const prefix = isIncome ? '+' : '';
+        const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
+        const bg = isIncome ? 'rgba(52, 211, 153, 0.05)' : 'transparent';
+        
+        return `<div class="item-row" style="align-items:center; background: ${bg}; padding: 12px; border-radius: 8px;">
+            <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
+                <span>${desc}</span>
+            </span>
+            ${!isIncome ? `
+            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
+                ${CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+            ` : `<span style="margin-right:10px; font-size:0.8rem; color:#34d399; min-width:120px; display:inline-block; text-align:center;">Income</span>`}
+            <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
+            <button class="delete-tx-btn" data-id="${t.id}" title="Delete">🗑️</button>
+        </div>`;
+    }).join('');
 }
 
 function updateOverview() {
     const liqEl = document.getElementById('overviewLiquidity');
     if (liqEl) liqEl.textContent = fmt(state.portfolio);
 
-    const tlBtn = document.getElementById('toggleTimelineBtn');
-    if (tlBtn && tlBtn.classList.contains('active')) {
-        renderTimelineView();
-    } else {
-        renderCategoryView();
-    }
-
-    const taxRate = state.locationData?.tax_rate ?? 0.22;
-    const net = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
-    let personalExp = 0;
-    document.querySelectorAll('.expense-input').forEach(i => {
-        personalExp += (parseFloat(i.value) || 0);
-    });
+    const filtered = filterTransactions(state.transactions, state.filters);
     
-    const cashFlow = net - personalExp - state.sharedContribution;
-    const cfEl = document.getElementById('overviewCashFlow');
-    if (cfEl) {
-        cfEl.textContent = fmt(cashFlow);
-        cfEl.style.color = cashFlow < 0 ? '#fb7185' : '#34d399';
-    }
+    let totalIn = 0;
+    let totalOut = 0;
+    
+    filtered.forEach(t => {
+        const amt = Math.abs(Number(t.amount) || 0);
+        const isIncome = t.type === 'income' || Number(t.amount) > 0;
+        if (isIncome) totalIn += amt;
+        else totalOut += amt;
+    });
 
-    const avgSvRate = net > 0 ? (cashFlow / net) * 100 : 0;
-    const svRateEl = document.getElementById('overviewSavingsRate');
-    if (svRateEl) svRateEl.textContent = `${avgSvRate.toFixed(1)}%`;
+    if (document.getElementById('kpiTotalIncome')) document.getElementById('kpiTotalIncome').textContent = fmt(totalIn);
+    if (document.getElementById('kpiTotalSpend')) document.getElementById('kpiTotalSpend').textContent = fmt(totalOut);
+    
+    const netFlow = totalIn - totalOut;
+    const netEl = document.getElementById('kpiNetCashFlow');
+    if (netEl) {
+        netEl.textContent = fmt(netFlow);
+        netEl.style.color = netFlow < 0 ? '#fb7185' : '#34d399';
+    }
+    
+    const sr = totalIn > 0 ? (netFlow / totalIn) * 100 : 0;
+    if (document.getElementById('kpiSavingsRate')) document.getElementById('kpiSavingsRate').textContent = `${sr.toFixed(1)}%`;
+
+    renderFlatLedger(filtered);
+
+    if (state.activeView === 'timeline') {
+        const grouped = groupTransactionsByMonth(filtered);
+        const labels = Object.keys(grouped).sort();
+        const inflows = labels.map(l => grouped[l].inflow);
+        const outflows = labels.map(l => grouped[l].outflow);
+        if (typeof drawHistoryChart === 'function') drawHistoryChart(labels, inflows, outflows);
+    } else if (state.activeView === 'category') {
+        const grouped = groupTransactionsByCategory(filtered);
+        const labels = Object.keys(grouped).sort((a,b) => grouped[b].total - grouped[a].total);
+        const totals = labels.map(l => grouped[l].total);
+        if (typeof drawCategoryDonutChart === 'function') drawCategoryDonutChart(labels, totals);
+    } else if (state.activeView === 'merchant') {
+        const grouped = groupTransactionsByMerchant(filtered);
+        const labels = Object.keys(grouped).sort((a,b) => grouped[b].total - grouped[a].total).slice(0,10);
+        const totals = labels.map(l => grouped[l].total);
+        if (typeof drawMerchantChart === 'function') drawMerchantChart(labels, totals);
+    }
 }
 
 function updateBudget() {

@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://agfngkzohlrmxjhysafn.supabase.co; img-src 'self' data: blob:;">
 <title>Abyssol | Financial Intelligence</title>
-<link rel="stylesheet" href="css/base.css?v=3">
-<link rel="stylesheet" href="css/layout.css?v=3">
-<link rel="stylesheet" href="css/components.css?v=3">
-<link rel="stylesheet" href="css/dashboard.css?v=3">
+<link rel="stylesheet" href="css/base.css?v=4">
+<link rel="stylesheet" href="css/layout.css?v=4">
+<link rel="stylesheet" href="css/components.css?v=4">
+<link rel="stylesheet" href="css/dashboard.css?v=4">
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script type="module" src="js/app.js?v=3" defer></script>
+<script type="module" src="js/app.js?v=4" defer></script>
 </head>
 <body>
 <noscript>
@@ -160,49 +160,113 @@
 </div>
 
 <div id="tab-overview" class="tab-pane active">
+<div class="filter-bar mb-20 control-panel" style="padding: 15px 25px; border-radius: 16px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+<span class="gt-label" style="margin-right: auto;">Global Filters</span>
+<select id="filterDateRange" class="glass-input btn-small" style="width: auto;">
+<option value="all">All Time</option>
+<option value="30">Last 30 Days</option>
+<option value="90">Last 90 Days</option>
+</select>
+<select id="filterCategory" class="glass-input btn-small" style="width: auto;">
+<option value="all">All Categories</option>
+<option value="Housing">Housing</option>
+<option value="Transport">Transport</option>
+<option value="Food">Food</option>
+<option value="Utilities">Utilities</option>
+<option value="Entertainment">Entertainment</option>
+<option value="Health">Health</option>
+<option value="Shopping">Shopping</option>
+<option value="Uncategorized">Uncategorized</option>
+</select>
+</div>
+
 <div class="dashboard-grid">
-<div class="dash-card text-center" data-tooltip="Total liquid personal assets and current portfolio.">
-<div class="gt-label">Personal Liquidity</div>
-<div class="gt-value" id="overviewLiquidity">$0</div>
+<div class="dash-card text-center" data-tooltip="Total parsed income for the selected period.">
+<div class="gt-label">Total Income</div>
+<div class="gt-value transition-color" id="kpiTotalIncome" style="color: #34d399;">$0</div>
 </div>
-<div class="dash-card text-center" data-tooltip="Net income minus personal discretionary expenses and shared obligations.">
-<div class="gt-label">30-Day Free Cash Flow</div>
-<div class="gt-value transition-color" id="overviewCashFlow">$0</div>
+<div class="dash-card text-center" data-tooltip="Total parsed expenses for the selected period.">
+<div class="gt-label">Total Spend</div>
+<div class="gt-value transition-color" id="kpiTotalSpend" style="color: #fb7185;">$0</div>
 </div>
-<div class="dash-card text-center" data-tooltip="Percentage of net income retained after all modeled expenses.">
-<div class="gt-label">Historical Savings Rate</div>
-<div class="gt-value" id="overviewSavingsRate">0%</div>
+<div class="dash-card text-center" data-tooltip="Net cash flow (Income - Spend).">
+<div class="gt-label">Net Cash Flow</div>
+<div class="gt-value transition-color" id="kpiNetCashFlow">$0</div>
+</div>
+<div class="dash-card text-center" data-tooltip="Percentage of income retained based on actual parsed data.">
+<div class="gt-label">Savings Rate</div>
+<div class="gt-value transition-color" id="kpiSavingsRate">0%</div>
 </div>
 </div>
 
-<div class="module-container active mt-25">
+<div class="bento-box mt-25">
+<div class="bento-left module-container active" style="margin-bottom:0;">
 <div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+<span id="trendsHeaderTitle">Multi-View Analytics</span>
+<div class="view-toggle" style="display: flex;">
+<button type="button" id="viewTimelineBtn" class="secondary-btn btn-small active" style="border-radius: 20px 0 0 20px;">Timeline</button>
+<button type="button" id="viewCategoryBtn" class="secondary-btn btn-small" style="border-radius: 0 0 0 0; margin-left: -1px;">Category</button>
+<button type="button" id="viewMerchantBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Merchant</button>
+</div>
+</div>
+<div class="module-content">
+<div id="chartContainerTimeline" class="chart-container chart-h-300 active-pane"><canvas id="historyChart"></canvas></div>
+<div id="chartContainerCategory" class="chart-container chart-h-300 hidden-pane"><canvas id="categoryDonutChart"></canvas></div>
+<div id="chartContainerMerchant" class="chart-container chart-h-300 hidden-pane"><canvas id="merchantBarChart"></canvas></div>
+</div>
+
+<div class="module-header mt-25" style="display: flex; justify-content: space-between; align-items: center; border-radius: 0; border-top: 1px solid var(--border-glass);">
 <span>AI Financial Analyst</span>
 <button type="button" id="aiInsightsBtn" class="secondary-btn btn-small" style="background: rgba(56, 189, 248, 0.1); border-color: #38bdf8; color: #38bdf8;">✨ Generate Insights</button>
 </div>
 <div class="module-content">
 <div id="aiInsightsOutput" class="fs-09" style="color: var(--text-muted); line-height: 1.6;">
-Click the button above to generate a personalized AI analysis of your cash flow, demographics, and portfolio trajectory.
+Click the button above to generate a personalized AI analysis based on your filtered transactions.
 </div>
 </div>
 </div>
 
-<div class="module-container active mt-25">
-<div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-<span id="trendsHeaderTitle">Month-by-Month Trends</span>
-<div class="view-toggle" style="display: flex;">
-<button type="button" id="toggleTimelineBtn" class="secondary-btn btn-small active" style="border-radius: 20px 0 0 20px;">Timeline</button>
-<button type="button" id="toggleCategoryBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Category</button>
+<div class="bento-right module-container active" style="margin-bottom:0;">
+<div class="module-header"><span>Persistent Ledger</span></div>
+<div class="module-content" style="padding: 15px; display: flex; flex-direction: column; height: 100%; max-height: 800px;">
+<form id="addTransactionForm" class="mb-15 clean-row" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border-glass);">
+<div class="input-row mb-10" style="gap: 10px;">
+<div class="input-group" style="flex: 1;">
+<input type="date" id="newTxDate" class="glass-input btn-small" required>
+</div>
+<div class="input-group" style="flex: 1;">
+<input type="number" id="newTxAmount" class="glass-input btn-small" placeholder="Amount" step="0.01" min="0" required>
+</div>
+<div class="input-group" style="flex: 0.5;">
+<select id="newTxType" class="glass-input btn-small">
+<option value="expense">Exp</option>
+<option value="income">Inc</option>
+</select>
 </div>
 </div>
-<div class="module-content">
-<div id="timelineViewPane" class="view-pane active">
-<div class="chart-container chart-h-300"><canvas id="historyChart"></canvas></div>
+<div class="input-row mb-10" style="gap: 10px;">
+<div class="input-group" style="flex: 2;">
+<input type="text" id="newTxMerchant" class="glass-input btn-small" placeholder="Merchant" required>
 </div>
-<div id="categoryViewPane" class="view-pane hidden">
-<div class="chart-container chart-h-300"><canvas id="categoryDonutChart"></canvas></div>
+<div class="input-group" style="flex: 1.5;">
+<select id="newTxCategory" class="glass-input btn-small">
+<option value="Housing">Housing</option>
+<option value="Transport">Transport</option>
+<option value="Food">Food</option>
+<option value="Utilities">Utilities</option>
+<option value="Entertainment">Entertainment</option>
+<option value="Health">Health</option>
+<option value="Shopping">Shopping</option>
+<option value="Uncategorized" selected>Uncat</option>
+</select>
 </div>
-<div class="mt-25 historical-ledger" id="historicalLedger"></div>
+</div>
+<button type="submit" class="secondary-btn btn-small" style="width: 100%;">+ Add Transaction</button>
+</form>
+
+<div id="historicalLedger" class="historical-ledger" style="flex: 1; overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; gap: 8px;">
+</div>
+</div>
 </div>
 </div>
 </div>

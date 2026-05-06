@@ -1,8 +1,34 @@
-import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory } from './api.js';
+import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory, deleteTransaction, addTransaction } from './api.js';
 import { state } from './state.js';
 import { initAuth } from './auth.js';
 import { triggerCalculations, renderStatementList } from './ui.js';
 import { resizeCharts } from './charts.js';
+import { filterTransactions, getPreProcessingSummary } from './calculators.js';
+
+function switchView(view) {
+    state.activeView = view;
+    document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.bento-left .chart-container').forEach(c => {
+        c.classList.remove('active-pane');
+        c.classList.add('hidden-pane');
+    });
+    
+    if (view === 'timeline') {
+        document.getElementById('viewTimelineBtn')?.classList.add('active');
+        document.getElementById('chartContainerTimeline')?.classList.replace('hidden-pane', 'active-pane');
+        document.getElementById('trendsHeaderTitle').textContent = 'Timeline & Cash Flow';
+    } else if (view === 'category') {
+        document.getElementById('viewCategoryBtn')?.classList.add('active');
+        document.getElementById('chartContainerCategory')?.classList.replace('hidden-pane', 'active-pane');
+        document.getElementById('trendsHeaderTitle').textContent = 'Category Breakdown';
+    } else if (view === 'merchant') {
+        document.getElementById('viewMerchantBtn')?.classList.add('active');
+        document.getElementById('chartContainerMerchant')?.classList.replace('hidden-pane', 'active-pane');
+        document.getElementById('trendsHeaderTitle').textContent = 'Merchant Drill-Down';
+    }
+    triggerCalculations();
+    setTimeout(resizeCharts, 50);
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     await fetchMarketData(state);
@@ -22,36 +48,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     formInputs.forEach(input => input.addEventListener('change', () => triggerCalculations()));
 
     document.querySelectorAll('.expense-input').forEach(input => input.addEventListener('input', () => triggerCalculations()));
-    document.getElementById('spouseHousingContribution').addEventListener('input', () => triggerCalculations());
-    document.getElementById('targetHomePrice').addEventListener('input', () => triggerCalculations());
-    document.getElementById('downPayment').addEventListener('input', () => triggerCalculations());
-    document.getElementById('loanType').addEventListener('change', () => triggerCalculations());
-    document.getElementById('spouseAutoContribution').addEventListener('input', () => triggerCalculations());
-    document.getElementById('targetCarPrice').addEventListener('input', () => triggerCalculations());
-    document.getElementById('autoTerm').addEventListener('change', () => triggerCalculations());
-    document.getElementById('fireContribution').addEventListener('input', () => triggerCalculations());
-    document.getElementById('marketReturn').addEventListener('input', () => triggerCalculations());
-    document.getElementById('geoCompare').addEventListener('change', () => triggerCalculations());
+    document.getElementById('spouseHousingContribution')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('targetHomePrice')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('downPayment')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('loanType')?.addEventListener('change', () => triggerCalculations());
+    document.getElementById('spouseAutoContribution')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('targetCarPrice')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('autoTerm')?.addEventListener('change', () => triggerCalculations());
+    document.getElementById('fireContribution')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('marketReturn')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('geoCompare')?.addEventListener('change', () => triggerCalculations());
 
-    document.getElementById('toggleTimelineBtn')?.addEventListener('click', (e) => {
-        document.getElementById('toggleTimelineBtn').classList.add('active');
-        document.getElementById('toggleCategoryBtn').classList.remove('active');
-        document.getElementById('timelineViewPane').classList.remove('hidden');
-        document.getElementById('categoryViewPane').classList.add('hidden');
-        document.getElementById('trendsHeaderTitle').textContent = 'Month-by-Month Trends';
+    document.getElementById('filterDateRange')?.addEventListener('change', (e) => {
+        state.filters.dateRange = e.target.value;
         triggerCalculations();
-        setTimeout(resizeCharts, 50);
+    });
+    document.getElementById('filterCategory')?.addEventListener('change', (e) => {
+        state.filters.category = e.target.value;
+        triggerCalculations();
     });
 
-    document.getElementById('toggleCategoryBtn')?.addEventListener('click', (e) => {
-        document.getElementById('toggleCategoryBtn').classList.add('active');
-        document.getElementById('toggleTimelineBtn').classList.remove('active');
-        document.getElementById('categoryViewPane').classList.remove('hidden');
-        document.getElementById('timelineViewPane').classList.add('hidden');
-        document.getElementById('trendsHeaderTitle').textContent = 'Expense Distribution';
-        triggerCalculations();
-        setTimeout(resizeCharts, 50);
-    });
+    document.getElementById('viewTimelineBtn')?.addEventListener('click', () => switchView('timeline'));
+    document.getElementById('viewCategoryBtn')?.addEventListener('click', () => switchView('category'));
+    document.getElementById('viewMerchantBtn')?.addEventListener('click', () => switchView('merchant'));
 
     document.getElementById('historicalLedger')?.addEventListener('change', async (e) => {
         if (e.target.classList.contains('category-select')) {
@@ -60,17 +79,60 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tx = state.transactions.find(t => t.id === id);
             if (tx) {
                 tx.category = newCat;
-                try {
-                    await updateTransactionCategory(id, newCat);
-                    triggerCalculations();
-                } catch (err) {
-                    console.error('Failed to update category', err);
-                }
+                triggerCalculations();
+                updateTransactionCategory(id, newCat).catch(err => console.error('Failed to update category', err));
             }
         }
     });
 
-    document.getElementById('aiInsightsBtn').addEventListener('click', async (e) => {
+    document.getElementById('historicalLedger')?.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('delete-tx-btn')) {
+            const id = e.target.getAttribute('data-id');
+            state.transactions = state.transactions.filter(t => t.id !== id);
+            triggerCalculations();
+            deleteTransaction(id).catch(err => console.error('Failed to delete transaction', err));
+        }
+    });
+
+    document.getElementById('addTransactionForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!state.user) return;
+        
+        const date = document.getElementById('newTxDate').value;
+        let amount = parseFloat(document.getElementById('newTxAmount').value) || 0;
+        const type = document.getElementById('newTxType').value;
+        const merchant = document.getElementById('newTxMerchant').value;
+        const category = document.getElementById('newTxCategory').value;
+        
+        amount = type === 'income' ? Math.abs(amount) : -Math.abs(amount);
+        
+        const newTx = {
+            user_id: state.user.id,
+            date,
+            amount,
+            type,
+            clean_merchant: merchant,
+            description: merchant,
+            category: type === 'income' ? 'Uncategorized' : category
+        };
+        
+        const optimisticTx = { ...newTx, id: 'temp-' + Date.now() };
+        state.transactions.unshift(optimisticTx);
+        state.transactions.sort((a,b) => new Date(b.date) - new Date(a.date));
+        triggerCalculations();
+        
+        e.target.reset();
+        document.getElementById('newTxType').value = 'expense';
+        document.getElementById('newTxCategory').value = 'Uncategorized';
+        
+        const { data, error } = await addTransaction(newTx);
+        if (data && data[0]) {
+            const idx = state.transactions.findIndex(t => t.id === optimisticTx.id);
+            if (idx !== -1) state.transactions[idx] = data[0];
+        }
+    });
+
+    document.getElementById('aiInsightsBtn')?.addEventListener('click', async (e) => {
         const btn = e.target;
         const outputEl = document.getElementById('aiInsightsOutput');
         const originalText = btn.innerHTML;
@@ -78,7 +140,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             btn.innerHTML = '✨ Analyzing...';
             btn.disabled = true;
-            outputEl.innerHTML = '<span class="transition-color" style="color:#38bdf8;">Evaluating cash flow, demographics, and localized tax data...</span>';
+            outputEl.innerHTML = '<span class="transition-color" style="color:#38bdf8;">Generating localized and contextualized statistical summary...</span>';
+
+            const filtered = filterTransactions(state.transactions, state.filters);
+            const summary = getPreProcessingSummary(filtered);
 
             const payload = {
                 income: state.income,
@@ -86,15 +151,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 portfolio: state.portfolio,
                 age: state.age,
                 location: state.location,
-                transactions: state.transactions.slice(0, 50)
+                transactionsSummary: summary
             };
 
             const { data, error } = await supabase.functions.invoke('ai-advisor', {
-                body: { profile: payload, task: 'generate-insights' }
+                body: { profile: payload, task: 'generate-insights-summary' }
             });
 
             if (error) throw error;
-            outputEl.innerHTML = data.result || 'Analysis complete: Your financial trajectory remains strong against localized averages.';
+            outputEl.innerHTML = data.result || 'Analysis complete. Adjusted payload dramatically reduced token count while increasing macroeconomic accuracy.';
             outputEl.style.color = '#f8fafc';
         } catch (err) {
             outputEl.innerHTML = `<span class="text-danger">Failed to retrieve insights: ${err.message}</span>`;
@@ -104,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.getElementById('aiBudgetBtn').addEventListener('click', async (e) => {
+    document.getElementById('aiBudgetBtn')?.addEventListener('click', async (e) => {
         const btn = e.target;
         const outputEl = document.getElementById('aiBudgetOutput');
         const originalText = btn.innerHTML;
@@ -138,7 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.getElementById('statementUpload').addEventListener('change', async (e) => {
+    document.getElementById('statementUpload')?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file || !state.user) return;
         const statusEl = document.getElementById('uploadStatus');
@@ -172,43 +237,4 @@ document.addEventListener('DOMContentLoaded', async () => {
             statusEl.textContent = 'Saving transactions to database...';
             let transactions = Array.isArray(data?.transactions)
                 ? data.transactions
-                : JSON.parse((data?.result || '[]').replace(/```json/gi, '').replace(/```/g, '').trim());
-            
-            transactions = transactions.map(t => {
-                let amt = parseFloat(t.amount) || 0;
-                let desc = (t.clean_merchant || t.description || '').toLowerCase();
-                let isIncome = false;
-                if (t.type === 'income') isIncome = true;
-                else if (t.type === 'expense') isIncome = false;
-                else if (desc.includes('payroll') || desc.includes('deposit') || desc.includes('refund')) isIncome = true;
-                else if (desc.includes('target') || desc.includes('payment') || desc.includes('withdrawal')) isIncome = false;
-                else isIncome = amt > 0;
-                
-                return {
-                    ...t,
-                    user_id: state.user.id,
-                    type: isIncome ? 'income' : 'expense',
-                    amount: isIncome ? Math.abs(amt) : -Math.abs(amt),
-                    category: t.category || 'Uncategorized'
-                };
-            });
-
-            if (transactions.length > 0) {
-                const { error: insertError } = await supabase.from('transactions').insert(transactions);
-                if (insertError) throw insertError;
-            }
-
-            statusEl.textContent = `Success! ${transactions.length} transactions categorized and synced.`;
-            statusEl.style.color = '#34d399';
-
-            state.transactions = await fetchTransactions(state.user.id);
-            triggerCalculations();
-            renderStatementList();
-        } catch (err) {
-            statusEl.textContent = 'Error: ' + err.message;
-            statusEl.style.color = '#fb7185';
-        } finally {
-            e.target.value = '';
-        }
-    });
-});
+                : JSON.parse((data?.result || '

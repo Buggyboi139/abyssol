@@ -102,13 +102,11 @@ export async function triggerCalculations(options = {}) {
 }
 
 function updateOverview() {
-    console.log('[DEBUG] updateOverview called — state.transactions length:', (state.transactions || []).length, '| sample[0]:', (state.transactions || [])[0] ?? 'empty');
     const liqEl = document.getElementById('overviewLiquidity');
     if (liqEl) liqEl.textContent = fmt(state.portfolio);
 
     const grouped = groupTransactionsByMonth(state.transactions || []);
     const labels = Object.keys(grouped).sort();
-    console.log('[DEBUG] groupTransactionsByMonth result — keys:', labels);
     const inflows = labels.map(l => grouped[l].inflow);
     const outflows = labels.map(l => grouped[l].outflow);
 
@@ -121,15 +119,22 @@ function updateOverview() {
             [...labels].reverse().forEach(month => {
                 const details = document.createElement('details');
                 details.className = 'expense-category';
+                details.open = true; 
+                
                 const itemsHtml = grouped[month].items
                     .map(t => {
                         const amt = Number(t.amount) || 0;
-                        const color = amt >= 0 ? '#34d399' : '#fb7185';
-                        const desc = (t.description || t.category || 'Transaction').toString();
+                        const color = amt > 0 ? '#fb7185' : '#34d399'; 
+                        
+                        const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
+                        
                         return `<div class="item-row"><span>${t.date || 'Unknown'} &middot; ${desc}</span><span style="color:${color}">${fmt(amt)}</span></div>`;
                     })
                     .join('');
-                details.innerHTML = `<summary class="category-header">${month} <span class="category-total">${fmt(grouped[month].outflow)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
+                
+                const monthTotal = grouped[month].inflow + grouped[month].outflow;
+
+                details.innerHTML = `<summary class="category-header">${month} <span class="category-total" style="color: #38bdf8;">Vol: ${fmt(monthTotal)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
                 ledger.appendChild(details);
             });
         }

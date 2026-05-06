@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", function() {
 const supabaseUrl = 'https://agfngkzohlrmxjhysafn.supabase.co';
-const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+const supabaseKey = 'sb_publishable_8u_PB-tndXrjSe9TNu_G7A_GKQjBxD0';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 Chart.defaults.color = '#94a3b8';

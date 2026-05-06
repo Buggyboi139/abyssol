@@ -1,22 +1,24 @@
 export const state = {
     user: null,
     profileLoaded: false,
-    income: 90000,
-    taxFreeIncome: 4300,
+    isHydrating: false,
+    income: 0,
+    taxFreeIncome: 0,
     sharedContribution: 0,
     portfolio: 0,
-    creditScore: 666,
-    age: 31,
+    creditScore: 720,
+    age: 25,
     location: 'national',
     householdType: 'all',
     sex: 'all',
     education: 'all',
     race: 'all',
-    transactions:[],
+    transactions: [],
     marketRates: {
         mortgage_30yr: 6.85,
         auto_new: 7.20,
         inflation_cpi: 3.1
     },
-    locationData: null
+    locationData: null,
+    compareLocationData: null
 };

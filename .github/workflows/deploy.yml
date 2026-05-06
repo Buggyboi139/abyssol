@@ -23,16 +23,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - run: |
-          mkdir public
-          cp -r css js data index.html CNAME public/
-          
+
+      - name: Assemble static site
+        run: |
+          mkdir -p public/finance
+          cp index.html CNAME public/
+          cp -r css public/
+          cp finance/index.html public/finance/
+          cp -r finance/css finance/js finance/data public/finance/
+          touch public/.nojekyll
+
       - uses: actions/configure-pages@v4
-      
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: './public'
-          
+
       - id: deployment
         uses: actions/deploy-pages@v4

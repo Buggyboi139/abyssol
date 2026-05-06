@@ -3,51 +3,95 @@ import { fetchLocationData, saveUserProfile, listStatements } from './api.js';
 import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile } from './calculators.js';
 import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve } from './charts.js';
 
-function fmt(amt) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0); }
-
-export function hydrateUI(profile) {
-    document.getElementById('baseIncome').value = profile.income || '';
-    document.getElementById('taxFreeIncome').value = profile.tax_free_income || '';
-    document.getElementById('sharedContribution').value = profile.shared_contribution || '';
-    document.getElementById('currentPortfolio').value = profile.portfolio || '';
-    document.getElementById('creditScore').value = profile.credit_score || 720;
-    document.getElementById('age').value = profile.age || 25;
-    document.getElementById('location').value = profile.location || 'national';
-    document.getElementById('householdType').value = profile.household_type || 'all';
-    document.getElementById('sex').value = profile.sex || 'all';
-    document.getElementById('education').value = profile.education || 'all';
-    document.getElementById('race').value = profile.race || 'all';
+function fmt(amt) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0);
 }
 
-export async function triggerCalculations() {
+function debounce(fn, wait) {
+    let timeoutId = null;
+    return function debounced(...args) {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn.apply(this, args), wait);
+    };
+}
+
+const debouncedSaveProfile = debounce((userId, payload) => {
+    saveUserProfile(userId, payload);
+}, 700);
+
+export function hydrateUI(profile) {
+    state.income = Number(profile.income) || 0;
+    state.taxFreeIncome = Number(profile.tax_free_income) || 0;
+    state.sharedContribution = Number(profile.shared_contribution) || 0;
+    state.portfolio = Number(profile.portfolio) || 0;
+    state.creditScore = Number(profile.credit_score) || 720;
+    state.age = Number(profile.age) || 25;
+    state.location = profile.location || 'national';
+    state.householdType = profile.household_type || 'all';
+    state.sex = profile.sex || 'all';
+    state.education = profile.education || 'all';
+    state.race = profile.race || 'all';
+
+    document.getElementById('baseIncome').value = state.income || '';
+    document.getElementById('taxFreeIncome').value = state.taxFreeIncome || '';
+    document.getElementById('sharedContribution').value = state.sharedContribution || '';
+    document.getElementById('currentPortfolio').value = state.portfolio || '';
+    document.getElementById('creditScore').value = state.creditScore;
+    document.getElementById('age').value = state.age;
+    document.getElementById('location').value = state.location;
+    document.getElementById('householdType').value = state.householdType;
+    document.getElementById('sex').value = state.sex;
+    document.getElementById('education').value = state.education;
+    document.getElementById('race').value = state.race;
+}
+
+function readStateFromDom() {
     state.income = parseFloat(document.getElementById('baseIncome').value) || 0;
     state.taxFreeIncome = parseFloat(document.getElementById('taxFreeIncome').value) || 0;
     state.sharedContribution = parseFloat(document.getElementById('sharedContribution').value) || 0;
     state.portfolio = parseFloat(document.getElementById('currentPortfolio').value) || 0;
     state.creditScore = parseFloat(document.getElementById('creditScore').value) || 720;
-    state.age = parseInt(document.getElementById('age').value) || 25;
+    state.age = parseInt(document.getElementById('age').value, 10) || 25;
     state.location = document.getElementById('location').value;
     state.householdType = document.getElementById('householdType').value;
     state.sex = document.getElementById('sex').value;
     state.education = document.getElementById('education').value;
     state.race = document.getElementById('race').value;
-    
-    state.locationData = await fetchLocationData(state.location);
+}
 
-    if (state.user) {
-        saveUserProfile(state.user.id, {
-            income: state.income, 
-            tax_free_income: state.taxFreeIncome,
-            shared_contribution: state.sharedContribution,
-            portfolio: state.portfolio, 
-            credit_score: state.creditScore,
-            age: state.age, 
-            location: state.location,
-            household_type: state.householdType,
-            sex: state.sex,
-            education: state.education,
-            race: state.race
-        });
+function buildProfilePayload() {
+    return {
+        income: state.income,
+        tax_free_income: state.taxFreeIncome,
+        shared_contribution: state.sharedContribution,
+        portfolio: state.portfolio,
+        credit_score: state.creditScore,
+        age: state.age,
+        location: state.location,
+        household_type: state.householdType,
+        sex: state.sex,
+        education: state.education,
+        race: state.race
+    };
+}
+
+export async function triggerCalculations(options = {}) {
+    readStateFromDom();
+
+    if (state.location) {
+        state.locationData = await fetchLocationData(state.location);
+    }
+
+    const compareEl = document.getElementById('geoCompare');
+    const compareLoc = compareEl ? compareEl.value : null;
+    if (compareLoc && compareLoc !== state.location) {
+        state.compareLocationData = await fetchLocationData(compareLoc);
+    } else {
+        state.compareLocationData = state.locationData;
+    }
+
+    if (state.user && !state.isHydrating && !options.skipSave) {
+        debouncedSaveProfile(state.user.id, buildProfilePayload());
     }
 
     updateOverview();
@@ -59,6 +103,7 @@ export async function triggerCalculations() {
 
 function updateOverview() {
     document.getElementById('overviewLiquidity').textContent = fmt(state.portfolio);
+
     const grouped = groupTransactionsByMonth(state.transactions);
     const labels = Object.keys(grouped).sort();
     const inflows = labels.map(l => grouped[l].inflow);
@@ -67,34 +112,51 @@ function updateOverview() {
 
     const ledger = document.getElementById('historicalLedger');
     ledger.innerHTML = '';
-    labels.reverse().forEach(month => {
-        const details = document.createElement('details');
-        details.className = 'expense-category';
-        details.innerHTML = `<summary class="category-header">${month} <span class="category-total">${fmt(grouped[month].outflow)}</span></summary><div class="category-body"></div>`;
-        ledger.appendChild(details);
-    });
+    if (labels.length === 0) {
+        ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No transaction history. Upload a statement from the Data Sync tab to populate this view.</span></div>';
+    } else {
+        [...labels].reverse().forEach(month => {
+            const details = document.createElement('details');
+            details.className = 'expense-category';
+            const itemsHtml = grouped[month].items
+                .map(t => {
+                    const amt = Number(t.amount) || 0;
+                    const color = amt >= 0 ? '#34d399' : '#fb7185';
+                    const desc = (t.description || t.category || 'Transaction').toString();
+                    return `<div class="item-row"><span>${t.date} &middot; ${desc}</span><span style="color:${color}">${fmt(amt)}</span></div>`;
+                })
+                .join('');
+            details.innerHTML = `<summary class="category-header">${month} <span class="category-total">${fmt(grouped[month].outflow)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
+            ledger.appendChild(details);
+        });
+    }
 
-    const net = ((state.income / 12) * (1 - (state.locationData?.tax_rate ?? 0.22))) + state.taxFreeIncome;
+    const taxRate = state.locationData?.tax_rate ?? 0.22;
+    const net = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
     let personalExp = 0;
-    document.querySelectorAll('.expense-input').forEach(i => personalExp += (parseFloat(i.value) || 0));
+    document.querySelectorAll('.expense-input').forEach(i => {
+        personalExp += (parseFloat(i.value) || 0);
+    });
     const cashFlow = net - personalExp - state.sharedContribution;
     const cfEl = document.getElementById('overviewCashFlow');
     cfEl.textContent = fmt(cashFlow);
     cfEl.style.color = cashFlow < 0 ? '#fb7185' : '#34d399';
-    
-    let avgSvRate = net > 0 ? (cashFlow / net) * 100 : 0;
+
+    const avgSvRate = net > 0 ? (cashFlow / net) * 100 : 0;
     document.getElementById('overviewSavingsRate').textContent = `${avgSvRate.toFixed(1)}%`;
 }
 
 function updateBudget() {
     let personalExp = 0;
-    document.querySelectorAll('.expense-input').forEach(i => personalExp += (parseFloat(i.value) || 0));
+    document.querySelectorAll('.expense-input').forEach(i => {
+        personalExp += (parseFloat(i.value) || 0);
+    });
     const { personalDiscretionary, sharedObligation, freeCashFlow } = calculateCashFlow(personalExp);
-    
+
     document.getElementById('budgetPersonal').textContent = fmt(personalDiscretionary);
     document.getElementById('budgetShared').textContent = fmt(sharedObligation);
     document.getElementById('budgetSavings').textContent = fmt(freeCashFlow);
-    
+
     drawDonutChart(personalDiscretionary, sharedObligation, Math.max(0, freeCashFlow));
 }
 
@@ -106,7 +168,8 @@ function updatePurchases() {
     const lType = document.getElementById('loanType').value;
     document.getElementById('targetHomePriceDisplay').textContent = fmt(hPrice);
     document.getElementById('liveMortgageRate').textContent = `${hRate.toFixed(2)}%`;
-    
+    document.getElementById('downLabel').textContent = `${hDown.toFixed(1)}%`;
+
     const hm = calculateHousingMatrix(sH, hPrice, hDown, hRate, lType);
     document.getElementById('actualHousingPayment').textContent = fmt(hm.actualPayment) + '/mo';
     document.getElementById('maxHomePriceValue').textContent = fmt(hm.maxPurchase);
@@ -114,7 +177,7 @@ function updatePurchases() {
 
     const sA = parseFloat(document.getElementById('spouseAutoContribution').value) || 0;
     const aPrice = parseFloat(document.getElementById('targetCarPrice').value) || 0;
-    const aTerm = parseInt(document.getElementById('autoTerm').value) || 48;
+    const aTerm = parseInt(document.getElementById('autoTerm').value, 10) || 48;
     const aRate = state.marketRates.auto_new;
     document.getElementById('targetCarPriceDisplay').textContent = fmt(aPrice);
     document.getElementById('liveAutoRate').textContent = `${aRate.toFixed(2)}%`;
@@ -128,7 +191,9 @@ function updatePurchases() {
 function updateFIRE() {
     const c = parseFloat(document.getElementById('fireContribution').value) || 0;
     const r = parseFloat(document.getElementById('marketReturn').value) || 7;
-    const inf = 3.1;
+    const inf = Number.isFinite(state.marketRates.inflation_cpi) && state.marketRates.inflation_cpi < 25
+        ? state.marketRates.inflation_cpi
+        : 3.1;
     const f = calculateFIRE(c, r, inf);
     document.getElementById('fiNumberValue').textContent = fmt(f.fiNumber);
     document.getElementById('fiAgeValue').textContent = f.finalAge;
@@ -139,19 +204,21 @@ function updateBenchmarking() {
     const taxRate = state.locationData?.tax_rate ?? 0.22;
     const grossedUpTaxFree = (state.taxFreeIncome * 12) / (1 - taxRate);
     const equiv = state.income + grossedUpTaxFree + (state.sharedContribution * 12);
-    
+
     let p = 50;
     if (state.locationData && equiv > 0) {
         const microP = getPercentile(state.locationData, state.householdType, state.sex, state.education, state.race, equiv);
-        p = microP ?? Math.max(1, 100 - Math.floor(equiv/2000));
+        p = microP ?? Math.max(1, 100 - Math.floor(equiv / 2000));
     }
     document.getElementById('percentileValue').textContent = `Top ${p}%`;
     document.getElementById('detailedPercentiles').textContent = `Based on personal income vs localized deep demographics`;
     drawBellCurve(p);
-    
-    const compareLoc = document.getElementById('geoCompare').value;
-    const compareTaxRate = 0.22; 
-    const altNet = ((state.income / 12) * (1 - compareTaxRate)) + state.taxFreeIncome;
+
+    const compareData = state.compareLocationData;
+    const compareTaxRate = compareData?.tax_rate ?? taxRate;
+    const colDelta = (compareData?.col_multiplier ?? 1) / (state.locationData?.col_multiplier ?? 1);
+    const nominalMonthly = (state.income / 12) * (1 - compareTaxRate) + state.taxFreeIncome;
+    const altNet = nominalMonthly / colDelta;
     document.getElementById('altNetIncome').textContent = fmt(altNet);
 }
 
@@ -159,20 +226,21 @@ export async function renderStatementList() {
     if (!state.user) return;
     const listEl = document.getElementById('historicalStatementsList');
     if (!listEl) return;
-    
+
     const files = await listStatements(state.user.id);
     listEl.innerHTML = '';
-    
+
     if (files.length === 0) {
         listEl.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No historical uploads found.</span></div>';
         return;
     }
-    
+
     files.forEach(f => {
         if (f.name === '.emptyFolderPlaceholder') return;
         const div = document.createElement('div');
         div.className = 'item-row';
-        div.innerHTML = `<span>${f.name}</span><span style="color:var(--text-muted); font-size:0.85rem;">${new Date(f.created_at).toLocaleDateString()}</span>`;
+        const created = f.created_at ? new Date(f.created_at).toLocaleDateString() : '';
+        div.innerHTML = `<span>${f.name}</span><span style="color:var(--text-muted); font-size:0.85rem;">${created}</span>`;
         listEl.appendChild(div);
     });
 }

@@ -21,8 +21,11 @@ RACES = ['all', 'white', 'black', 'asian', 'hispanic']
 def generate_brackets(df, val_col, weight_col):
     if df.empty or df[weight_col].sum() == 0:
         return [{"income": 0, "percentile": p} for p in range(1, 100)]
-    
-    df_sorted = df.dropna(subset=[val_col]).sort_values(val_col)
+
+    df_sorted = df.dropna(subset=[val_col])
+    df_sorted = df_sorted[df_sorted[val_col] > 0].sort_values(val_col)
+    if df_sorted.empty or df_sorted[weight_col].sum() == 0:
+        return [{"income": 0, "percentile": p} for p in range(1, 100)]
     cumsum = df_sorted[weight_col].cumsum().values
     cutoff = df_sorted[weight_col].sum()
     

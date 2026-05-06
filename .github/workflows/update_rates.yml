@@ -24,7 +24,7 @@ jobs:
         run: pip install requests supabase
 
       - name: Execute Data Ingestion Script
-        run: python python/fetch_economic_data.py
+        run: python finance/python/fetch_economic_data.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

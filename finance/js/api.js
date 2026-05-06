@@ -58,20 +58,16 @@ export async function saveUserProfile(userId, profileData) {
 }
 
 export async function fetchTransactions(userId) {
-    console.log('[DEBUG] fetchTransactions called with userId:', userId);
     const { data, error } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false });
-    console.log('[DEBUG] fetchTransactions raw response — data:', data, '| error:', error);
     if (error) {
         console.warn('fetchTransactions error', error);
         return [];
     }
-    const result = data || [];
-    console.log('[DEBUG] fetchTransactions returning', result.length, 'records. First record sample:', result[0] ?? 'none');
-    return result;
+    return data ||[];
 }
 
 export async function listStatements(userId) {
@@ -83,5 +79,14 @@ export async function listStatements(userId) {
         console.warn('listStatements error', error);
         return [];
     }
-    return data || [];
+    return data ||[];
+}
+
+export async function updateTransactionCategory(id, category) {
+    const { error } = await supabase
+        .from('transactions')
+        .update({ category })
+        .eq('id', id);
+    if (error) console.warn('updateTransactionCategory error', error);
+    return error;
 }

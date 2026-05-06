@@ -84,10 +84,33 @@ export function groupTransactionsByMonth(transactions) {
         if (!grouped[month]) grouped[month] = { inflow: 0, outflow: 0, items:[] };
         
         const amount = Number(t.amount) || 0;
-        if (amount > 0) grouped[month].inflow += amount;
-        else grouped[month].outflow += Math.abs(amount);
+        const isIncome = t.type === 'income' || amount > 0;
+        
+        if (isIncome) {
+            grouped[month].inflow += Math.abs(amount);
+        } else {
+            grouped[month].outflow += Math.abs(amount);
+        }
         
         grouped[month].items.push(t);
+    });
+    return grouped;
+}
+
+export function groupTransactionsByCategory(transactions) {
+    const grouped = {};
+    if (!Array.isArray(transactions)) return grouped;
+    
+    transactions.forEach(t => {
+        const amount = Number(t.amount) || 0;
+        const isIncome = t.type === 'income' || amount > 0;
+        if (isIncome) return;
+        
+        let cat = t.category || 'Uncategorized';
+        if (!grouped[cat]) grouped[cat] = { total: 0, items: [] };
+        
+        grouped[cat].total += Math.abs(amount);
+        grouped[cat].items.push(t);
     });
     return grouped;
 }

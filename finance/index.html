@@ -188,9 +188,20 @@ Click the button above to generate a personalized AI analysis of your cash flow,
 </div>
 
 <div class="module-container active mt-25">
-<div class="module-header"><span>Month-by-Month Trends</span></div>
+<div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+<span id="trendsHeaderTitle">Month-by-Month Trends</span>
+<div class="view-toggle" style="display: flex;">
+<button type="button" id="toggleTimelineBtn" class="secondary-btn btn-small active" style="border-radius: 20px 0 0 20px;">Timeline</button>
+<button type="button" id="toggleCategoryBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Category</button>
+</div>
+</div>
 <div class="module-content">
+<div id="timelineViewPane" class="view-pane active">
 <div class="chart-container chart-h-300"><canvas id="historyChart"></canvas></div>
+</div>
+<div id="categoryViewPane" class="view-pane hidden">
+<div class="chart-container chart-h-300"><canvas id="categoryDonutChart"></canvas></div>
+</div>
 <div class="mt-25 historical-ledger" id="historicalLedger"></div>
 </div>
 </div>

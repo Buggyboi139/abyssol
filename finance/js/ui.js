@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { fetchLocationData, saveUserProfile, listStatements } from './api.js';
-import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile } from './calculators.js';
-import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve } from './charts.js';
+import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory } from './calculators.js';
+import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart } from './charts.js';
 
 function fmt(amt) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0);
@@ -101,11 +101,8 @@ export async function triggerCalculations(options = {}) {
     updateBenchmarking();
 }
 
-function updateOverview() {
-    const liqEl = document.getElementById('overviewLiquidity');
-    if (liqEl) liqEl.textContent = fmt(state.portfolio);
-
-    const grouped = groupTransactionsByMonth(state.transactions || []);
+function renderTimelineView() {
+    const grouped = groupTransactionsByMonth(state.transactions ||[]);
     const labels = Object.keys(grouped).sort();
     const inflows = labels.map(l => grouped[l].inflow);
     const outflows = labels.map(l => grouped[l].outflow);
@@ -124,17 +121,31 @@ function updateOverview() {
                 const itemsHtml = grouped[month].items
                     .map(t => {
                         const amt = Number(t.amount) || 0;
-                        const color = amt > 0 ? '#fb7185' : '#34d399'; 
-                        
+                        const isIncome = t.type === 'income' || amt > 0;
+                        const color = isIncome ? '#34d399' : '#f8fafc';
+                        const prefix = isIncome ? '+' : '';
                         const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
                         
-                        return `<div class="item-row"><span>${t.date || 'Unknown'} &middot; ${desc}</span><span style="color:${color}">${fmt(amt)}</span></div>`;
+                        return `<div class="item-row" style="align-items:center;">
+                            <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
+                                <span>${desc}</span>
+                            </span>
+                            ${!isIncome ? `
+                            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
+                                ${['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'].map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                            ` : `<span style="margin-right:10px; font-size:0.8rem; color:var(--text-muted); min-width:120px; display:inline-block; text-align:center;">Deposit</span>`}
+                            <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
+                        </div>`;
                     })
                     .join('');
                 
-                const monthTotal = grouped[month].inflow + grouped[month].outflow;
+                const monthTotal = grouped[month].inflow - grouped[month].outflow;
+                const totalColor = monthTotal >= 0 ? '#34d399' : '#fb7185';
+                const totalPrefix = monthTotal >= 0 ? '+' : '';
 
-                details.innerHTML = `<summary class="category-header">${month} <span class="category-total" style="color: #38bdf8;">Vol: ${fmt(monthTotal)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
+                details.innerHTML = `<summary class="category-header">${month} <span class="category-total" style="color: ${totalColor};">${totalPrefix}${fmt(Math.abs(monthTotal))}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
                 ledger.appendChild(details);
             });
         }
@@ -146,6 +157,67 @@ function updateOverview() {
         } catch (e) {
             console.error(e);
         }
+    }
+}
+
+function renderCategoryView() {
+    const grouped = groupTransactionsByCategory(state.transactions ||[]);
+    const labels = Object.keys(grouped).sort((a,b) => grouped[b].total - grouped[a].total);
+    const totals = labels.map(l => grouped[l].total);
+
+    const ledger = document.getElementById('historicalLedger');
+    if (ledger) {
+        ledger.innerHTML = '';
+        if (labels.length === 0) {
+            ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No expense history found.</span></div>';
+        } else {
+            labels.forEach(cat => {
+                const details = document.createElement('details');
+                details.className = 'expense-category';
+                details.open = true;
+                
+                const itemsHtml = grouped[cat].items
+                    .map(t => {
+                        const amt = Math.abs(Number(t.amount) || 0);
+                        const desc = (t.clean_merchant || t.description || t.raw_description || 'Transaction').toString();
+                        
+                        return `<div class="item-row" style="align-items:center;">
+                            <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
+                                <span>${desc}</span>
+                            </span>
+                            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
+                                ${['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'].map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+                            </select>
+                            <span style="color:#f8fafc; font-weight:600; width:80px; text-align:right;">${fmt(amt)}</span>
+                        </div>`;
+                    })
+                    .join('');
+                
+                details.innerHTML = `<summary class="category-header">${cat} <span class="category-total" style="color: #fb7185;">${fmt(grouped[cat].total)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
+                ledger.appendChild(details);
+            });
+        }
+    }
+
+    if (typeof drawCategoryDonutChart === 'function') {
+        try {
+            drawCategoryDonutChart(labels, totals);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+}
+
+function updateOverview() {
+    const liqEl = document.getElementById('overviewLiquidity');
+    if (liqEl) liqEl.textContent = fmt(state.portfolio);
+
+    const tlBtn = document.getElementById('toggleTimelineBtn');
+    if (tlBtn && tlBtn.classList.contains('active')) {
+        renderTimelineView();
+    } else {
+        renderCategoryView();
     }
 
     const taxRate = state.locationData?.tax_rate ?? 0.22;

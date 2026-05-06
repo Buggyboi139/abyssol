@@ -30,5 +30,9 @@
 .upload-dropzone:hover { border-color: var(--border-highlight); background: rgba(56, 189, 248, 0.05); }
 .historical-ledger { display: flex; flex-direction: column; gap: 10px; }
 .bg-dark { background: rgba(0,0,0,0.2); }
+.view-pane { width: 100%; transition: opacity 0.3s; display: none; }
+.view-pane.active { display: block; }
+.category-select { border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #f8fafc; transition: 0.2s; }
+.category-select:focus { border-color: #38bdf8; outline: none; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 768px) { .gt-value { font-size: 2.5rem; } .budget-display { font-size: 2.2rem !important; } .dash-card { padding: 20px; border-radius: 24px; } .module-header { padding: 15px 20px; } .module-content { padding: 20px; } .item-row { flex-wrap: wrap; font-size: 0.95rem; } .calc-row { padding: 15px; } .market-rate-banner { margin-top: 15px; } .outputs-col { margin-top: 20px; } .layout-grid { grid-template-columns: 1fr; gap: 20px; } }

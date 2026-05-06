@@ -174,6 +174,19 @@
 <div class="gt-value" id="overviewSavingsRate">0%</div>
 </div>
 </div>
+
+<div class="module-container active mt-25">
+<div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+<span>AI Financial Analyst</span>
+<button type="button" id="aiInsightsBtn" class="secondary-btn btn-small" style="background: rgba(56, 189, 248, 0.1); border-color: #38bdf8; color: #38bdf8;">✨ Generate Insights</button>
+</div>
+<div class="module-content">
+<div id="aiInsightsOutput" class="fs-09" style="color: var(--text-muted); line-height: 1.6;">
+Click the button above to generate a personalized AI analysis of your cash flow, demographics, and portfolio trajectory.
+</div>
+</div>
+</div>
+
 <div class="module-container active mt-25">
 <div class="module-header"><span>Month-by-Month Trends</span></div>
 <div class="module-content">
@@ -186,8 +199,12 @@
 <div id="tab-budget" class="tab-pane">
 <div class="layout-grid">
 <div class="module-container active" style="margin-bottom:0;">
-<div class="module-header"><span>Split Finance Budget</span></div>
+<div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+<span>Split Finance Budget</span>
+<button type="button" id="aiBudgetBtn" class="secondary-btn btn-small">✨ AI Optimize</button>
+</div>
 <div class="module-content">
+<div id="aiBudgetOutput" class="fs-09 mb-20 hidden" style="color: #34d399; background: rgba(52, 211, 153, 0.1); padding: 15px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.3);"></div>
 <div class="chart-container-donut mb-25"><canvas id="budgetDonutChart"></canvas></div>
 <div class="line-items">
 <div class="item-row">

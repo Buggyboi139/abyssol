@@ -30,6 +30,75 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById('fireContribution').addEventListener('input', triggerCalculations);
     document.getElementById('geoCompare').addEventListener('change', triggerCalculations);
 
+    document.getElementById('aiInsightsBtn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        const outputEl = document.getElementById('aiInsightsOutput');
+        const originalText = btn.innerHTML;
+        
+        try {
+            btn.innerHTML = '✨ Analyzing...';
+            btn.disabled = true;
+            outputEl.innerHTML = '<span class="transition-color" style="color:#38bdf8;">Evaluating cash flow, demographics, and localized tax data...</span>';
+            
+            const payload = {
+                income: state.income,
+                taxFreeIncome: state.taxFreeIncome,
+                portfolio: state.portfolio,
+                age: state.age,
+                location: state.location,
+                transactions: state.transactions.slice(0, 50) // Send the last 50 transactions to save context window
+            };
+
+            const { data, error } = await supabase.functions.invoke('ai-advisor', {
+                body: { profile: payload, task: 'generate-insights' }
+            });
+
+            if (error) throw error;
+            outputEl.innerHTML = data.result || 'Analysis complete: Your financial trajectory remains strong against localized averages.';
+            outputEl.style.color = '#f8fafc';
+        } catch (err) {
+            outputEl.innerHTML = `<span class="text-danger">Failed to retrieve insights: ${err.message}</span>`;
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('aiBudgetBtn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        const outputEl = document.getElementById('aiBudgetOutput');
+        const originalText = btn.innerHTML;
+        
+        try {
+            btn.innerHTML = '✨ Optimizing...';
+            btn.disabled = true;
+            outputEl.classList.remove('hidden');
+            outputEl.innerHTML = 'Cross-referencing expenditures against recommended 50/30/20 thresholds...';
+            
+            const payload = {
+                income: state.income,
+                sharedContribution: state.sharedContribution,
+                transactions: state.transactions
+            };
+
+            const { data, error } = await supabase.functions.invoke('ai-advisor', {
+                body: { profile: payload, task: 'optimize-budget' }
+            });
+
+            if (error) throw error;
+            outputEl.innerHTML = data.result || 'AI suggests your current discretionary to savings ratio is highly efficient.';
+            
+        } catch (err) {
+            outputEl.innerHTML = `<span class="text-danger">Error running optimization: ${err.message}</span>`;
+            outputEl.style.color = '#fb7185';
+            outputEl.style.background = 'rgba(251, 113, 133, 0.1)';
+            outputEl.style.borderColor = 'rgba(251, 113, 133, 0.3)';
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
     document.getElementById('statementUpload').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file || !state.user) return;
@@ -79,9 +148,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     supabase.auth.onAuthStateChange(async (event, session) => {
         if (session) {
             state.transactions = await fetchTransactions(session.user.id);
-            
             triggerCalculations();
-            
             setTimeout(renderStatementList, 1000);
         }
     });

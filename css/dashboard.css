@@ -1,0 +1,33 @@
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-bottom: 30px; }
+.dash-card { background: linear-gradient(145deg, rgba(30, 41, 59, 0.2) 0%, rgba(15, 23, 42, 0.4) 100%); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 32px; padding: 35px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+.gt-label { font-size: 0.95rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+.gt-value { font-size: 3.5rem; font-weight: 800; margin-bottom: 10px; word-break: break-word; }
+.line-items { background: rgba(0,0,0,0.3); border-radius: 16px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); }
+.item-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-glass); font-size: 1.05rem; flex-wrap: nowrap; gap: 12px; }
+.item-row span:first-child { flex: 1 1 auto; word-break: break-word; }
+.item-row span:last-child { flex: 0 0 auto; white-space: nowrap; font-weight: 600; }
+.no-border-bottom { border-bottom: none; }
+.module-container { display: none; background: linear-gradient(145deg, rgba(30, 41, 59, 0.2) 0%, rgba(15, 23, 42, 0.4) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; margin-bottom: 25px; animation: fadeIn 0.4s ease; box-shadow: 0 15px 35px rgba(0,0,0,0.4); width: 100%; box-sizing: border-box; }
+.module-container.active { display: block; }
+.module-header { font-size: 1.25rem; font-weight: 700; color: #38bdf8; padding: 25px; border-bottom: 1px solid var(--border-glass); background: rgba(0,0,0,0.1); border-radius: 24px 24px 0 0; }
+.module-content { padding: 25px; width: 100%; box-sizing: border-box; }
+.calc-row { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px; width: 100%; box-sizing: border-box; }
+.clean-row { background: transparent; border: none; padding: 0; box-shadow: none; }
+.chart-container { position: relative; width: 100%; height: 200px; margin-top: 20px; }
+.chart-h-300 { height: 300px; }
+.chart-container-donut { position: relative; width: 100%; height: 250px; display: flex; align-items: center; justify-content: center; }
+.expense-category { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; margin-bottom: 15px; overflow: hidden; }
+.category-header { padding: 20px; font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); transition: 0.3s; }
+.category-header:hover { background: rgba(255,255,255,0.05); }
+.category-total { color: #38bdf8; font-weight: 800; font-size: 1.1rem; }
+.category-body { padding: 20px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.1); }
+.budget-display { font-size: 3.5rem; font-weight: 800; margin-bottom: 5px; letter-spacing: -2px; text-align: center; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.geo-arbitrage-box { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding: 10px 0 0 0; }
+.market-rate-banner { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 16px; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; }
+.mr-title { font-size: 0.8rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: 1px; }
+.mr-data { display: flex; align-items: baseline; gap: 10px; font-size: 2rem; font-weight: 800; color: #f8fafc; }
+.upload-dropzone { border: 2px dashed var(--border-glass); border-radius: 16px; padding: 40px 20px; text-align: center; background: rgba(0,0,0,0.1); transition: 0.3s; }
+.upload-dropzone:hover { border-color: var(--border-highlight); background: rgba(56, 189, 248, 0.05); }
+.historical-ledger { display: flex; flex-direction: column; gap: 10px; }
+.bg-dark { background: rgba(0,0,0,0.2); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

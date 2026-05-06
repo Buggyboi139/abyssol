@@ -3,6 +3,8 @@ import { fetchLocationData, saveUserProfile, listStatements } from './api.js';
 import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory } from './calculators.js';
 import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart } from './charts.js';
 
+const CATEGORIES =['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'];
+
 function fmt(amt) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0);
 }
@@ -133,7 +135,7 @@ function renderTimelineView() {
                             </span>
                             ${!isIncome ? `
                             <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
-                                ${['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'].map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                ${CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
                             </select>
                             ` : `<span style="margin-right:10px; font-size:0.8rem; color:var(--text-muted); min-width:120px; display:inline-block; text-align:center;">Deposit</span>`}
                             <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
@@ -187,7 +189,7 @@ function renderCategoryView() {
                                 <span>${desc}</span>
                             </span>
                             <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
-                                ${['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'].map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                ${CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
                             </select>
                             <span style="color:#f8fafc; font-weight:600; width:80px; text-align:right;">${fmt(amt)}</span>
                         </div>`;

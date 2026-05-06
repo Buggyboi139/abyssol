@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 1. Determine transaction direction by context. "Payroll", "Deposit" = income. "Payment", "Withdrawal", stores = expense.
 2. Mathematical Standardization: ALL income/deposits MUST be positive numbers (+). ALL expenses MUST be negative numbers (-).
 3. Type Flagging: Add a "type" field string with exactly "income" or "expense".
-4. If category is unclear for an expense, use "Uncategorized".`;
+4. Category Tagging: Restrict category to EXACTLY one of: Housing, Transport, Food, Utilities, Entertainment, Health, Shopping, Uncategorized.`;
             
             const { data, error: funcError } = await supabase.functions.invoke('process-statement', {
                 body: { filePath, mimeType, userId: state.user.id, prompt: promptEnhancement }

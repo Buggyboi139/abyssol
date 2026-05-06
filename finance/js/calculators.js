@@ -107,7 +107,7 @@ export function groupTransactionsByCategory(transactions) {
         if (isIncome) return;
         
         let cat = t.category || 'Uncategorized';
-        if (!grouped[cat]) grouped[cat] = { total: 0, items: [] };
+        if (!grouped[cat]) grouped[cat] = { total: 0, items:[] };
         
         grouped[cat].total += Math.abs(amount);
         grouped[cat].items.push(t);

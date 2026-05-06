@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://agfngkzohlrmxjhysafn.supabase.co; img-src 'self' data: blob:;">
 <title>Abyssol | Financial Intelligence</title>
-<link rel="stylesheet" href="css/base.css?v=2">
-<link rel="stylesheet" href="css/layout.css?v=2">
-<link rel="stylesheet" href="css/components.css?v=2">
-<link rel="stylesheet" href="css/dashboard.css?v=2">
+<link rel="stylesheet" href="css/base.css?v=3">
+<link rel="stylesheet" href="css/layout.css?v=3">
+<link rel="stylesheet" href="css/components.css?v=3">
+<link rel="stylesheet" href="css/dashboard.css?v=3">
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script type="module" src="js/app.js?v=2" defer></script>
+<script type="module" src="js/app.js?v=3" defer></script>
 </head>
 <body>
 <noscript>
@@ -161,15 +161,15 @@
 
 <div id="tab-overview" class="tab-pane active">
 <div class="dashboard-grid">
-<div class="dash-card text-center">
+<div class="dash-card text-center" data-tooltip="Total liquid personal assets and current portfolio.">
 <div class="gt-label">Personal Liquidity</div>
 <div class="gt-value" id="overviewLiquidity">$0</div>
 </div>
-<div class="dash-card text-center">
+<div class="dash-card text-center" data-tooltip="Net income minus personal discretionary expenses and shared obligations.">
 <div class="gt-label">30-Day Free Cash Flow</div>
 <div class="gt-value transition-color" id="overviewCashFlow">$0</div>
 </div>
-<div class="dash-card text-center">
+<div class="dash-card text-center" data-tooltip="Percentage of net income retained after all modeled expenses.">
 <div class="gt-label">Historical Savings Rate</div>
 <div class="gt-value" id="overviewSavingsRate">0%</div>
 </div>
@@ -319,7 +319,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 <div class="outputs-col">
-<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Assumes a 28% front-end DTI ratio, 1.2% property tax, and standard PMI rules if under 20% down.">
 <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
 <div class="budget-display transition-color text-center" id="actualHousingPayment" style="font-size: 3rem;">$0/mo</div>
 <div class="line-items mt-25">
@@ -372,7 +372,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 <div class="outputs-col">
-<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Assumes a maximum of 10% of gross monthly income allocated to auto financing.">
 <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
 <div class="budget-display transition-color text-center" id="actualAutoPayment" style="font-size: 3rem;">$0/mo</div>
 <div class="line-items mt-25">
@@ -415,7 +415,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 <div class="input-group">
-<label for="marketReturn">Expected Return</label>
+<label for="marketReturn" data-tooltip="Expected annual market return minus historical inflation.">Expected Return</label>
 <div class="unit-wrapper">
 <input type="number" id="marketReturn" class="glass-input" value="7" min="0">
 <span class="unit">%</span>
@@ -432,7 +432,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 
 <div id="tab-benchmarking" class="tab-pane">
 <div class="dashboard-grid">
-<div class="dash-card">
+<div class="dash-card" data-tooltip="Cross-references your age, location, education, and household type against localized Census microdata.">
 <div class="gt-label">Personal Socioeconomic Percentile</div>
 <div class="gt-value" id="percentileValue">Top --%</div>
 <div class="fs-09 text-center mb-15" id="detailedPercentiles" style="color: var(--text-muted);">Loading detailed metrics...</div>

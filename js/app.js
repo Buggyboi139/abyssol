@@ -76,8 +76,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    supabase.auth.onAuthStateChange((event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
         if (session) {
+            state.transactions = await fetchTransactions(session.user.id);
+            
+            triggerCalculations();
+            
             setTimeout(renderStatementList, 1000);
         }
     });

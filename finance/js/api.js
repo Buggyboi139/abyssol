@@ -58,16 +58,20 @@ export async function saveUserProfile(userId, profileData) {
 }
 
 export async function fetchTransactions(userId) {
+    console.log('[DEBUG] fetchTransactions called with userId:', userId);
     const { data, error } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false });
+    console.log('[DEBUG] fetchTransactions raw response — data:', data, '| error:', error);
     if (error) {
         console.warn('fetchTransactions error', error);
         return [];
     }
-    return data || [];
+    const result = data || [];
+    console.log('[DEBUG] fetchTransactions returning', result.length, 'records. First record sample:', result[0] ?? 'none');
+    return result;
 }
 
 export async function listStatements(userId) {

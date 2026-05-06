@@ -5,7 +5,14 @@ import { hydrateUI, triggerCalculations, renderStatementList } from './ui.js';
 let lastHandledUserId = null;
 
 export async function initAuth() {
-    supabase.auth.onAuthStateChange((event, session) => handleAuthChange(session));
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('[DEBUG] onAuthStateChange fired — event:', event, '| session user:', session?.user?.id ?? 'none');
+        try {
+            await handleAuthChange(session);
+        } catch (err) {
+            console.error('[DEBUG] handleAuthChange threw an unhandled error:', err);
+        }
+    });
 
     document.getElementById('authForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -67,15 +74,24 @@ async function handleAuthChange(session) {
 
     state.isHydrating = true;
     try {
+        console.log('[DEBUG] handleAuthChange — fetching profile for user:', state.user.id);
         const { profile, isNewUser } = await fetchUserProfile(state.user.id);
+        console.log('[DEBUG] fetchUserProfile result — profile:', profile, '| isNewUser:', isNewUser);
+
         state.transactions = await fetchTransactions(state.user.id);
+        console.log('[DEBUG] state.transactions set — length:', state.transactions.length, '| sample[0]:', state.transactions[0] ?? 'empty');
+
         if (profile) {
             hydrateUI(profile);
         }
         state.profileLoaded = true;
         state.isNewUser = isNewUser;
+        console.log('[DEBUG] calling triggerCalculations...');
         await triggerCalculations({ skipSave: isNewUser });
+        console.log('[DEBUG] triggerCalculations completed successfully');
         renderStatementList();
+    } catch (err) {
+        console.error('[DEBUG] Error inside handleAuthChange try-block:', err);
     } finally {
         state.isHydrating = false;
     }

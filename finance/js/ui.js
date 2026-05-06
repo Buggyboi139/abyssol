@@ -102,11 +102,13 @@ export async function triggerCalculations(options = {}) {
 }
 
 function updateOverview() {
+    console.log('[DEBUG] updateOverview called — state.transactions length:', (state.transactions || []).length, '| sample[0]:', (state.transactions || [])[0] ?? 'empty');
     const liqEl = document.getElementById('overviewLiquidity');
     if (liqEl) liqEl.textContent = fmt(state.portfolio);
 
     const grouped = groupTransactionsByMonth(state.transactions || []);
     const labels = Object.keys(grouped).sort();
+    console.log('[DEBUG] groupTransactionsByMonth result — keys:', labels);
     const inflows = labels.map(l => grouped[l].inflow);
     const outflows = labels.map(l => grouped[l].outflow);
 

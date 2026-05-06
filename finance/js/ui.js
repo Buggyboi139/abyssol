@@ -108,7 +108,6 @@ function updateOverview() {
     const labels = Object.keys(grouped).sort();
     const inflows = labels.map(l => grouped[l].inflow);
     const outflows = labels.map(l => grouped[l].outflow);
-    drawHistoryChart(labels, inflows, outflows);
 
     const ledger = document.getElementById('historicalLedger');
     ledger.innerHTML = '';
@@ -130,6 +129,8 @@ function updateOverview() {
             ledger.appendChild(details);
         });
     }
+
+    drawHistoryChart(labels, inflows, outflows);
 
     const taxRate = state.locationData?.tax_rate ?? 0.22;
     const net = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;

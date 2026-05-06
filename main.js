@@ -1,4 +1,8 @@
 document.addEventListener("DOMContentLoaded", function() {
+const supabaseUrl = 'https://agfngkzohlrmxjhysafn.supabase.co';
+const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
 Chart.defaults.color = '#94a3b8';
 Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
 
@@ -8,6 +12,8 @@ let userEditedDownPayment = false;
 let userEditedFIRE = false;
 let userEditedInterestRate = false;
 let userEditedAutoRate = false;
+let isRegistering = false;
+let currentUser = null;
 
 const state = {
 incomeType: 'annual', taxableMonthlyGross: 0, totalGross: 0, annualGross: 0, taxExempt: 0,
@@ -37,7 +43,9 @@ const ids =[
 'targetHomePriceDisplay','actualHousingPayment','targetCarPrice','targetCarPriceDisplay',
 'actualAutoPayment','benchMedian','benchTop25','benchTop10','benchTop1',
 'geoNetLabel','geoHousingLabel','geoDiffText','liveMortgageRate','housingRateBadge',
-'housingRateSubtext','liveAutoRate','autoRateBadge','autoRateSubtext'
+'housingRateSubtext','liveAutoRate','autoRateBadge','autoRateSubtext',
+'auth-overlay','authForm','authEmail','authPassword','authSubmitBtn','authToggleBtn','authErrorBanner',
+'signOutBtn','statementUpload','uploadStatus'
 ];
 ids.forEach(id => els[id] = document.getElementById(id));
 els.incomeTypeTabs = document.querySelectorAll('.menu-tab-btn');
@@ -45,6 +53,7 @@ els.expenseInputs = document.querySelectorAll('.expense-input');
 els.addCustomBtns = document.querySelectorAll('.add-custom-btn');
 els.tabLinks = document.querySelectorAll('.tab-link');
 els.tabPanes = document.querySelectorAll('.tab-pane');
+els.appWrapper = document.querySelector('.app-wrapper');
 }
 
 function formatCurrency(amount) {
@@ -60,6 +69,16 @@ els.errorBanner.classList.add('visible');
 function clearError() {
 els.errorBanner.textContent = '';
 els.errorBanner.classList.remove('visible');
+}
+
+function showAuthError(message) {
+els.authErrorBanner.textContent = message;
+els.authErrorBanner.classList.add('visible');
+}
+
+function clearAuthError() {
+els.authErrorBanner.textContent = '';
+els.authErrorBanner.classList.remove('visible');
 }
 
 function validateNumericInput(el, minVal = 0, maxVal = Infinity) {
@@ -87,13 +106,13 @@ return ok;
 
 async function fetchMarketData() {
 try {
-const res = await fetch('data/market_rates.json');
-if (res.ok) {
-const data = await res.json();
-state.marketRates = { ...state.marketRates, ...data };
+const { data, error } = await supabase.from('macro_data').select('*').order('date', { ascending: false }).limit(1);
+if (data && data.length > 0) {
+    state.marketRates.mortgage_30yr = data[0].fred_mortgage_30yr || state.marketRates.mortgage_30yr;
+    state.marketRates.auto_new = data[0].fred_auto_new || state.marketRates.auto_new;
+    state.marketRates.inflation_cpi = data[0].fred_inflation || state.marketRates.inflation_cpi;
 }
-} catch (e) {
-}
+} catch (e) { }
 els.inflationRate.value = state.marketRates.inflation_cpi;
 }
 
@@ -142,9 +161,7 @@ let badge = "Baseline";
 let color = "#94a3b8";
 
 if (state.bankrupt) {
-rate += 1.50;
-badge = "High Risk";
-color = "#fb7185";
+rate += 1.50; badge = "High Risk"; color = "#fb7185";
 } else {
 if (state.creditScore >= 740) { rate -= 0.25; badge = "Excellent"; color = "#34d399"; }
 else if (state.creditScore >= 670) { rate += 0.50; badge = "Good"; color = "#60a5fa"; }
@@ -193,7 +210,6 @@ const r = annualRate / 100 / 12;
 const n = termYears * 12;
 
 let amortizationFactor = (r === 0) ? (1 / n) : ((r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
-
 let monthlyPropTaxRate = (parseFloat(els.propertyTax.value) || 0) / 100 / 12;
 if (els.vetExempt.checked) {
 monthlyPropTaxRate = 0; els.propertyTax.disabled = true; els.propTaxLabel.textContent = '0% (Exempt)';
@@ -202,7 +218,6 @@ els.propertyTax.disabled = false; els.propTaxLabel.textContent = `${parseFloat(e
 }
 
 const monthlyInsRate = (parseFloat(els.homeInsurance.value) || 0) / 100 / 12;
-
 let monthlyPMI = 0;
 if (loanType === 'fha' && downPct < 0.20) monthlyPMI = 0.0085 / 12;
 else if (loanType === 'conv' && downPct < 0.20) monthlyPMI = 0.005 / 12;
@@ -525,6 +540,57 @@ document.getElementById('dashboardWorkspace').classList.add('active-view');
 if (window.innerWidth <= 1024) document.getElementById('dashboardWorkspace').scrollIntoView({ behavior: 'smooth' });
 }
 
+function handleAuthUI(session) {
+if (session) {
+currentUser = session.user;
+els['auth-overlay'].classList.add('hidden');
+els.appWrapper.classList.remove('hidden');
+els.signOutBtn.style.display = 'block';
+} else {
+currentUser = null;
+els['auth-overlay'].classList.remove('hidden');
+els.appWrapper.classList.add('hidden');
+els.signOutBtn.style.display = 'none';
+}
+}
+
+async function handleAuthSubmit(e) {
+e.preventDefault();
+clearAuthError();
+const email = els.authEmail.value;
+const password = els.authPassword.value;
+
+if (!email || !password) { showAuthError("Email and password required."); return; }
+
+els.authSubmitBtn.disabled = true;
+els.authSubmitBtn.textContent = 'Processing...';
+
+try {
+if (isRegistering) {
+const { data, error } = await supabase.auth.signUp({ email, password });
+if (error) throw error;
+if (data.user && data.user.identities && data.user.identities.length === 0) {
+    throw new Error("User already exists. Please sign in.");
+}
+alert("Registration successful! You are now logged in.");
+} else {
+const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+if (error) throw error;
+}
+} catch (err) {
+showAuthError(err.message);
+} finally {
+els.authSubmitBtn.disabled = false;
+els.authSubmitBtn.textContent = isRegistering ? 'Sign Up' : 'Sign In';
+}
+}
+
+async function handleSignOut() {
+await supabase.auth.signOut();
+els.authEmail.value = '';
+els.authPassword.value = '';
+}
+
 function bindEvents() {
 els.setupForm.addEventListener('submit', handleCalculate);
 els.tabLinks.forEach(btn => {
@@ -609,6 +675,38 @@ els.inflationRate.addEventListener('input', calculateFIRE);[els.baseIncome, els.
 els.age, els.marketReturn, els.inflationRate].forEach(el => {
 el.addEventListener('input', () => validateNumericInput(el));
 });
+
+els.authForm.addEventListener('submit', handleAuthSubmit);
+els.authToggleBtn.addEventListener('click', () => {
+clearAuthError();
+isRegistering = !isRegistering;
+els.authSubmitBtn.textContent = isRegistering ? 'Sign Up' : 'Sign In';
+els.authToggleBtn.textContent = isRegistering ? 'Already have an account? Sign in' : 'Create an account';
+});
+els.signOutBtn.addEventListener('click', handleSignOut);
+
+els.statementUpload.addEventListener('change', async (e) => {
+const file = e.target.files[0];
+if (!file) return;
+if (!currentUser) return;
+
+els.uploadStatus.textContent = "Encrypting & Uploading...";
+const fileName = `${currentUser.id}/${Date.now()}_${file.name}`;
+
+const { data, error } = await supabase.storage.from('statements').upload(fileName, file);
+
+if (error) {
+    els.uploadStatus.textContent = "Upload failed: " + error.message;
+    els.uploadStatus.style.color = "#fb7185";
+} else {
+    els.uploadStatus.textContent = "Document secured & sent for AI categorization.";
+    els.uploadStatus.style.color = "#34d399";
+}
+els.statementUpload.value = '';
+});
+
+supabase.auth.onAuthStateChange((event, session) => { handleAuthUI(session); });
+supabase.auth.getSession().then(({ data: { session } }) => { handleAuthUI(session); });
 }
 
 cacheElements();

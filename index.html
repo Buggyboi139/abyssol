@@ -3,15 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://agfngkzohlrmxjhysafn.supabase.co; img-src 'self' data: blob:;">
 <title>Abyssol | Financial Intelligence</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <noscript>
 <div class="noscript-banner">JavaScript is required to run Abyssol. Please enable JavaScript in your browser settings.</div>
 </noscript>
+
+<div id="auth-overlay" class="auth-overlay">
+<form id="authForm" class="control-panel auth-card" novalidate>
+<div class="logo-text text-center mb-25" style="font-size: 2.5rem;">Abyssol</div>
+<div id="authErrorBanner" class="error-banner" role="alert" aria-live="assertive"></div>
+<div class="input-group mb-15">
+<label for="authEmail">Email</label>
+<input type="email" id="authEmail" class="glass-input" required>
+</div>
+<div class="input-group mb-25">
+<label for="authPassword">Password</label>
+<input type="password" id="authPassword" class="glass-input" required>
+</div>
+<button type="submit" id="authSubmitBtn" class="primary-btn mt-15" style="padding: 16px;">Sign In</button>
+<div class="text-center mt-20">
+<button type="button" id="authToggleBtn" class="secondary-btn bg-transparent" style="border:none; color:var(--text-muted);">Create an account</button>
+</div>
+</form>
+</div>
 
 <div id="left-color-bar"></div>
 
@@ -21,7 +41,8 @@
 </div>
 <div class="nav-actions">
 <a href="#" class="nav-link neutral">Methodology</a>
-<a href="#" class="nav-link">Privacy</a>
+<a href="#" class="nav-link neutral">Privacy</a>
+<button type="button" id="signOutBtn" class="nav-link">Sign Out</button>
 </div>
 </nav>
 
@@ -155,6 +176,7 @@ Past Bankruptcy / Foreclosure
 <button type="button" class="tab-link" data-tab="tab-budget">Cash Flow & Budget</button>
 <button type="button" class="tab-link" data-tab="tab-purchases">Big Purchases</button>
 <button type="button" class="tab-link" data-tab="tab-fire">FIRE Projector</button>
+<button type="button" class="tab-link" data-tab="tab-sync">Bank Sync</button>
 </div>
 
 <div id="tab-overview" class="tab-pane active">
@@ -621,6 +643,23 @@ Lifestyle <span class="category-total" id="catTotalLifestyle">$0</span>
 
 <div class="chart-container chart-h-300 mt-20">
 <canvas id="fireChart"></canvas>
+</div>
+</div>
+</div>
+</div>
+
+<div id="tab-sync" class="tab-pane">
+<div class="module-container active">
+<div class="module-header"><span>Secure Statement Upload</span></div>
+<div class="module-content">
+<div class="dash-card mb-20" style="background:rgba(0,0,0,0.2); box-shadow:none; padding:25px;">
+<div class="gt-label mb-10">AI Transaction Categorization</div>
+<p class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Upload your bank statements (PDF or CSV) to securely process and categorize your transactions via Gemini 2.5 Flash. All PII is redacted locally before uploading to the secure bucket.</p>
+<div class="upload-dropzone" id="uploadDropzone">
+<input type="file" id="statementUpload" accept=".pdf,.csv" class="hidden-element">
+<label for="statementUpload" class="primary-btn" style="display:inline-block; margin-top:0; padding:12px 30px; font-size:1rem;">Select Document</label>
+<div id="uploadStatus" class="mt-15 fs-09" style="color:var(--text-muted);">No file selected</div>
+</div>
 </div>
 </div>
 </div>

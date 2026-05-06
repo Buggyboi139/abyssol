@@ -1,7 +1,7 @@
 import os
-import json
 import datetime
 import requests
+from supabase import create_client
 
 def fetch_fred_series(series_id, api_key):
     url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={api_key}&file_type=json&sort_order=desc&limit=1"
@@ -15,39 +15,34 @@ def fetch_fred_series(series_id, api_key):
 
 def main():
     api_key = os.environ.get('FRED_API_KEY')
+    supabase_url = os.environ.get('SUPABASE_URL')
+    supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
     
     fallback_data = {
         "mortgage_30yr": 6.85,
-        "mortgage_15yr": 6.15,
         "auto_new": 7.20,
-        "auto_used": 7.95,
-        "fed_funds": 5.25,
-        "inflation_cpi": 3.1,
-        "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        "inflation": 3.1
     }
 
     if not api_key:
         market_data = fallback_data
     else:
-        mortgage_30yr = fetch_fred_series('MORTGAGE30US', api_key)
-        mortgage_15yr = fetch_fred_series('MORTGAGE15US', api_key)
-        auto_new = fetch_fred_series('RIOSNVA', api_key)
-        fed_funds = fetch_fred_series('FEDFUNDS', api_key)
-        inflation_cpi = fetch_fred_series('CPIAUCSL', api_key)
-
         market_data = {
-            "mortgage_30yr": mortgage_30yr if mortgage_30yr is not None else fallback_data["mortgage_30yr"],
-            "mortgage_15yr": mortgage_15yr if mortgage_15yr is not None else fallback_data["mortgage_15yr"],
-            "auto_new": auto_new if auto_new is not None else fallback_data["auto_new"],
-            "auto_used": (auto_new + 0.75) if auto_new is not None else fallback_data["auto_used"],
-            "fed_funds": fed_funds if fed_funds is not None else fallback_data["fed_funds"],
-            "inflation_cpi": inflation_cpi if inflation_cpi is not None else fallback_data["inflation_cpi"],
-            "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            "mortgage_30yr": fetch_fred_series('MORTGAGE30US', api_key) or fallback_data["mortgage_30yr"],
+            "auto_new": fetch_fred_series('RIOSNVA', api_key) or fallback_data["auto_new"],
+            "inflation": fetch_fred_series('CPIAUCSL', api_key) or fallback_data["inflation"]
         }
 
-    os.makedirs('data', exist_ok=True)
-    with open('data/market_rates.json', 'w') as f:
-        json.dump(market_data, f, indent=2)
+    if supabase_url and supabase_key:
+        supabase = create_client(supabase_url, supabase_key)
+        payload = {
+            "date": datetime.date.today().isoformat(),
+            "fred_mortgage_30yr": market_data["mortgage_30yr"],
+            "fred_auto_new": market_data["auto_new"],
+            "fred_inflation": market_data["inflation"],
+            "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }
+        supabase.table("macro_data").upsert(payload).execute()
 
 if __name__ == "__main__":
     main()

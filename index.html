@@ -80,7 +80,7 @@
 </div>
 
 <div class="sidebar-section">
-<div class="gt-label mb-10 text-center">Credit & Demographics</div>
+<div class="gt-label mb-10 text-center">Credit & Deep Demographics</div>
 <div class="input-group mb-10">
 <label for="creditScore">FICO Credit Score</label>
 <input type="number" id="creditScore" class="glass-input" placeholder="720" min="300" max="850" value="720">
@@ -101,6 +101,41 @@
 <option value="fl">Miami, FL</option>
 </select>
 </div>
+</div>
+<div class="input-group mb-10">
+<label for="householdType">Household Type</label>
+<select id="householdType" class="glass-input">
+<option value="all">All Types</option>
+<option value="single">Single Earner</option>
+<option value="dual">Dual Income</option>
+</select>
+</div>
+<div class="input-group mb-10">
+<label for="sex">Sex</label>
+<select id="sex" class="glass-input">
+<option value="all">All</option>
+<option value="male">Male</option>
+<option value="female">Female</option>
+</select>
+</div>
+<div class="input-group mb-10">
+<label for="education">Education</label>
+<select id="education" class="glass-input">
+<option value="all">All Levels</option>
+<option value="hs">High School</option>
+<option value="bachelors">Bachelor's Degree</option>
+<option value="masters">Master's / Doctorate</option>
+</select>
+</div>
+<div class="input-group mb-10">
+<label for="race">Race / Ethnicity</label>
+<select id="race" class="glass-input">
+<option value="all">All Races</option>
+<option value="white">White</option>
+<option value="black">Black</option>
+<option value="asian">Asian</option>
+<option value="hispanic">Hispanic or Latino</option>
+</select>
 </div>
 </div>
 </form>
@@ -376,6 +411,9 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 <option value="tx">Austin, TX</option>
 <option value="ny">New York, NY</option>
 <option value="ca">San Francisco, CA</option>
+<option value="il">Chicago, IL</option>
+<option value="fl">Miami, FL</option>
+<option value="national">National Average</option>
 </select>
 <div class="line-items mt-15" style="padding: 10px 15px;">
 <div class="item-row">
@@ -400,6 +438,8 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 <label for="statementUpload" class="primary-btn" style="display:inline-block; margin-top:0; padding:12px 30px; font-size:1rem;">Select Document</label>
 <div id="uploadStatus" class="mt-15 fs-09" style="color:var(--text-muted);">No file selected</div>
 </div>
+<div class="gt-label mt-25 mb-10">Historical Uploads</div>
+<div id="historicalStatementsList" class="line-items mt-15"></div>
 </div>
 </div>
 </div>

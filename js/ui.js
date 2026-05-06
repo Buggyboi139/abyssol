@@ -1,6 +1,6 @@
 import { state } from './state.js';
-import { fetchLocationData, saveUserProfile } from './api.js';
-import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth } from './calculators.js';
+import { fetchLocationData, saveUserProfile, listStatements } from './api.js';
+import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile } from './calculators.js';
 import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve } from './charts.js';
 
 function fmt(amt) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0); }
@@ -12,6 +12,10 @@ export function hydrateUI(profile) {
     document.getElementById('creditScore').value = profile.credit_score || 720;
     document.getElementById('age').value = profile.age || 25;
     document.getElementById('location').value = profile.location || 'national';
+    document.getElementById('householdType').value = profile.household_type || 'all';
+    document.getElementById('sex').value = profile.sex || 'all';
+    document.getElementById('education').value = profile.education || 'all';
+    document.getElementById('race').value = profile.race || 'all';
 }
 
 export async function triggerCalculations() {
@@ -21,13 +25,25 @@ export async function triggerCalculations() {
     state.creditScore = parseFloat(document.getElementById('creditScore').value) || 720;
     state.age = parseInt(document.getElementById('age').value) || 25;
     state.location = document.getElementById('location').value;
+    state.householdType = document.getElementById('householdType').value;
+    state.sex = document.getElementById('sex').value;
+    state.education = document.getElementById('education').value;
+    state.race = document.getElementById('race').value;
+    
     state.locationData = await fetchLocationData(state.location);
 
     if (state.user) {
         saveUserProfile(state.user.id, {
-            income: state.income, shared_contribution: state.sharedContribution,
-            portfolio: state.portfolio, credit_score: state.creditScore,
-            age: state.age, location: state.location
+            income: state.income, 
+            shared_contribution: state.sharedContribution,
+            portfolio: state.portfolio, 
+            credit_score: state.creditScore,
+            age: state.age, 
+            location: state.location,
+            household_type: state.householdType,
+            sex: state.sex,
+            education: state.education,
+            race: state.race
         });
     }
 
@@ -70,7 +86,7 @@ function updateOverview() {
 function updateBudget() {
     let personalExp = 0;
     document.querySelectorAll('.expense-input').forEach(i => personalExp += (parseFloat(i.value) || 0));
-    const { netPersonalMonthly, freeCashFlow, personalDiscretionary, sharedObligation } = calculateCashFlow(personalExp);
+    const { personalDiscretionary, sharedObligation, freeCashFlow } = calculateCashFlow(personalExp);
     
     document.getElementById('budgetPersonal').textContent = fmt(personalDiscretionary);
     document.getElementById('budgetShared').textContent = fmt(sharedObligation);
@@ -119,8 +135,38 @@ function updateFIRE() {
 function updateBenchmarking() {
     const equiv = state.income + (state.sharedContribution * 12);
     let p = 50;
-    if (state.locationData && equiv > 0) p = Math.max(1, 100 - Math.floor(equiv/2000));
+    if (state.locationData && equiv > 0) {
+        const microP = getPercentile(state.locationData, state.householdType, state.sex, state.education, state.race, equiv);
+        p = microP ?? Math.max(1, 100 - Math.floor(equiv/2000));
+    }
     document.getElementById('percentileValue').textContent = `Top ${p}%`;
-    document.getElementById('detailedPercentiles').textContent = `Based on personal income vs local averages`;
+    document.getElementById('detailedPercentiles').textContent = `Based on personal income vs localized deep demographics`;
     drawBellCurve(p);
+    
+    const compareLoc = document.getElementById('geoCompare').value;
+    const compareTaxRate = 0.22; 
+    const altNet = (state.income / 12) * (1 - compareTaxRate);
+    document.getElementById('altNetIncome').textContent = fmt(altNet);
+}
+
+export async function renderStatementList() {
+    if (!state.user) return;
+    const listEl = document.getElementById('historicalStatementsList');
+    if (!listEl) return;
+    
+    const files = await listStatements(state.user.id);
+    listEl.innerHTML = '';
+    
+    if (files.length === 0) {
+        listEl.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No historical uploads found.</span></div>';
+        return;
+    }
+    
+    files.forEach(f => {
+        if (f.name === '.emptyFolderPlaceholder') return;
+        const div = document.createElement('div');
+        div.className = 'item-row';
+        div.innerHTML = `<span>${f.name}</span><span style="color:var(--text-muted); font-size:0.85rem;">${new Date(f.created_at).toLocaleDateString()}</span>`;
+        listEl.appendChild(div);
+    });
 }

@@ -78,3 +78,12 @@ export function groupTransactionsByMonth(transactions) {
     });
     return grouped;
 }
+
+export function getPercentile(data, ht, sx, ed, rc, income) {
+    const brackets = data?.demographics?.[ht]?.[sx]?.[ed]?.[rc];
+    if (!Array.isArray(brackets) || brackets.length === 0) return null;
+    const idx = brackets.findIndex(b => b.income >= income);
+    if (idx === -1) return 1;
+    if (idx === 0 && income < brackets[0].income) return 99;
+    return Math.max(1, 100 - brackets[idx].percentile);
+}

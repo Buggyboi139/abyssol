@@ -38,3 +38,11 @@ export async function fetchTransactions(userId) {
     const { data } = await supabase.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false });
     return data ||[];
 }
+
+export async function listStatements(userId) {
+    const { data } = await supabase.storage.from('statements').list(userId, {
+        limit: 20,
+        sortBy: { column: 'created_at', order: 'desc' }
+    });
+    return data ||[];
+}

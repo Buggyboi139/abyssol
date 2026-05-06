@@ -2,6 +2,7 @@ export const state = {
     user: null,
     profileLoaded: false,
     income: 90000,
+    taxFreeIncome: 4300,
     sharedContribution: 0,
     portfolio: 0,
     creditScore: 666,

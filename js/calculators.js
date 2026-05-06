@@ -2,7 +2,7 @@ import { state } from './state.js';
 
 export function calculateCashFlow(personalExpensesRaw) {
     const taxRate = state.locationData?.tax_rate ?? 0.22;
-    const netPersonalMonthly = (state.income / 12) * (1 - taxRate);
+    const netPersonalMonthly = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
     const freeCashFlow = netPersonalMonthly - personalExpensesRaw - state.sharedContribution;
     return {
         netPersonalMonthly,
@@ -13,7 +13,9 @@ export function calculateCashFlow(personalExpensesRaw) {
 }
 
 export function calculateHousingMatrix(spouseContrib, targetPrice, downPct, rate, loanType) {
-    const personalMax = (state.income / 12) * 0.28;
+    const taxRate = state.locationData?.tax_rate ?? 0.22;
+    const effectiveMonthlyGross = (state.income / 12) + (state.taxFreeIncome / (1 - taxRate));
+    const personalMax = effectiveMonthlyGross * 0.28;
     const combinedMax = personalMax + spouseContrib;
     
     const r = rate / 100 / 12;
@@ -38,7 +40,9 @@ export function calculateHousingMatrix(spouseContrib, targetPrice, downPct, rate
 }
 
 export function calculateAutoMatrix(spouseContrib, targetPrice, term, rate) {
-    const personalMax = (state.income / 12) * 0.10;
+    const taxRate = state.locationData?.tax_rate ?? 0.22;
+    const effectiveMonthlyGross = (state.income / 12) + (state.taxFreeIncome / (1 - taxRate));
+    const personalMax = effectiveMonthlyGross * 0.10;
     const combinedMax = personalMax + spouseContrib;
     
     const r = rate / 100 / 12;
@@ -50,7 +54,9 @@ export function calculateAutoMatrix(spouseContrib, targetPrice, term, rate) {
 }
 
 export function calculateFIRE(contribution, returnRate, inflation) {
-    const annualExpenses = (state.sharedContribution * 12) + ((state.income / 12) * 0.5 * 12);
+    const taxRate = state.locationData?.tax_rate ?? 0.22;
+    const effectiveMonthlyGross = (state.income / 12) + (state.taxFreeIncome / (1 - taxRate));
+    const annualExpenses = (state.sharedContribution * 12) + (effectiveMonthlyGross * 0.5 * 12);
     const fiNumber = annualExpenses * 25;
     const realReturn = (returnRate - inflation) / 100;
     let port = state.portfolio;

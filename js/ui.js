@@ -7,6 +7,7 @@ function fmt(amt) { return new Intl.NumberFormat('en-US', { style: 'currency', c
 
 export function hydrateUI(profile) {
     document.getElementById('baseIncome').value = profile.income || '';
+    document.getElementById('taxFreeIncome').value = profile.tax_free_income || '';
     document.getElementById('sharedContribution').value = profile.shared_contribution || '';
     document.getElementById('currentPortfolio').value = profile.portfolio || '';
     document.getElementById('creditScore').value = profile.credit_score || 720;
@@ -20,6 +21,7 @@ export function hydrateUI(profile) {
 
 export async function triggerCalculations() {
     state.income = parseFloat(document.getElementById('baseIncome').value) || 0;
+    state.taxFreeIncome = parseFloat(document.getElementById('taxFreeIncome').value) || 0;
     state.sharedContribution = parseFloat(document.getElementById('sharedContribution').value) || 0;
     state.portfolio = parseFloat(document.getElementById('currentPortfolio').value) || 0;
     state.creditScore = parseFloat(document.getElementById('creditScore').value) || 720;
@@ -35,6 +37,7 @@ export async function triggerCalculations() {
     if (state.user) {
         saveUserProfile(state.user.id, {
             income: state.income, 
+            tax_free_income: state.taxFreeIncome,
             shared_contribution: state.sharedContribution,
             portfolio: state.portfolio, 
             credit_score: state.creditScore,
@@ -71,7 +74,7 @@ function updateOverview() {
         ledger.appendChild(details);
     });
 
-    const net = (state.income / 12) * (1 - (state.locationData?.tax_rate ?? 0.22));
+    const net = ((state.income / 12) * (1 - (state.locationData?.tax_rate ?? 0.22))) + state.taxFreeIncome;
     let personalExp = 0;
     document.querySelectorAll('.expense-input').forEach(i => personalExp += (parseFloat(i.value) || 0));
     const cashFlow = net - personalExp - state.sharedContribution;
@@ -133,7 +136,10 @@ function updateFIRE() {
 }
 
 function updateBenchmarking() {
-    const equiv = state.income + (state.sharedContribution * 12);
+    const taxRate = state.locationData?.tax_rate ?? 0.22;
+    const grossedUpTaxFree = (state.taxFreeIncome * 12) / (1 - taxRate);
+    const equiv = state.income + grossedUpTaxFree + (state.sharedContribution * 12);
+    
     let p = 50;
     if (state.locationData && equiv > 0) {
         const microP = getPercentile(state.locationData, state.householdType, state.sex, state.education, state.race, equiv);
@@ -145,7 +151,7 @@ function updateBenchmarking() {
     
     const compareLoc = document.getElementById('geoCompare').value;
     const compareTaxRate = 0.22; 
-    const altNet = (state.income / 12) * (1 - compareTaxRate);
+    const altNet = ((state.income / 12) * (1 - compareTaxRate)) + state.taxFreeIncome;
     document.getElementById('altNetIncome').textContent = fmt(altNet);
 }
 

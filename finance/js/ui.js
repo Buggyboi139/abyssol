@@ -32,31 +32,31 @@ export function hydrateUI(profile) {
     state.education = profile.education || 'all';
     state.race = profile.race || 'all';
 
-    document.getElementById('baseIncome').value = state.income || '';
-    document.getElementById('taxFreeIncome').value = state.taxFreeIncome || '';
-    document.getElementById('sharedContribution').value = state.sharedContribution || '';
-    document.getElementById('currentPortfolio').value = state.portfolio || '';
-    document.getElementById('creditScore').value = state.creditScore;
-    document.getElementById('age').value = state.age;
-    document.getElementById('location').value = state.location;
-    document.getElementById('householdType').value = state.householdType;
-    document.getElementById('sex').value = state.sex;
-    document.getElementById('education').value = state.education;
-    document.getElementById('race').value = state.race;
+    if (document.getElementById('baseIncome')) document.getElementById('baseIncome').value = state.income || '';
+    if (document.getElementById('taxFreeIncome')) document.getElementById('taxFreeIncome').value = state.taxFreeIncome || '';
+    if (document.getElementById('sharedContribution')) document.getElementById('sharedContribution').value = state.sharedContribution || '';
+    if (document.getElementById('currentPortfolio')) document.getElementById('currentPortfolio').value = state.portfolio || '';
+    if (document.getElementById('creditScore')) document.getElementById('creditScore').value = state.creditScore;
+    if (document.getElementById('age')) document.getElementById('age').value = state.age;
+    if (document.getElementById('location')) document.getElementById('location').value = state.location;
+    if (document.getElementById('householdType')) document.getElementById('householdType').value = state.householdType;
+    if (document.getElementById('sex')) document.getElementById('sex').value = state.sex;
+    if (document.getElementById('education')) document.getElementById('education').value = state.education;
+    if (document.getElementById('race')) document.getElementById('race').value = state.race;
 }
 
 function readStateFromDom() {
-    state.income = parseFloat(document.getElementById('baseIncome').value) || 0;
-    state.taxFreeIncome = parseFloat(document.getElementById('taxFreeIncome').value) || 0;
-    state.sharedContribution = parseFloat(document.getElementById('sharedContribution').value) || 0;
-    state.portfolio = parseFloat(document.getElementById('currentPortfolio').value) || 0;
-    state.creditScore = parseFloat(document.getElementById('creditScore').value) || 720;
-    state.age = parseInt(document.getElementById('age').value, 10) || 25;
-    state.location = document.getElementById('location').value;
-    state.householdType = document.getElementById('householdType').value;
-    state.sex = document.getElementById('sex').value;
-    state.education = document.getElementById('education').value;
-    state.race = document.getElementById('race').value;
+    state.income = parseFloat(document.getElementById('baseIncome')?.value) || 0;
+    state.taxFreeIncome = parseFloat(document.getElementById('taxFreeIncome')?.value) || 0;
+    state.sharedContribution = parseFloat(document.getElementById('sharedContribution')?.value) || 0;
+    state.portfolio = parseFloat(document.getElementById('currentPortfolio')?.value) || 0;
+    state.creditScore = parseFloat(document.getElementById('creditScore')?.value) || 720;
+    state.age = parseInt(document.getElementById('age')?.value, 10) || 25;
+    state.location = document.getElementById('location')?.value || 'national';
+    state.householdType = document.getElementById('householdType')?.value || 'all';
+    state.sex = document.getElementById('sex')?.value || 'all';
+    state.education = document.getElementById('education')?.value || 'all';
+    state.race = document.getElementById('race')?.value || 'all';
 }
 
 function buildProfilePayload() {
@@ -102,35 +102,44 @@ export async function triggerCalculations(options = {}) {
 }
 
 function updateOverview() {
-    document.getElementById('overviewLiquidity').textContent = fmt(state.portfolio);
+    const liqEl = document.getElementById('overviewLiquidity');
+    if (liqEl) liqEl.textContent = fmt(state.portfolio);
 
-    const grouped = groupTransactionsByMonth(state.transactions);
+    const grouped = groupTransactionsByMonth(state.transactions || []);
     const labels = Object.keys(grouped).sort();
     const inflows = labels.map(l => grouped[l].inflow);
     const outflows = labels.map(l => grouped[l].outflow);
 
     const ledger = document.getElementById('historicalLedger');
-    ledger.innerHTML = '';
-    if (labels.length === 0) {
-        ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No transaction history. Upload a statement from the Data Sync tab to populate this view.</span></div>';
-    } else {
-        [...labels].reverse().forEach(month => {
-            const details = document.createElement('details');
-            details.className = 'expense-category';
-            const itemsHtml = grouped[month].items
-                .map(t => {
-                    const amt = Number(t.amount) || 0;
-                    const color = amt >= 0 ? '#34d399' : '#fb7185';
-                    const desc = (t.description || t.category || 'Transaction').toString();
-                    return `<div class="item-row"><span>${t.date} &middot; ${desc}</span><span style="color:${color}">${fmt(amt)}</span></div>`;
-                })
-                .join('');
-            details.innerHTML = `<summary class="category-header">${month} <span class="category-total">${fmt(grouped[month].outflow)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
-            ledger.appendChild(details);
-        });
+    if (ledger) {
+        ledger.innerHTML = '';
+        if (labels.length === 0) {
+            ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No transaction history. Upload a statement from the Data Sync tab to populate this view.</span></div>';
+        } else {
+            [...labels].reverse().forEach(month => {
+                const details = document.createElement('details');
+                details.className = 'expense-category';
+                const itemsHtml = grouped[month].items
+                    .map(t => {
+                        const amt = Number(t.amount) || 0;
+                        const color = amt >= 0 ? '#34d399' : '#fb7185';
+                        const desc = (t.description || t.category || 'Transaction').toString();
+                        return `<div class="item-row"><span>${t.date || 'Unknown'} &middot; ${desc}</span><span style="color:${color}">${fmt(amt)}</span></div>`;
+                    })
+                    .join('');
+                details.innerHTML = `<summary class="category-header">${month} <span class="category-total">${fmt(grouped[month].outflow)}</span></summary><div class="category-body">${itemsHtml || '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No items</span></div>'}</div>`;
+                ledger.appendChild(details);
+            });
+        }
     }
 
-    drawHistoryChart(labels, inflows, outflows);
+    if (typeof drawHistoryChart === 'function') {
+        try {
+            drawHistoryChart(labels, inflows, outflows);
+        } catch (e) {
+            console.error(e);
+        }
+    }
 
     const taxRate = state.locationData?.tax_rate ?? 0.22;
     const net = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
@@ -138,13 +147,17 @@ function updateOverview() {
     document.querySelectorAll('.expense-input').forEach(i => {
         personalExp += (parseFloat(i.value) || 0);
     });
+    
     const cashFlow = net - personalExp - state.sharedContribution;
     const cfEl = document.getElementById('overviewCashFlow');
-    cfEl.textContent = fmt(cashFlow);
-    cfEl.style.color = cashFlow < 0 ? '#fb7185' : '#34d399';
+    if (cfEl) {
+        cfEl.textContent = fmt(cashFlow);
+        cfEl.style.color = cashFlow < 0 ? '#fb7185' : '#34d399';
+    }
 
     const avgSvRate = net > 0 ? (cashFlow / net) * 100 : 0;
-    document.getElementById('overviewSavingsRate').textContent = `${avgSvRate.toFixed(1)}%`;
+    const svRateEl = document.getElementById('overviewSavingsRate');
+    if (svRateEl) svRateEl.textContent = `${avgSvRate.toFixed(1)}%`;
 }
 
 function updateBudget() {
@@ -154,51 +167,67 @@ function updateBudget() {
     });
     const { personalDiscretionary, sharedObligation, freeCashFlow } = calculateCashFlow(personalExp);
 
-    document.getElementById('budgetPersonal').textContent = fmt(personalDiscretionary);
-    document.getElementById('budgetShared').textContent = fmt(sharedObligation);
-    document.getElementById('budgetSavings').textContent = fmt(freeCashFlow);
+    if (document.getElementById('budgetPersonal')) document.getElementById('budgetPersonal').textContent = fmt(personalDiscretionary);
+    if (document.getElementById('budgetShared')) document.getElementById('budgetShared').textContent = fmt(sharedObligation);
+    if (document.getElementById('budgetSavings')) document.getElementById('budgetSavings').textContent = fmt(freeCashFlow);
 
-    drawDonutChart(personalDiscretionary, sharedObligation, Math.max(0, freeCashFlow));
+    if (typeof drawDonutChart === 'function') {
+        try {
+            drawDonutChart(personalDiscretionary, sharedObligation, Math.max(0, freeCashFlow));
+        } catch (e) {
+            console.error(e);
+        }
+    }
 }
 
 function updatePurchases() {
-    const sH = parseFloat(document.getElementById('spouseHousingContribution').value) || 0;
-    const hPrice = parseFloat(document.getElementById('targetHomePrice').value) || 0;
-    const hDown = parseFloat(document.getElementById('downPayment').value) || 0;
-    const hRate = state.marketRates.mortgage_30yr;
-    const lType = document.getElementById('loanType').value;
-    document.getElementById('targetHomePriceDisplay').textContent = fmt(hPrice);
-    document.getElementById('liveMortgageRate').textContent = `${hRate.toFixed(2)}%`;
-    document.getElementById('downLabel').textContent = `${hDown.toFixed(1)}%`;
+    const sH = parseFloat(document.getElementById('spouseHousingContribution')?.value) || 0;
+    const hPrice = parseFloat(document.getElementById('targetHomePrice')?.value) || 0;
+    const hDown = parseFloat(document.getElementById('downPayment')?.value) || 0;
+    const hRate = state.marketRates.mortgage_30yr || 0;
+    const lType = document.getElementById('loanType')?.value || 'conv';
+    
+    if (document.getElementById('targetHomePriceDisplay')) document.getElementById('targetHomePriceDisplay').textContent = fmt(hPrice);
+    if (document.getElementById('liveMortgageRate')) document.getElementById('liveMortgageRate').textContent = `${hRate.toFixed(2)}%`;
+    if (document.getElementById('downLabel')) document.getElementById('downLabel').textContent = `${hDown.toFixed(1)}%`;
 
     const hm = calculateHousingMatrix(sH, hPrice, hDown, hRate, lType);
-    document.getElementById('actualHousingPayment').textContent = fmt(hm.actualPayment) + '/mo';
-    document.getElementById('maxHomePriceValue').textContent = fmt(hm.maxPurchase);
-    document.getElementById('maxHousing').textContent = fmt(hm.combinedMax);
+    if (document.getElementById('actualHousingPayment')) document.getElementById('actualHousingPayment').textContent = fmt(hm.actualPayment) + '/mo';
+    if (document.getElementById('maxHomePriceValue')) document.getElementById('maxHomePriceValue').textContent = fmt(hm.maxPurchase);
+    if (document.getElementById('maxHousing')) document.getElementById('maxHousing').textContent = fmt(hm.combinedMax);
 
-    const sA = parseFloat(document.getElementById('spouseAutoContribution').value) || 0;
-    const aPrice = parseFloat(document.getElementById('targetCarPrice').value) || 0;
-    const aTerm = parseInt(document.getElementById('autoTerm').value, 10) || 48;
-    const aRate = state.marketRates.auto_new;
-    document.getElementById('targetCarPriceDisplay').textContent = fmt(aPrice);
-    document.getElementById('liveAutoRate').textContent = `${aRate.toFixed(2)}%`;
+    const sA = parseFloat(document.getElementById('spouseAutoContribution')?.value) || 0;
+    const aPrice = parseFloat(document.getElementById('targetCarPrice')?.value) || 0;
+    const aTerm = parseInt(document.getElementById('autoTerm')?.value, 10) || 48;
+    const aRate = state.marketRates.auto_new || 0;
+    
+    if (document.getElementById('targetCarPriceDisplay')) document.getElementById('targetCarPriceDisplay').textContent = fmt(aPrice);
+    if (document.getElementById('liveAutoRate')) document.getElementById('liveAutoRate').textContent = `${aRate.toFixed(2)}%`;
 
     const am = calculateAutoMatrix(sA, aPrice, aTerm, aRate);
-    document.getElementById('actualAutoPayment').textContent = fmt(am.actualPayment) + '/mo';
-    document.getElementById('maxCarPrice').textContent = fmt(am.maxPurchase);
-    document.getElementById('maxTransport').textContent = fmt(am.combinedMax);
+    if (document.getElementById('actualAutoPayment')) document.getElementById('actualAutoPayment').textContent = fmt(am.actualPayment) + '/mo';
+    if (document.getElementById('maxCarPrice')) document.getElementById('maxCarPrice').textContent = fmt(am.maxPurchase);
+    if (document.getElementById('maxTransport')) document.getElementById('maxTransport').textContent = fmt(am.combinedMax);
 }
 
 function updateFIRE() {
-    const c = parseFloat(document.getElementById('fireContribution').value) || 0;
-    const r = parseFloat(document.getElementById('marketReturn').value) || 7;
+    const c = parseFloat(document.getElementById('fireContribution')?.value) || 0;
+    const r = parseFloat(document.getElementById('marketReturn')?.value) || 7;
     const inf = Number.isFinite(state.marketRates.inflation_cpi) && state.marketRates.inflation_cpi < 25
         ? state.marketRates.inflation_cpi
         : 3.1;
     const f = calculateFIRE(c, r, inf);
-    document.getElementById('fiNumberValue').textContent = fmt(f.fiNumber);
-    document.getElementById('fiAgeValue').textContent = f.finalAge;
-    drawFireChart(f.ages, f.balances, f.fiNumber);
+    
+    if (document.getElementById('fiNumberValue')) document.getElementById('fiNumberValue').textContent = fmt(f.fiNumber);
+    if (document.getElementById('fiAgeValue')) document.getElementById('fiAgeValue').textContent = f.finalAge;
+    
+    if (typeof drawFireChart === 'function') {
+        try {
+            drawFireChart(f.ages, f.balances, f.fiNumber);
+        } catch (e) {
+            console.error(e);
+        }
+    }
 }
 
 function updateBenchmarking() {
@@ -211,16 +240,25 @@ function updateBenchmarking() {
         const microP = getPercentile(state.locationData, state.householdType, state.sex, state.education, state.race, equiv);
         p = microP ?? Math.max(1, 100 - Math.floor(equiv / 2000));
     }
-    document.getElementById('percentileValue').textContent = `Top ${p}%`;
-    document.getElementById('detailedPercentiles').textContent = `Based on personal income vs localized deep demographics`;
-    drawBellCurve(p);
+    
+    if (document.getElementById('percentileValue')) document.getElementById('percentileValue').textContent = `Top ${p}%`;
+    if (document.getElementById('detailedPercentiles')) document.getElementById('detailedPercentiles').textContent = `Based on personal income vs localized deep demographics`;
+    
+    if (typeof drawBellCurve === 'function') {
+        try {
+            drawBellCurve(p);
+        } catch (e) {
+            console.error(e);
+        }
+    }
 
     const compareData = state.compareLocationData;
     const compareTaxRate = compareData?.tax_rate ?? taxRate;
     const colDelta = (compareData?.col_multiplier ?? 1) / (state.locationData?.col_multiplier ?? 1);
     const nominalMonthly = (state.income / 12) * (1 - compareTaxRate) + state.taxFreeIncome;
     const altNet = nominalMonthly / colDelta;
-    document.getElementById('altNetIncome').textContent = fmt(altNet);
+    
+    if (document.getElementById('altNetIncome')) document.getElementById('altNetIncome').textContent = fmt(altNet);
 }
 
 export async function renderStatementList() {

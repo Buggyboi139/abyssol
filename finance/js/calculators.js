@@ -75,11 +75,18 @@ export function calculateFIRE(contribution, returnRate, inflation) {
 
 export function groupTransactionsByMonth(transactions) {
     const grouped = {};
+    if (!Array.isArray(transactions)) return grouped;
+    
     transactions.forEach(t => {
-        const month = t.date.substring(0, 7);
+        const rawDate = typeof t.date === 'string' ? t.date : '';
+        const month = rawDate.length >= 7 ? rawDate.substring(0, 7) : 'Unknown';
+        
         if (!grouped[month]) grouped[month] = { inflow: 0, outflow: 0, items:[] };
-        if (t.amount > 0) grouped[month].inflow += t.amount;
-        else grouped[month].outflow += Math.abs(t.amount);
+        
+        const amount = Number(t.amount) || 0;
+        if (amount > 0) grouped[month].inflow += amount;
+        else grouped[month].outflow += Math.abs(amount);
+        
         grouped[month].items.push(t);
     });
     return grouped;

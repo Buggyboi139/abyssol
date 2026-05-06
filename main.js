@@ -671,7 +671,9 @@ els.geoCompare.addEventListener('change', calculateGeoArbitrage);
 els.fireContribution.addEventListener('input', function() { userEditedFIRE = true; calculateFIRE(); });
 els.currentPortfolio.addEventListener('input', calculateFIRE);
 els.marketReturn.addEventListener('input', calculateFIRE);
-els.inflationRate.addEventListener('input', calculateFIRE);[els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt, els.creditScore,
+els.inflationRate.addEventListener('input', calculateFIRE);
+
+[els.baseIncome, els.hoursPerWeek, els.taxExemptIncome, els.monthlyDebt, els.creditScore,
 els.age, els.marketReturn, els.inflationRate].forEach(el => {
 el.addEventListener('input', () => validateNumericInput(el));
 });
@@ -750,21 +752,6 @@ els.statementUpload.addEventListener('change', async (e) => {
     } finally {
         els.statementUpload.value = ''; 
     }
-});
-
-els.uploadStatus.textContent = "Encrypting & Uploading...";
-const fileName = `${currentUser.id}/${Date.now()}_${file.name}`;
-
-const { data, error } = await supabase.storage.from('statements').upload(fileName, file);
-
-if (error) {
-    els.uploadStatus.textContent = "Upload failed: " + error.message;
-    els.uploadStatus.style.color = "#fb7185";
-} else {
-    els.uploadStatus.textContent = "Document secured & sent for AI categorization.";
-    els.uploadStatus.style.color = "#34d399";
-}
-els.statementUpload.value = '';
 });
 
 supabase.auth.onAuthStateChange((event, session) => { handleAuthUI(session); });

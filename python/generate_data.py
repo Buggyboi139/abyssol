@@ -60,7 +60,7 @@ def find_files(raw_dir, meta, file_type):
 
 def main():
     os.makedirs('data', exist_ok=True)
-    raw_dir = '/home/dsmason321/Downloads/raw_data'
+    raw_dir = os.environ.get('RAW_DATA_DIR', './raw_data')
     
     print("--- STARTING CENSUS DATA GENERATION ---")
     

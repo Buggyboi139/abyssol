@@ -26,7 +26,7 @@ jobs:
       
       - run: |
           mkdir public
-          cp -r data index.html main.js styles.css CNAME public/
+          cp -r css js data index.html CNAME public/
           
       - uses: actions/configure-pages@v4
       

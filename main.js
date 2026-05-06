@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function() {
+\document.addEventListener("DOMContentLoaded", function() {
 const supabaseUrl = 'https://agfngkzohlrmxjhysafn.supabase.co';
 const supabaseKey = 'sb_publishable_8u_PB-tndXrjSe9TNu_G7A_GKQjBxD0';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -687,38 +687,34 @@ els.authToggleBtn.textContent = isRegistering ? 'Already have an account? Sign i
 });
 els.signOutBtn.addEventListener('click', handleSignOut);
 
-const toBase64 = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = error => reject(error);
-});
-
 els.statementUpload.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file || !currentUser) return;
 
     try {
-        els.uploadStatus.textContent = "Reading document locally...";
+        els.uploadStatus.textContent = "Uploading document to secure storage...";
         els.uploadStatus.style.color = "#60a5fa";
 
-        let fileContent;
+        // Determine mime type
         let mimeType = file.type;
-        
-        if (mimeType === 'application/pdf') {
-            fileContent = await toBase64(file);
-        } else if (mimeType === 'text/csv' || file.name.endsWith('.csv')) {
-            fileContent = await file.text();
-            mimeType = 'text/csv';
-        } else {
-            throw new Error("Unsupported file type. Please upload PDF or CSV.");
+        if (mimeType !== 'application/pdf' && mimeType !== 'text/csv' && !file.name.endsWith('.csv')) {
+             throw new Error("Unsupported file type. Please upload PDF or CSV.");
         }
+        if (file.name.endsWith('.csv')) mimeType = 'text/csv';
 
-        els.uploadStatus.textContent = "Sending to secure Edge Function for AI processing...";
+        // 1. Upload directly to a Supabase Storage bucket (you must create a private bucket named 'statements')
+        const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+            .from('statements') 
+            .upload(filePath, file);
 
-        // Call your new Edge Function
+        if (uploadError) throw new Error("Storage upload failed: " + uploadError.message);
+
+        els.uploadStatus.textContent = "Sending to Edge Function for AI processing...";
+
+        // 2. Pass only the file path to the Edge Function
         const { data, error: funcError } = await supabase.functions.invoke('process-statement', {
-            body: { fileContent, mimeType }
+            body: { filePath: filePath, mimeType: mimeType }
         });
 
         if (funcError) throw new Error(funcError.message);
@@ -728,10 +724,13 @@ els.statementUpload.addEventListener('change', async (e) => {
 
         let transactions = [];
         try {
-            transactions = JSON.parse(data.result);
+            // Strip markdown code blocks before parsing
+            const cleanString = data.result.replace(/```json/gi, '').replace(/```/g, '').trim();
+            transactions = JSON.parse(cleanString);
             transactions = transactions.map(t => ({ ...t, user_id: currentUser.id }));
         } catch (parseError) {
-            throw new Error("AI did not return valid JSON.");
+            console.error("Raw AI Output:", data.result);
+            throw new Error("AI did not return valid JSON. Check console for raw output.");
         }
 
         els.uploadStatus.textContent = `Saving ${transactions.length} transactions to database...`;

@@ -239,8 +239,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const oldCat = tx.category;
                 const merchantName = (tx.clean_merchant || tx.description || '').trim();
                 tx.category = newCat;
+
+                const matchingTxs = state.transactions.filter(t => (t.clean_merchant || t.description || '').trim() === merchantName && t.id !== id);
+
+                if (merchantName && matchingTxs.length > 0) {
+                    if (confirm(`Also update ${matchingTxs.length} past transaction(s) for "${merchantName}" to ${newCat}?`)) {
+                        matchingTxs.forEach(t => {
+                            t.category = newCat;
+                            updateTransactionCategory(t.id, newCat).catch(err => console.error(err));
+                        });
+                    }
+                }
+
                 triggerCalculations();
-                updateTransactionCategory(id, newCat).catch(err => console.error('Failed to update category', err));
+                updateTransactionCategory(id, newCat).catch(err => console.error(err));
                 if (state.user && merchantName) {
                     recordCategorizationCorrection(state.user.id, merchantName, oldCat, newCat)
                         .catch(() => {});

@@ -24,12 +24,17 @@ nav { padding: calc(20px + env(safe-area-inset-top)) 40px 20px 40px; display: fl
 .close-btn { position: absolute; top: 15px; right: 15px; font-size: 2rem; color: var(--text-muted); z-index: 10; min-height: 48px; min-width: 48px; }
 .close-btn:hover { color: var(--text-main); }
 
+.view-toggle { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.view-toggle::-webkit-scrollbar { display: none; }
+.view-toggle button { flex-shrink: 0; white-space: nowrap; }
+
 .bottom-nav {
     display: none;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
+    top: auto; 
     background: rgba(15, 23, 42, 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);

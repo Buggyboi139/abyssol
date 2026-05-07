@@ -268,3 +268,49 @@ export function getPreProcessingSummary(filteredTransactions) {
 
     return { totalIncome, totalSpend, categoryBreakdown: catMap, topMerchants };
 }
+
+export function calculateBudgetStatus(transactions, budgetLimits) {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysElapsed = Math.max(1, now.getDate());
+
+    const actualByCategory = {};
+    transactions.forEach(t => {
+        const d = new Date(t.date);
+        if (d < monthStart) return;
+        const amt = Number(t.amount) || 0;
+        const isIncome = t.type === 'income' || amt > 0;
+        if (isIncome) return;
+        const parent = getCategoryParent(normalizeCat(t.category));
+        actualByCategory[parent] = (actualByCategory[parent] || 0) + Math.abs(amt);
+    });
+
+    const allCategories = new Set([
+        ...Object.keys(budgetLimits),
+        ...Object.keys(actualByCategory)
+    ]);
+
+    const results = [];
+    allCategories.forEach(cat => {
+        const actual = actualByCategory[cat] || 0;
+        const limit = budgetLimits[cat] || 0;
+        const remaining = Math.max(0, limit - actual);
+        const percentUsed = limit > 0 ? Math.min(100, (actual / limit) * 100) : (actual > 0 ? 100 : 0);
+        const projectedMonthEnd = (actual / daysElapsed) * daysInMonth;
+        const isOverBudget = limit > 0 && actual > limit;
+        const isNearBudget = limit > 0 && percentUsed >= 80 && !isOverBudget;
+
+        results.push({ cat, actual, limit, remaining, percentUsed, projectedMonthEnd, isOverBudget, isNearBudget });
+    });
+
+    results.sort((a, b) => {
+        if (a.isOverBudget && !b.isOverBudget) return -1;
+        if (!a.isOverBudget && b.isOverBudget) return 1;
+        if (a.isNearBudget && !b.isNearBudget) return -1;
+        if (!a.isNearBudget && b.isNearBudget) return 1;
+        return b.actual - a.actual;
+    });
+
+    return { results, daysElapsed, daysInMonth };
+}

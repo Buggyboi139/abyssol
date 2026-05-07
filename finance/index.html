@@ -97,6 +97,38 @@
 </div>
 </div>
 
+<div class="sidebar-section mt-10">
+  <div class="gt-label mb-10 text-center">Debts &amp; Liabilities <span style="color:var(--text-muted); font-weight:400; font-size:0.75rem;">(optional)</span></div>
+  <div class="input-group mb-10">
+    <label for="liabCreditCard">Credit Card Debt</label>
+    <div class="unit-wrapper icon-prefix">
+      <span class="prefix">$</span>
+      <input type="number" id="liabCreditCard" class="glass-input" placeholder="0" min="0" value="0">
+    </div>
+  </div>
+  <div class="input-group mb-10">
+    <label for="liabStudentLoans">Student Loans</label>
+    <div class="unit-wrapper icon-prefix">
+      <span class="prefix">$</span>
+      <input type="number" id="liabStudentLoans" class="glass-input" placeholder="0" min="0" value="0">
+    </div>
+  </div>
+  <div class="input-group mb-10">
+    <label for="liabCarLoan">Car Loan Balance</label>
+    <div class="unit-wrapper icon-prefix">
+      <span class="prefix">$</span>
+      <input type="number" id="liabCarLoan" class="glass-input" placeholder="0" min="0" value="0">
+    </div>
+  </div>
+  <div class="input-group mb-10">
+    <label for="liabOther">Other Debt</label>
+    <div class="unit-wrapper icon-prefix">
+      <span class="prefix">$</span>
+      <input type="number" id="liabOther" class="glass-input" placeholder="0" min="0" value="0">
+    </div>
+  </div>
+</div>
+
 <div class="sidebar-section">
 <div class="gt-label mb-10 text-center">About Me</div>
 <div class="input-group mb-10">
@@ -202,6 +234,64 @@
 <div class="gt-label">Projected Month-End Spend</div>
 <div class="gt-value transition-color" id="kpiSpendingPace">$0</div>
 </div>
+<div class="dash-card text-center" data-tooltip="Your total savings and investments minus all your debts.">
+  <div class="gt-label">Net Worth</div>
+  <div class="gt-value transition-color" id="kpiNetWorth">$0</div>
+</div>
+</div>
+
+<!-- Month-to-Date Status Panel -->
+<div class="mtd-panel control-panel mb-25" style="padding: 20px 25px; border-radius: 16px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+    <div>
+      <div class="gt-label" style="margin-bottom:6px;" id="mtdMonthLabel">This Month</div>
+      <div style="font-size:0.9rem; color:var(--text-muted);">
+        <span id="mtdDaysElapsed">0</span> days in &mdash;
+        spending <span id="mtdDailyRate" style="color:#f8fafc; font-weight:600;">$0/day</span>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:30px; flex-wrap:wrap;">
+      <div class="text-center">
+        <div class="gt-label" style="font-size:0.75rem;">Spent</div>
+        <div style="font-size:1.4rem; font-weight:800; color:#fb7185;" id="mtdSpent">$0</div>
+      </div>
+      <div class="text-center">
+        <div class="gt-label" style="font-size:0.75rem;">Income</div>
+        <div style="font-size:1.4rem; font-weight:800; color:#34d399;" id="mtdIncome">$0</div>
+      </div>
+      <div class="text-center">
+        <div class="gt-label" style="font-size:0.75rem;">Savings Rate</div>
+        <div style="font-size:1.4rem; font-weight:800;" id="mtdSavingsRate">0%</div>
+      </div>
+      <div class="text-center">
+        <div class="gt-label" style="font-size:0.75rem;">Month-End Projection</div>
+        <div style="font-size:1.4rem; font-weight:800;" id="mtdProjected">$0</div>
+      </div>
+    </div>
+
+    <!-- Savings Rate mini gauge bar -->
+    <div style="min-width:180px; flex:1;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.8rem; color:var(--text-muted);">
+        <span>Savings Rate</span>
+        <span id="mtdSavingsRateLabel">0%</span>
+      </div>
+      <div style="height:10px; background:rgba(255,255,255,0.08); border-radius:10px; overflow:hidden;">
+        <div id="mtdSavingsBar" style="height:100%; border-radius:10px; width:0%; background:#34d399; transition:width 0.5s ease;"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:0.75rem; color:var(--text-muted);">
+        <span>0%</span><span>20%</span><span>50%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 3 Spending Categories -->
+  <div style="margin-top:20px; border-top:1px solid var(--border-glass); padding-top:16px;">
+    <div class="gt-label mb-10" style="font-size:0.75rem;">Top Spending This Month</div>
+    <div id="mtdTopCategories" style="display:flex; gap:12px; flex-wrap:wrap;">
+      <span style="color:var(--text-muted); font-size:0.9rem;">Loading...</span>
+    </div>
+  </div>
 </div>
 
 <div class="bento-box mt-25">
@@ -210,14 +300,24 @@
 <span id="trendsHeaderTitle">Income &amp; Spending Over Time</span>
 <div class="view-toggle" style="display: flex;">
 <button type="button" id="viewTimelineBtn" class="secondary-btn btn-small active" style="border-radius: 20px 0 0 20px;">Timeline</button>
-<button type="button" id="viewCategoryBtn" class="secondary-btn btn-small" style="border-radius: 0 0 0 0; margin-left: -1px;">Category</button>
-<button type="button" id="viewMerchantBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Merchants</button>
+<button type="button" id="viewCategoryBtn" class="secondary-btn btn-small" style="border-radius: 0; margin-left: -1px;">Category</button>
+<button type="button" id="viewMerchantBtn" class="secondary-btn btn-small" style="border-radius: 0; margin-left: -1px;">Merchants</button>
+<button type="button" id="viewTrendsBtn" class="secondary-btn btn-small" style="border-radius: 0; margin-left: -1px;">Trends</button>
+<button type="button" id="viewCompareBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Compare</button>
 </div>
 </div>
 <div class="module-content">
 <div id="chartContainerTimeline" class="chart-container chart-h-300 active-pane"><canvas id="historyChart"></canvas></div>
 <div id="chartContainerCategory" class="chart-container chart-h-300 hidden-pane"><canvas id="categoryDonutChart"></canvas></div>
 <div id="chartContainerMerchant" class="chart-container chart-h-300 hidden-pane"><canvas id="merchantBarChart"></canvas></div>
+<div id="chartContainerTrends" class="chart-container chart-h-300 hidden-pane">
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;" id="trendsCategoryFilter">
+  </div>
+  <canvas id="categoryTimeSeriesChart"></canvas>
+</div>
+<div id="chartContainerCompare" class="chart-container chart-h-300 hidden-pane">
+  <canvas id="monthComparisonChart"></canvas>
+</div>
 </div>
 
 <div class="module-header mt-25" style="display: flex; justify-content: space-between; align-items: center; border-radius: 0; border-top: 1px solid var(--border-glass);">
@@ -228,6 +328,14 @@
 <div id="aiInsightsOutput" class="fs-09" style="color: var(--text-muted); line-height: 1.6;">
 Click the button above to get a personalized analysis of your spending patterns.
 </div>
+</div>
+<div class="module-header" style="display:flex; justify-content:space-between; align-items:center; border-radius:0; border-top:1px solid var(--border-glass);">
+  <span>Recent Activity</span>
+</div>
+<div class="module-content" style="padding: 10px 15px;">
+  <div id="recentActivityList" style="display:flex; flex-direction:column; gap:6px;">
+    <span style="color:var(--text-muted); font-size:0.9rem;">No recent transactions.</span>
+  </div>
 </div>
 </div>
 
@@ -270,55 +378,53 @@ Click the button above to get a personalized analysis of your spending patterns.
 </div>
 
 <div id="tab-budget" class="tab-pane">
-<div class="layout-grid">
-<div class="module-container active" style="margin-bottom:0;">
-<div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-<span>My Budget</span>
-<button type="button" id="aiBudgetBtn" class="secondary-btn btn-small">✨ Get AI Suggestions</button>
-</div>
-<div class="module-content">
-<div id="aiBudgetOutput" class="fs-09 mb-20 hidden" style="color: #34d399; background: rgba(52, 211, 153, 0.1); padding: 15px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.3);"></div>
-<div class="chart-container-donut mb-25"><canvas id="budgetDonutChart"></canvas></div>
-<div class="line-items">
-<div class="item-row">
-<span>Total Spending This Period</span>
-<span id="budgetTotalSpend">$0</span>
-</div>
-<div class="item-row">
-<span>Your Monthly Take-Home</span>
-<span id="budgetMonthlyIncome">$0</span>
-</div>
-<div class="item-row no-border-bottom">
-<span>Money Left Over</span>
-<span id="budgetLeftOver">$0</span>
-</div>
-</div>
-</div>
-</div>
+  <div class="filter-bar mb-20 control-panel" style="padding: 15px 25px; border-radius: 16px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+    <span class="gt-label" style="margin-right: auto;">Budget Month</span>
+    <span class="fs-09" style="color:var(--text-muted);" id="budgetMonthLabel">This Month</span>
+    <button type="button" id="aiBudgetBtn" class="secondary-btn btn-small">✨ Get AI Suggestions</button>
+  </div>
 
-<div class="module-container active" style="margin-bottom:0;">
-<div class="module-header"><span>Spending by Category</span></div>
-<div class="module-content" style="padding-top:10px;">
-<div class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Your spending below is pulled directly from your imported and manual transactions. Switch to the Dashboard to add or edit transactions.</div>
-<details class="expense-category" open>
-<summary class="category-header">
-Housing <span class="category-total" id="catTotalHousing">$0</span>
-</summary>
-<div class="category-body">
-<div class="fs-09" style="color:var(--text-muted);">Imported from your transactions automatically.</div>
-</div>
-</details>
-<details class="expense-category">
-<summary class="category-header">
-Transportation <span class="category-total" id="catTotalTransport">$0</span>
-</summary>
-<div class="category-body">
-<div class="fs-09" style="color:var(--text-muted);">Imported from your transactions automatically.</div>
-</div>
-</details>
-</div>
-</div>
-</div>
+  <div id="aiBudgetOutput" class="fs-09 mb-20 hidden" style="color: #34d399; background: rgba(52, 211, 153, 0.1); padding: 15px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.3);"></div>
+
+  <div class="dashboard-grid mb-25" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+    <div class="dash-card text-center" data-tooltip="Total amount you've spent this month across all categories.">
+      <div class="gt-label">Spent This Month</div>
+      <div class="gt-value" id="budgetTotalSpend" style="color:#fb7185;">$0</div>
+    </div>
+    <div class="dash-card text-center" data-tooltip="Your estimated take-home pay after taxes.">
+      <div class="gt-label">Monthly Take-Home</div>
+      <div class="gt-value" id="budgetMonthlyIncome" style="color:#34d399;">$0</div>
+    </div>
+    <div class="dash-card text-center" data-tooltip="Income minus spending this month.">
+      <div class="gt-label">Left Over</div>
+      <div class="gt-value" id="budgetLeftOver">$0</div>
+    </div>
+    <div class="dash-card text-center" data-tooltip="Based on your spending so far, this is your estimated total spending by end of month.">
+      <div class="gt-label">Month-End Projection</div>
+      <div class="gt-value" id="budgetProjected">$0</div>
+    </div>
+  </div>
+
+  <div class="module-container active mb-25">
+    <div class="module-header" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>Spending by Category</span>
+      <span class="fs-09" style="color:var(--text-muted);">Click a limit to edit it</span>
+    </div>
+    <div class="module-content" style="padding: 15px 20px;">
+      <div id="budgetCategoryRows">
+        <div style="color:var(--text-muted); font-size:0.9rem; padding: 20px 0; text-align:center;">Add transactions to see your spending breakdown.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="module-container active">
+    <div class="module-header"><span>Budget vs. Spending</span></div>
+    <div class="module-content">
+      <div class="chart-container" style="height: 350px;">
+        <canvas id="budgetBarsChart"></canvas>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="tab-purchases" class="tab-pane">

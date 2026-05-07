@@ -2,8 +2,8 @@ import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory
 import { state } from './state.js';
 import { initAuth } from './auth.js';
 import { triggerCalculations, renderStatementList, buildCategorySelectHTML } from './ui.js';
-import { resizeCharts } from './charts.js';
-import { filterTransactions, getPreProcessingSummary } from './calculators.js';
+import { resizeCharts, drawCategoryTimeSeriesChart, drawMonthComparisonChart } from './charts.js';
+import { filterTransactions, getPreProcessingSummary, groupTransactionsByCategoryAndMonth, calculateRollingAverage } from './calculators.js';
 import { FLAT_CATEGORIES, PARENT_CATEGORIES } from './categories.js';
 
 function populateCategoryFilters() {
@@ -20,12 +20,14 @@ function populateCategoryFilters() {
 function switchView(view) {
     state.activeView = view;
     document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.bento-left .chart-container').forEach(c => {
-        c.classList.remove('active-pane');
-        c.classList.add('hidden-pane');
+
+    ['chartContainerTimeline','chartContainerCategory','chartContainerMerchant','chartContainerTrends','chartContainerCompare'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.remove('active-pane'); el.classList.add('hidden-pane'); }
     });
 
     const titleEl = document.getElementById('trendsHeaderTitle');
+
     if (view === 'timeline') {
         document.getElementById('viewTimelineBtn')?.classList.add('active');
         document.getElementById('chartContainerTimeline')?.classList.replace('hidden-pane', 'active-pane');
@@ -38,9 +40,74 @@ function switchView(view) {
         document.getElementById('viewMerchantBtn')?.classList.add('active');
         document.getElementById('chartContainerMerchant')?.classList.replace('hidden-pane', 'active-pane');
         if (titleEl) titleEl.textContent = 'Top Merchants';
+    } else if (view === 'trends') {
+        document.getElementById('viewTrendsBtn')?.classList.add('active');
+        document.getElementById('chartContainerTrends')?.classList.replace('hidden-pane', 'active-pane');
+        if (titleEl) titleEl.textContent = 'Spending Trends by Category';
+        renderTrendsView();
+    } else if (view === 'compare') {
+        document.getElementById('viewCompareBtn')?.classList.add('active');
+        document.getElementById('chartContainerCompare')?.classList.replace('hidden-pane', 'active-pane');
+        if (titleEl) titleEl.textContent = 'Month-over-Month Comparison';
+        renderCompareView();
     }
+
     triggerCalculations();
     setTimeout(resizeCharts, 50);
+}
+
+function renderTrendsView() {
+    const filtered = filterTransactions(state.transactions, { dateRange: '365', category: 'all' });
+    const categoryMonthData = groupTransactionsByCategoryAndMonth(filtered);
+
+    const filterContainer = document.getElementById('trendsCategoryFilter');
+    if (filterContainer && !filterContainer.dataset.initialized) {
+        filterContainer.dataset.initialized = 'true';
+        const availableCats = Object.keys(categoryMonthData).sort();
+        const topCats = availableCats
+            .map(cat => ({ cat, total: Object.values(categoryMonthData[cat]).reduce((s,v) => s+v, 0) }))
+            .sort((a,b) => b.total - a.total)
+            .slice(0, 5)
+            .map(x => x.cat);
+
+        filterContainer.innerHTML = availableCats.map(cat => `
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--text-muted); cursor:pointer; background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:20px;">
+                <input type="checkbox" class="trends-cat-check" value="${cat}" ${topCats.includes(cat) ? 'checked' : ''} style="accent-color:#38bdf8;">
+                ${cat}
+            </label>
+        `).join('');
+
+        filterContainer.addEventListener('change', () => renderTrendsView());
+    }
+
+    const checked = Array.from(document.querySelectorAll('.trends-cat-check:checked')).map(cb => cb.value);
+    const selected = checked.length > 0 ? checked : Object.keys(categoryMonthData).slice(0, 5);
+
+    if (typeof drawCategoryTimeSeriesChart === 'function') {
+        drawCategoryTimeSeriesChart(categoryMonthData, selected);
+    }
+}
+
+function renderCompareView() {
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    const filtered = filterTransactions(state.transactions, { dateRange: '365', category: 'all' });
+    const categoryMonthData = groupTransactionsByCategoryAndMonth(filtered);
+
+    const activeMonths = months.filter(m =>
+        Object.values(categoryMonthData).some(catData => catData[m])
+    );
+
+    if (activeMonths.length === 0) return;
+
+    if (typeof drawMonthComparisonChart === 'function') {
+        drawMonthComparisonChart(activeMonths, categoryMonthData);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -98,6 +165,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('viewTimelineBtn')?.addEventListener('click', () => switchView('timeline'));
     document.getElementById('viewCategoryBtn')?.addEventListener('click', () => switchView('category'));
     document.getElementById('viewMerchantBtn')?.addEventListener('click', () => switchView('merchant'));
+    document.getElementById('viewTrendsBtn')?.addEventListener('click', () => switchView('trends'));
+    document.getElementById('viewCompareBtn')?.addEventListener('click', () => switchView('compare'));
 
     document.getElementById('historicalLedger')?.addEventListener('change', async (e) => {
         if (e.target.classList.contains('category-select')) {

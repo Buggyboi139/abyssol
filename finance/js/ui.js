@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { fetchLocationData, saveUserProfile, listStatements, saveBudgetLimit, updateTransactionTags } from './api.js';
-import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant, calculateSpendingPace, normalizeCat, calculateBudgetStatus, calculateRollingAverage } from './calculators.js';
+import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant, normalizeCat, calculateBudgetStatus, calculateRollingAverage } from './calculators.js';
 import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart, drawMerchantChart, drawBudgetBarsChart } from './charts.js';
 import { CATEGORY_TAXONOMY, FLAT_CATEGORIES, PARENT_CATEGORIES, getCategoryColor, getCategoryParent } from './categories.js';
 
@@ -111,6 +111,51 @@ function buildProfilePayload() {
 
 const locationCache = {};
 
+function populateDateFilter() {
+    const select = document.getElementById('filterDateRange');
+    if (!select || !state.transactions || state.transactions.length === 0) return;
+
+    const months = new Set();
+    state.transactions.forEach(t => {
+        if (t.date && t.date.length >= 7) {
+            months.add(t.date.substring(0, 7));
+        }
+    });
+
+    const sortedMonths = Array.from(months).sort().reverse();
+    if (sortedMonths.length === 0) return;
+
+    const currentOptions = Array.from(select.options).map(o => o.value);
+    const desiredOptions = [...sortedMonths, '90', '180', '365', 'ytd', 'all'];
+
+    if (currentOptions.join(',') !== desiredOptions.join(',')) {
+        const formatMonth = (ym) => {
+            const [y, m] = ym.split('-');
+            const d = new Date(y, parseInt(m) - 1, 1);
+            return d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        };
+
+        select.innerHTML = sortedMonths.map(ym => `<option value="${ym}">${formatMonth(ym)}</option>`).join('') +
+            `<option disabled>──────────</option>
+            <option value="90">Last 90 Days</option>
+            <option value="180">Last 6 Months</option>
+            <option value="365">Last 12 Months</option>
+            <option value="ytd">Year to Date</option>
+            <option value="all">All Time</option>`;
+    }
+
+    let currentFilter = state.filters.dateRange;
+    if (!currentFilter || currentFilter === 'this-month' || currentFilter === 'last-month') {
+        state.filters.dateRange = sortedMonths[0];
+        select.value = sortedMonths[0];
+    } else if (select.querySelector(`option[value="${currentFilter}"]`)) {
+        select.value = currentFilter;
+    } else {
+        select.value = sortedMonths[0];
+        state.filters.dateRange = sortedMonths[0];
+    }
+}
+
 export async function triggerCalculations(options = {}) {
     readStateFromDom();
 
@@ -135,6 +180,8 @@ export async function triggerCalculations(options = {}) {
     if (state.user && !state.isHydrating && !options.skipSave) {
         debouncedSaveProfile(state.user.id, buildProfilePayload());
     }
+
+    populateDateFilter();
 
     updateOverview();
     updateBudget();
@@ -202,81 +249,6 @@ function renderFlatLedger(filteredTransactions) {
     }).join('');
 }
 
-function updateDashboardSnapshot() {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' });
-
-    if (document.getElementById('mtdMonthLabel')) {
-        document.getElementById('mtdMonthLabel').textContent = monthName;
-    }
-
-    let mtdIncome = 0;
-    let mtdSpend = 0;
-    const mtdTransactions = state.transactions.filter(t => new Date(t.date) >= monthStart);
-
-    mtdTransactions.forEach(t => {
-        const amt = Math.abs(Number(t.amount) || 0);
-        if (t.type === 'income' || Number(t.amount) > 0) mtdIncome += amt;
-        else mtdSpend += amt;
-    });
-
-    const pace = calculateSpendingPace(state.transactions);
-    const sr = mtdIncome > 0 ? Math.max(0, Math.min(100, ((mtdIncome - mtdSpend) / mtdIncome) * 100)) : 0;
-    const srColor = sr >= 20 ? '#34d399' : sr >= 10 ? '#f59e0b' : '#fb7185';
-
-    if (document.getElementById('mtdDaysElapsed')) document.getElementById('mtdDaysElapsed').textContent = pace.daysElapsed;
-    if (document.getElementById('mtdDailyRate')) document.getElementById('mtdDailyRate').textContent = fmt(pace.dailyRate) + '/day';
-    if (document.getElementById('mtdSpent')) document.getElementById('mtdSpent').textContent = fmt(mtdSpend);
-    if (document.getElementById('mtdIncome')) document.getElementById('mtdIncome').textContent = fmt(mtdIncome);
-
-    const srEl = document.getElementById('mtdSavingsRate');
-    if (srEl) { srEl.textContent = sr.toFixed(1) + '%'; srEl.style.color = srColor; }
-
-    const projEl = document.getElementById('mtdProjected');
-    if (projEl) {
-        projEl.textContent = fmt(pace.projectedTotal);
-        const taxRate = state.locationData?.tax_rate ?? 0.22;
-        const monthlyIncome = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
-        projEl.style.color = pace.projectedTotal > monthlyIncome ? '#fb7185' : '#34d399';
-    }
-
-    const srLabelEl = document.getElementById('mtdSavingsRateLabel');
-    if (srLabelEl) srLabelEl.textContent = sr.toFixed(1) + '%';
-
-    const srBarEl = document.getElementById('mtdSavingsBar');
-    if (srBarEl) {
-        srBarEl.style.width = Math.min(100, sr * 2) + '%';
-        srBarEl.style.background = srColor;
-    }
-
-    const grouped = groupTransactionsByCategory(mtdTransactions);
-    const top3 = Object.entries(grouped)
-        .map(([cat, data]) => ({ cat, total: data.total }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 3);
-
-    const topCatEl = document.getElementById('mtdTopCategories');
-    if (topCatEl) {
-        if (top3.length === 0) {
-            topCatEl.innerHTML = '<span style="color:var(--text-muted); font-size:0.9rem;">No spending yet this month.</span>';
-        } else {
-            topCatEl.innerHTML = top3.map(({ cat, total }) => {
-                const color = getCategoryColor(cat);
-                return `<div style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:8px 16px; display:flex; align-items:center; gap:8px;">
-                    <span style="width:10px; height:10px; border-radius:50%; background:${color}; flex-shrink:0;"></span>
-                    <div>
-                        <div style="font-size:0.8rem; color:var(--text-muted);">${cat}</div>
-                        <div style="font-weight:700; font-size:1rem;">${fmt(total)}</div>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-    }
-
-    renderRecentActivity();
-}
-
 function renderRecentActivity() {
     const listEl = document.getElementById('recentActivityList');
     if (!listEl) return;
@@ -302,7 +274,7 @@ function renderRecentActivity() {
 }
 
 function updateOverview() {
-    updateDashboardSnapshot();
+    populateDateFilter();
     const filtered = filterTransactions(state.transactions, state.filters);
 
     let totalIn = 0;
@@ -334,15 +306,7 @@ function updateOverview() {
         nwEl.style.color = state.netWorth >= 0 ? '#34d399' : '#fb7185';
     }
 
-    const pace = calculateSpendingPace(state.transactions);
-    const paceEl = document.getElementById('kpiSpendingPace');
-    if (paceEl) {
-        paceEl.textContent = fmt(pace.projectedTotal);
-        const taxRate = state.locationData?.tax_rate ?? 0.22;
-        const monthlyIncome = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
-        paceEl.style.color = pace.projectedTotal > monthlyIncome ? '#fb7185' : '#34d399';
-    }
-
+    renderRecentActivity();
     renderFlatLedger(filtered);
 
     if (state.activeView === 'timeline') {
@@ -367,24 +331,35 @@ function updateOverview() {
 }
 
 function updateBudget() {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+    let activeYYYYMM = state.filters?.dateRange;
+    
+    if (!activeYYYYMM || !activeYYYYMM.includes('-')) {
+        const months = new Set();
+        state.transactions.forEach(t => { if (t.date && t.date.length >= 7) months.add(t.date.substring(0, 7)); });
+        const sorted = Array.from(months).sort().reverse();
+        activeYYYYMM = sorted.length > 0 ? sorted[0] : null;
+    }
+
+    let monthName = 'No Data';
+    if (activeYYYYMM) {
+        const [y, m] = activeYYYYMM.split('-');
+        const d = new Date(y, parseInt(m) - 1, 1);
+        monthName = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
 
     const monthLabel = document.getElementById('budgetMonthLabel');
     if (monthLabel) monthLabel.textContent = monthName;
 
     let totalExpThisMonth = 0;
     state.transactions.forEach(t => {
-        const d = new Date(t.date);
-        if (d >= monthStart && (t.type === 'expense' || Number(t.amount) < 0)) {
-            totalExpThisMonth += Math.abs(Number(t.amount) || 0);
+        if (activeYYYYMM && t.date && t.date.startsWith(activeYYYYMM)) {
+            if (t.type === 'expense' || Number(t.amount) < 0) {
+                totalExpThisMonth += Math.abs(Number(t.amount) || 0);
+            }
         }
     });
 
     const { netPersonalMonthly, freeCashFlow } = calculateCashFlow(totalExpThisMonth);
-    const pace = calculateSpendingPace(state.transactions);
-
     const fmt2 = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v || 0);
 
     if (document.getElementById('budgetTotalSpend')) document.getElementById('budgetTotalSpend').textContent = fmt2(totalExpThisMonth);
@@ -396,12 +371,6 @@ function updateBudget() {
         leftOverEl.textContent = fmt2(Math.abs(lo));
         leftOverEl.style.color = lo < 0 ? '#fb7185' : '#34d399';
         leftOverEl.parentElement.querySelector('.gt-label').textContent = lo < 0 ? 'Over Budget' : 'Left Over';
-    }
-
-    if (document.getElementById('budgetProjected')) {
-        const projEl = document.getElementById('budgetProjected');
-        projEl.textContent = fmt2(pace.projectedTotal);
-        projEl.style.color = pace.projectedTotal > netPersonalMonthly ? '#fb7185' : '#34d399';
     }
 
     const { results } = calculateBudgetStatus(state.transactions, state.budgetLimits);
@@ -450,7 +419,6 @@ function renderBudgetCategoryRows(results) {
             </div>
             ${r.limit > 0 ? `<div class="budget-cat-footer">
                 <span style="color:var(--text-muted); font-size:0.8rem;">${r.isOverBudget ? `Over by ${fmt2(r.actual - r.limit)}` : `${fmt2(r.remaining)} remaining`}</span>
-                <span style="color:var(--text-muted); font-size:0.8rem;">Projected: ${fmt2(r.projectedMonthEnd)}</span>
             </div>` : ''}
         </div>`;
     }).join('');

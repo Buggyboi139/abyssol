@@ -1,13 +1,13 @@
 Chart.defaults.color = '#94a3b8';
 Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
 
-const charts = { history: null, donut: null, fire: null, bell: null, categoryDonut: null, merchant: null, budgetBars: null, categoryTimeSeries: null, monthComparison: null };
+const charts = { history: null, donut: null, fire: null, bell: null, categoryDonut: null, merchant: null, budgetBars: null, categoryTimeSeries: null, monthComparison: null, roth: null };
 
-export function drawHistoryChart(labels, inflows, outflows, rollingAvg = []) {
+export function drawHistoryChart(labels, inflows, outflows, rollingAvg =[]) {
     const ctx = document.getElementById('historyChart')?.getContext('2d');
     if (!ctx) return;
 
-    const baseDatasets = [
+    const baseDatasets =[
         { type: 'line', label: 'Income', data: inflows, borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', fill: true, tension: 0.3, yAxisID: 'y' },
         { type: 'bar', label: 'Spending', data: outflows, backgroundColor: '#fb7185', yAxisID: 'y' },
     ];
@@ -57,7 +57,7 @@ export function drawDonutChart(spending, remaining) {
         type: 'doughnut',
         data: {
             labels: ['Spending', 'Remaining'],
-            datasets: [{ data: [spending, Math.max(0, remaining)], backgroundColor: ['#fb7185', '#34d399'], borderWidth: 0 }]
+            datasets: [{ data:[spending, Math.max(0, remaining)], backgroundColor:['#fb7185', '#34d399'], borderWidth: 0 }]
         },
         options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { color: '#f8fafc' } } } }
     });
@@ -66,7 +66,7 @@ export function drawDonutChart(spending, remaining) {
 export function drawCategoryDonutChart(labels, data, colors) {
     const ctx = document.getElementById('categoryDonutChart')?.getContext('2d');
     if (!ctx) return;
-    const CH_COLORS = ['#0ea5e9', '#8b5cf6', '#34d399', '#fb7185', '#f59e0b', '#6366f1', '#ec4899', '#94a3b8'];
+    const CH_COLORS =['#0ea5e9', '#8b5cf6', '#34d399', '#fb7185', '#f59e0b', '#6366f1', '#ec4899', '#94a3b8'];
     const bgColors = colors || labels.map((_, i) => CH_COLORS[i % CH_COLORS.length]);
     if (charts.categoryDonut) {
         charts.categoryDonut.data.labels = labels;
@@ -98,7 +98,7 @@ export function drawMerchantChart(labels, data) {
         type: 'bar',
         data: {
             labels,
-            datasets: [{ label: 'Total Spending', data, backgroundColor: '#8b5cf6', borderRadius: 4 }]
+            datasets:[{ label: 'Total Spending', data, backgroundColor: '#8b5cf6', borderRadius: 4 }]
         },
         options: {
             responsive: true, maintainAspectRatio: false, indexAxis: 'y',
@@ -121,7 +121,7 @@ export function drawFireChart(ages, balances, fiTarget) {
         type: 'line',
         data: {
             labels: ages,
-            datasets: [
+            datasets:[
                 { label: 'Portfolio Value', data: balances, borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', fill: true, tension: 0.1 },
                 { label: 'Retirement Target', data: Array(ages.length).fill(fiTarget), borderColor: '#fb7185', borderDash: [5, 5], fill: false }
             ]
@@ -130,10 +130,48 @@ export function drawFireChart(ages, balances, fiTarget) {
     });
 }
 
+export function drawRothChart(labels, principalData, growthData) {
+    const ctx = document.getElementById('rothChart')?.getContext('2d');
+    if (!ctx) return;
+    if (charts.roth) {
+        charts.roth.data.labels = labels;
+        charts.roth.data.datasets[0].data = principalData;
+        charts.roth.data.datasets[1].data = growthData;
+        charts.roth.update();
+        return;
+    }
+    charts.roth = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets:[
+                { label: 'Principal', data: principalData, backgroundColor: '#38bdf8', stacked: true },
+                { label: 'Growth', data: growthData, backgroundColor: '#34d399', stacked: true }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() } }
+            },
+            plugins: {
+                legend: { labels: { color: '#f8fafc' } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                    }
+                }
+            }
+        }
+    });
+}
+
 export function drawBellCurve(percentile) {
     const ctx = document.getElementById('bellCurveChart')?.getContext('2d');
     if (!ctx) return;
-    const xValues = [], yValues = [];
+    const xValues = [], yValues =[];
     for (let i = 0; i <= 100; i += 2) { xValues.push(i); yValues.push(Math.exp(-Math.pow(i - 50, 2) / (2 * Math.pow(15, 2)))); }
     const pointIndex = xValues.findIndex(x => x >= (100 - percentile));
     if (charts.bell) {
@@ -145,7 +183,7 @@ export function drawBellCurve(percentile) {
         type: 'line',
         data: {
             labels: xValues,
-            datasets: [
+            datasets:[
                 { label: 'Distribution', data: yValues, borderColor: 'rgba(59, 130, 246, 0.5)', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 0 },
                 { label: 'You', data: xValues.map((x, i) => i === pointIndex ? yValues[i] : null), borderColor: '#38bdf8', backgroundColor: '#38bdf8', pointRadius: 6 }
             ]
@@ -180,7 +218,7 @@ export function drawBudgetBarsChart(categories, actuals, limits) {
         return;
     }
 
-    const datasets = [
+    const datasets =[
         { label: 'Spent', data: actuals, backgroundColor: colors, borderRadius: 4 }
     ];
 
@@ -228,7 +266,7 @@ export function drawCategoryTimeSeriesChart(categoryMonthData, selectedCategorie
     });
     const labels = Array.from(monthSet).sort();
 
-    const CH_COLORS = ['#f59e0b','#0ea5e9','#8b5cf6','#34d399','#fb7185','#6366f1','#ec4899','#38bdf8','#a78bfa','#4ade80','#fbbf24','#94a3b8'];
+    const CH_COLORS =['#f59e0b','#0ea5e9','#8b5cf6','#34d399','#fb7185','#6366f1','#ec4899','#38bdf8','#a78bfa','#4ade80','#fbbf24','#94a3b8'];
 
     const datasets = selectedCategories.map((cat, i) => {
         const color = CH_COLORS[i % CH_COLORS.length];
@@ -287,7 +325,7 @@ export function drawMonthComparisonChart(months, categoryTotals) {
         return totB - totA;
     });
 
-    const MONTH_COLORS = ['#0ea5e9','#8b5cf6','#34d399','#fb7185','#f59e0b','#6366f1'];
+    const MONTH_COLORS =['#0ea5e9','#8b5cf6','#34d399','#fb7185','#f59e0b','#6366f1'];
 
     const datasets = months.map((month, i) => ({
         label: new Date(month + '-01').toLocaleString('default', { month: 'short', year: '2-digit' }),

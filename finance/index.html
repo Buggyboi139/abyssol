@@ -509,6 +509,34 @@ Click the button above to get a personalized analysis of your spending patterns.
 </div>
 </div>
 </div>
+
+<div class="module-container active mt-25">
+<div class="module-header"><span>Roth IRA Growth</span></div>
+<div class="module-content">
+<div class="calc-row clean-row mb-25">
+<div class="input-row">
+<div class="input-group">
+<label for="rothBalance">Current Roth Balance</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="rothBalance" class="glass-input" placeholder="0" value="0" min="0">
+</div>
+</div>
+<div class="input-group">
+<label for="rothContribution">Monthly Contribution</label>
+<div class="unit-wrapper icon-prefix">
+<span class="prefix">$</span>
+<input type="number" id="rothContribution" class="glass-input" placeholder="0" value="0" min="0">
+</div>
+</div>
+</div>
+</div>
+<div class="chart-container chart-h-300">
+<canvas id="rothChart"></canvas>
+</div>
+</div>
+</div>
+
 </div>
 
 <div id="tab-benchmarking" class="tab-pane">
@@ -549,6 +577,16 @@ Click the button above to get a personalized analysis of your spending patterns.
 <div class="dash-card mb-20" style="background:rgba(0,0,0,0.2); box-shadow:none; padding:25px;">
 <div class="gt-label mb-10">AI Transaction Categorization</div>
 <p class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Upload your bank statement (PDF or CSV). The AI will read each transaction, figure out what it was for, and add it to your ledger automatically.</p>
+
+<div class="input-group mb-15 mx-auto" style="max-width: 200px;">
+<label for="statementYear">Statement Year</label>
+<select id="statementYear" class="glass-input btn-small">
+<option value="2026">2026</option>
+<option value="2025">2025</option>
+<option value="2024">2024</option>
+</select>
+</div>
+
 <div class="upload-dropzone" id="uploadDropzone">
 <input type="file" id="statementUpload" accept=".pdf,.csv" class="hidden-element">
 <label for="statementUpload" class="primary-btn" style="display:inline-block; margin-top:0; padding:12px 30px; font-size:1rem;">Select File</label>
@@ -578,5 +616,13 @@ Click the button above to get a personalized analysis of your spending patterns.
 </div>
 </main>
 </div>
+
+<nav id="bottomNav" class="bottom-nav">
+    <button type="button" class="bottom-nav-link active" data-tab="tab-overview">Dashboard</button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-budget">Budget</button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-fire">Planner</button>
+    <button type="button" class="bottom-nav-link" data-tab="tab-sync">Import</button>
+</nav>
+
 </body>
 </html>

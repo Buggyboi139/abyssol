@@ -1,5 +1,5 @@
 export const CATEGORY_TAXONOMY = {
-  'Food & Dining': [
+  'Food & Dining':[
     'Groceries',
     'Restaurants & Dining Out',
     'Coffee & Cafes',
@@ -7,7 +7,7 @@ export const CATEGORY_TAXONOMY = {
     'Bars & Alcohol',
     'Food Delivery',
   ],
-  'Transportation': [
+  'Transportation':[
     'Gas & Fuel',
     'Car Payment',
     'Car Insurance',
@@ -17,14 +17,14 @@ export const CATEGORY_TAXONOMY = {
     'Tolls & Fees',
     'Car Maintenance',
   ],
-  'Housing': [
+  'Housing':[
     'Rent / Mortgage',
     'HOA Fees',
     'Home Insurance',
     'Home Maintenance',
     'Furniture & Decor',
   ],
-  'Utilities': [
+  'Utilities':[
     'Electric',
     'Water & Sewer',
     'Gas / Heat',
@@ -32,7 +32,7 @@ export const CATEGORY_TAXONOMY = {
     'Cell Phone',
     'Trash',
   ],
-  'Entertainment': [
+  'Entertainment':[
     'Streaming Services',
     'Music Subscriptions',
     'Movies & Events',
@@ -40,7 +40,7 @@ export const CATEGORY_TAXONOMY = {
     'Hobbies',
     'Books & Media',
   ],
-  'Health & Wellness': [
+  'Health & Wellness':[
     'Health Insurance',
     'Doctor & Urgent Care',
     'Prescriptions',
@@ -50,41 +50,43 @@ export const CATEGORY_TAXONOMY = {
     'Mental Health',
     'Personal Care',
   ],
-  'Shopping': [
+  'Shopping':[
     'Clothing & Apparel',
     'Electronics',
     'Home Goods',
     'Online Shopping',
     'Gifts',
   ],
-  'Financial': [
+  'Financial':[
     'Savings Transfer',
     'Investments',
     'Credit Card Payment',
     'Loan Payment',
     'Bank Fees',
   ],
-  'Education': [
+  'Education':[
     'Student Loans',
     'Tuition & Courses',
     'Books & Supplies',
   ],
-  'Travel': [
+  'Travel':[
     'Flights',
     'Hotels & Lodging',
     'Vacation Activities',
   ],
-  'Personal & Family': [
+  'Personal & Family':[
     'Childcare',
     'Pet Care',
     'Haircuts & Grooming',
+    'Baby',
   ],
-  'Business Expenses': [
+  'Business Expenses':[
     'Work Supplies',
     'Software & Subscriptions',
     'Professional Services',
+    'Union Dues',
   ],
-  'Uncategorized': [],
+  'Uncategorized':[],
 };
 
 export const FLAT_CATEGORIES = Object.entries(CATEGORY_TAXONOMY).flatMap(
@@ -119,6 +121,9 @@ export const CATEGORY_COLORS = {
 };
 
 export function getCategoryColor(cat) {
+  if (cat === 'Personal & Family > Baby' || cat === 'Baby') return '#f472b6';
+  if (cat === 'Business Expenses > Union Dues' || cat === 'Union Dues') return '#cbd5e1';
+  
   const parent = getCategoryParent(cat);
   return CATEGORY_COLORS[parent] ?? '#475569';
 }

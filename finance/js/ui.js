@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { fetchLocationData, saveUserProfile, listStatements, saveBudgetLimit, updateTransactionTags } from './api.js';
-import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant, normalizeCat, calculateBudgetStatus, calculateRollingAverage } from './calculators.js';
-import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart, drawMerchantChart, drawBudgetBarsChart } from './charts.js';
+import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, calculateRoth, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant, normalizeCat, calculateBudgetStatus, calculateRollingAverage } from './calculators.js';
+import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart, drawMerchantChart, drawBudgetBarsChart, drawRothChart } from './charts.js';
 import { CATEGORY_TAXONOMY, FLAT_CATEGORIES, PARENT_CATEGORIES, getCategoryColor, getCategoryParent } from './categories.js';
 
 function fmt(amt) {
@@ -22,7 +22,7 @@ const debouncedSaveProfile = debounce((userId, payload) => {
 
 export function buildCategorySelectHTML(selectedValue = 'Uncategorized', includeAll = false) {
     let html = includeAll ? '<option value="all">All Categories</option>' : '';
-    for (const [parent, subs] of Object.entries(CATEGORY_TAXONOMY)) {
+    for (const[parent, subs] of Object.entries(CATEGORY_TAXONOMY)) {
         if (subs.length === 0) {
             html += `<option value="${parent}" ${selectedValue === parent ? 'selected' : ''}>${parent}</option>`;
         } else {
@@ -126,7 +126,7 @@ function populateDateFilter() {
     if (sortedMonths.length === 0) return;
 
     const currentOptions = Array.from(select.options).map(o => o.value);
-    const desiredOptions = [...sortedMonths, '90', '180', '365', 'ytd', 'all'];
+    const desiredOptions =[...sortedMonths, '90', '180', '365', 'ytd', 'all'];
 
     if (currentOptions.join(',') !== desiredOptions.join(',')) {
         const formatMonth = (ym) => {
@@ -225,16 +225,16 @@ function renderFlatLedger(filteredTransactions) {
         const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
         const bg = isIncome ? 'rgba(52, 211, 153, 0.05)' : 'transparent';
         const currentCat = normalizeCat(t.category);
-        const txTags = Array.isArray(t.tags) ? t.tags : [];
+        const txTags = Array.isArray(t.tags) ? t.tags :[];
         const tagsHTML = `<div class="tx-tags-row" data-id="${t.id}" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-right:8px;">
     ${txTags.map(tag => `<span class="tag-chip" data-tag="${tag}" data-id="${t.id}" title="Click to remove">${tag} ×</span>`).join('')}
     <button type="button" class="add-tag-btn btn-add-tag" data-id="${t.id}" title="Add tag" style="background:transparent; border:1px dashed rgba(255,255,255,0.2); color:var(--text-muted); border-radius:12px; padding:2px 8px; font-size:0.7rem; cursor:pointer; white-space:nowrap;">+ tag</button>
 </div>`;
 
         return `<div class="item-row" style="align-items:center; background: ${bg}; padding: 12px; border-radius: 8px;">
-            <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
+            <span style="flex:1; display:flex; flex-direction:column; gap:4px; min-width:0; overflow:hidden;">
                 <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
-                <span>${desc}</span>
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${desc}</span>
             </span>
             ${!isIncome ? `
             <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:140px;">
@@ -493,6 +493,15 @@ function updateFIRE() {
 
     if (typeof drawFireChart === 'function') {
         try { drawFireChart(f.ages, f.balances, f.fiNumber); } catch (e) { console.error(e); }
+    }
+
+    const rothBal = parseFloat(document.getElementById('rothBalance')?.value) || 0;
+    const rothCont = parseFloat(document.getElementById('rothContribution')?.value) || 0;
+    const rothYears = Math.max(10, 65 - state.age);
+    const rothCalc = calculateRoth(rothBal, rothCont, r, rothYears);
+
+    if (typeof drawRothChart === 'function') {
+        try { drawRothChart(rothCalc.ages, rothCalc.principal, rothCalc.growth); } catch (e) { console.error(e); }
     }
 }
 

@@ -6,6 +6,8 @@ import { resizeCharts, drawCategoryTimeSeriesChart, drawMonthComparisonChart } f
 import { filterTransactions, getPreProcessingSummary, groupTransactionsByCategoryAndMonth, calculateRollingAverage } from './calculators.js';
 import { FLAT_CATEGORIES, PARENT_CATEGORIES } from './categories.js';
 
+let lastUploadedFile = null;
+
 function populateCategoryFilters() {
     const filterCat = document.getElementById('filterCategory');
     if (filterCat) {
@@ -90,7 +92,7 @@ function renderTrendsView() {
 
 function renderCompareView() {
     const now = new Date();
-    const months = [];
+    const months =[];
     for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
@@ -169,11 +171,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.querySelectorAll('.menu-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.menu-link').forEach(l => l.classList.remove('active'));
+            const target = e.currentTarget;
+            document.querySelectorAll('.menu-link, .bottom-nav-link').forEach(l => l.classList.remove('active'));
+            
+            const tabId = target.getAttribute('data-tab');
+            document.querySelectorAll(`[data-tab="${tabId}"]`).forEach(l => l.classList.add('active'));
+            
             document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-            e.target.classList.add('active');
-            document.getElementById(e.target.getAttribute('data-tab')).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
             document.getElementById('hamburgerMenu').classList.add('hidden');
+            resizeCharts();
+        });
+    });
+
+    document.querySelectorAll('.bottom-nav-link').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = e.currentTarget;
+            document.querySelectorAll('.menu-link, .bottom-nav-link').forEach(l => l.classList.remove('active'));
+            
+            const tabId = target.getAttribute('data-tab');
+            document.querySelectorAll(`[data-tab="${tabId}"]`).forEach(l => l.classList.add('active'));
+            
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
             resizeCharts();
         });
     });
@@ -204,6 +224,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('fireContribution')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('marketReturn')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('geoCompare')?.addEventListener('change', () => triggerCalculations());
+    
+    document.getElementById('rothBalance')?.addEventListener('input', () => triggerCalculations());
+    document.getElementById('rothContribution')?.addEventListener('input', () => triggerCalculations());
 
     document.getElementById('filterDateRange')?.addEventListener('change', (e) => {
         state.filters.dateRange = e.target.value;
@@ -274,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tag = e.target.getAttribute('data-tag');
             const tx = state.transactions.find(t => t.id === id);
             if (tx) {
-                tx.tags = (Array.isArray(tx.tags) ? tx.tags : []).filter(t => t !== tag);
+                tx.tags = (Array.isArray(tx.tags) ? tx.tags :[]).filter(t => t !== tag);
                 triggerCalculations();
                 updateTagFilterOptions();
                 updateTransactionTags(id, tx.tags).catch(err => console.error('Failed to update tags', err));
@@ -391,7 +414,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (error) throw error;
-            outputEl.innerHTML = data.result || 'Analysis complete.';
+
+            let cleanText = data.result || 'Analysis complete.';
+            cleanText = cleanText.replace(/```(html)?/gi, '').replace(/```/g, '');
+            cleanText = cleanText.replace(/<\/?[^>]+(>|$)/g, "");
+            outputEl.innerHTML = cleanText;
             outputEl.style.color = '#f8fafc';
         } catch (err) {
             outputEl.innerHTML = `<span class="text-danger">Could not generate insights: ${err.message}</span>`;
@@ -435,11 +462,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('statementUpload')?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file || !state.user) return;
+        
+        if (lastUploadedFile && file.name === lastUploadedFile.name && file.size === lastUploadedFile.size) {
+            if (!confirm("This file looks identical to the last one you uploaded. Are you sure you want to upload it again?")) {
+                e.target.value = '';
+                return;
+            }
+        }
+        lastUploadedFile = { name: file.name, size: file.size };
+
+        const uploadLabel = document.querySelector('label[for="statementUpload"]');
+        e.target.disabled = true;
+        if (uploadLabel) {
+            uploadLabel.style.pointerEvents = 'none';
+            uploadLabel.style.opacity = '0.5';
+        }
+
         const statusEl = document.getElementById('uploadStatus');
         const stepsEl = document.getElementById('uploadProgressSteps');
-        let currentStep = 'stepUpload';
-
-        ['stepUpload', 'stepProcess', 'stepSave'].forEach(s => setUploadStep(s, 'pending'));
+        let currentStep = 'stepUpload';['stepUpload', 'stepProcess', 'stepSave'].forEach(s => setUploadStep(s, 'pending'));
         stepsEl?.classList.remove('hidden-element');
         if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--text-muted)'; }
 
@@ -458,13 +499,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             setUploadStep('stepProcess', 'active');
 
             const categoryList = FLAT_CATEGORIES.join(', ');
+            const statementYear = document.getElementById('statementYear')?.value || '2026';
             const promptEnhancement = `CRITICAL RULES FOR TRANSACTION NORMALIZATION:
 1. Determine direction by context. "Payroll", "Deposit", "Refund" = income. Stores, payments, withdrawals = expense.
 2. ALL income MUST be positive. ALL expenses MUST be negative.
 3. Add a "type" field: exactly "income" or "expense".
 4. Add a "confidence" field: a number 0.0–1.0 representing how certain you are of the category.
 5. Category MUST be one of these exact strings: ${categoryList}.
-6. Use the most specific subcategory possible (e.g. "Food & Dining > Groceries" rather than just "Food & Dining").`;
+6. Use the most specific subcategory possible (e.g. "Food & Dining > Groceries" rather than just "Food & Dining").
+7. Assume the transaction year is ${statementYear} if not explicitly specified.`;
 
             const merchantMemory = buildMerchantMemory(state.transactions);
             const fullPrompt = promptEnhancement + merchantMemory;
@@ -505,12 +548,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const existingSet = new Set(
                 state.transactions.map(t =>
-                    `${t.date}|${Math.round(Math.abs(Number(t.amount)) * 100)}|${(t.clean_merchant || t.description || '').toLowerCase().trim().substring(0, 30)}`
+                    `${t.date}_${Math.round(Math.abs(Number(t.amount)) * 100)}_${(t.clean_merchant || t.description || '').toLowerCase().trim()}`
                 )
             );
 
             const newTransactions = transactions.filter(t => {
-                const key = `${t.date}|${Math.round(Math.abs(Number(t.amount)) * 100)}|${(t.clean_merchant || t.description || '').toLowerCase().trim().substring(0, 30)}`;
+                const key = `${t.date}_${Math.round(Math.abs(Number(t.amount)) * 100)}_${(t.clean_merchant || t.description || '').toLowerCase().trim()}`;
                 return !existingSet.has(key);
             });
 
@@ -534,6 +577,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (statusEl) { statusEl.textContent = 'Error: ' + err.message; statusEl.style.color = '#fb7185'; }
         } finally {
             e.target.value = '';
+            e.target.disabled = false;
+            if (uploadLabel) {
+                uploadLabel.style.pointerEvents = 'auto';
+                uploadLabel.style.opacity = '1';
+            }
             setTimeout(() => {
                 stepsEl?.classList.add('hidden-element');
                 ['stepUpload', 'stepProcess', 'stepSave'].forEach(s => setUploadStep(s, 'pending'));

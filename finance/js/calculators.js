@@ -8,7 +8,7 @@ export function normalizeCat(cat) {
 }
 
 export function filterTransactions(transactions, filters) {
-    if (!Array.isArray(transactions)) return [];
+    if (!Array.isArray(transactions)) return[];
     let filtered = transactions;
 
     if (filters.dateRange && filters.dateRange !== 'all') {
@@ -55,7 +55,7 @@ export function filterTransactions(transactions, filters) {
 
     if (filters.tag && filters.tag !== 'all') {
         filtered = filtered.filter(t => {
-            const tags = Array.isArray(t.tags) ? t.tags : [];
+            const tags = Array.isArray(t.tags) ? t.tags :[];
             return tags.includes(filters.tag);
         });
     }
@@ -143,6 +143,28 @@ export function calculateFIRE(contribution, returnRate, inflation) {
     return { fiNumber, ages, balances, finalAge: port >= fiNumber ? age : '100+' };
 }
 
+export function calculateRoth(currentBalance, monthlyContribution, expectedReturn, years) {
+    const annualReturn = expectedReturn / 100;
+    const r = annualReturn / 12;
+    const ages = [];
+    const principal = [];
+    const growth =[];
+    let totalPrincipal = currentBalance;
+    let currentVal = currentBalance;
+    
+    for (let i = 0; i <= years; i++) {
+        ages.push(state.age + i);
+        principal.push(totalPrincipal);
+        growth.push(currentVal - totalPrincipal);
+        
+        for (let m = 0; m < 12; m++) {
+            currentVal = currentVal * (1 + r) + monthlyContribution;
+            totalPrincipal += monthlyContribution;
+        }
+    }
+    return { ages, principal, growth };
+}
+
 export function groupTransactionsByMonth(transactions) {
     const grouped = {};
     if (!Array.isArray(transactions)) return grouped;
@@ -150,7 +172,7 @@ export function groupTransactionsByMonth(transactions) {
     transactions.forEach(t => {
         const rawDate = typeof t.date === 'string' ? t.date : '';
         const month = rawDate.length >= 7 ? rawDate.substring(0, 7) : 'Unknown';
-        if (!grouped[month]) grouped[month] = { inflow: 0, outflow: 0, items: [] };
+        if (!grouped[month]) grouped[month] = { inflow: 0, outflow: 0, items:[] };
         const amount = Number(t.amount) || 0;
         const isIncome = t.type === 'income' || amount > 0;
         if (isIncome) grouped[month].inflow += Math.abs(amount);
@@ -170,7 +192,7 @@ export function groupTransactionsByCategory(transactions) {
         if (isIncome) return;
         const cat = normalizeCat(t.category);
         const parent = getCategoryParent(cat);
-        if (!grouped[parent]) grouped[parent] = { total: 0, items: [], subcategories: {} };
+        if (!grouped[parent]) grouped[parent] = { total: 0, items:[], subcategories: {} };
         grouped[parent].total += Math.abs(amount);
         grouped[parent].items.push(t);
         if (!grouped[parent].subcategories[cat]) grouped[parent].subcategories[cat] = 0;

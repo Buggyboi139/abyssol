@@ -34,14 +34,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     await fetchMarketData(state);
     initAuth();
 
-    document.querySelectorAll('.tab-link').forEach(btn => {
+    document.querySelectorAll('.menu-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('.menu-link').forEach(l => l.classList.remove('active'));
             document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
             e.target.classList.add('active');
             document.getElementById(e.target.getAttribute('data-tab')).classList.add('active');
+            document.getElementById('hamburgerMenu').classList.add('hidden');
             resizeCharts();
         });
+    });
+
+    document.getElementById('hamburgerBtn')?.addEventListener('click', () => {
+        document.getElementById('hamburgerMenu').classList.remove('hidden');
+    });
+    document.getElementById('closeMenuBtn')?.addEventListener('click', () => {
+        document.getElementById('hamburgerMenu').classList.add('hidden');
+    });
+
+    document.getElementById('profileBtn')?.addEventListener('click', () => {
+        document.getElementById('profileModal').classList.remove('hidden');
+    });
+    document.getElementById('closeProfileBtn')?.addEventListener('click', () => {
+        document.getElementById('profileModal').classList.add('hidden');
     });
 
     const formInputs = document.querySelectorAll('#setupForm input, #setupForm select');
@@ -52,6 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('targetHomePrice')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('downPayment')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('loanType')?.addEventListener('change', () => triggerCalculations());
+    document.getElementById('vaTaxExempt')?.addEventListener('change', () => triggerCalculations());
     document.getElementById('spouseAutoContribution')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('targetCarPrice')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('autoTerm')?.addEventListener('change', () => triggerCalculations());
@@ -80,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tx) {
                 tx.category = newCat;
                 triggerCalculations();
-                updateTransactionCategory(id, newCat).catch(err => console.error(err));
+                updateTransactionCategory(id, newCat).catch(err => console.error('Failed to update category', err));
             }
         }
     });
@@ -90,7 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const id = e.target.getAttribute('data-id');
             state.transactions = state.transactions.filter(t => t.id !== id);
             triggerCalculations();
-            deleteTransaction(id).catch(err => console.error(err));
+            deleteTransaction(id).catch(err => console.error('Failed to delete transaction', err));
         }
     });
 
@@ -237,21 +253,43 @@ document.addEventListener('DOMContentLoaded', async () => {
             statusEl.textContent = 'Saving transactions to database...';
             let transactions = Array.isArray(data?.transactions)
                 ? data.transactions
-                : JSON.parse(data?.result || '[]');
-                
-            for (let tx of transactions) {
-                await addTransaction(tx);
-            }
+                : JSON.parse((data?.result || '[]').replace(/```json/gi, '').replace(/```/g, '').trim());
             
+            transactions = transactions.map(t => {
+                let amt = parseFloat(t.amount) || 0;
+                let desc = (t.clean_merchant || t.description || '').toLowerCase();
+                let isIncome = false;
+                if (t.type === 'income') isIncome = true;
+                else if (t.type === 'expense') isIncome = false;
+                else if (desc.includes('payroll') || desc.includes('deposit') || desc.includes('refund')) isIncome = true;
+                else if (desc.includes('target') || desc.includes('payment') || desc.includes('withdrawal')) isIncome = false;
+                else isIncome = amt > 0;
+                
+                return {
+                    ...t,
+                    user_id: state.user.id,
+                    type: isIncome ? 'income' : 'expense',
+                    amount: isIncome ? Math.abs(amt) : -Math.abs(amt),
+                    category: t.category || 'Uncategorized'
+                };
+            });
+
+            if (transactions.length > 0) {
+                const { error: insertError } = await supabase.from('transactions').insert(transactions);
+                if (insertError) throw insertError;
+            }
+
+            statusEl.textContent = `Success! ${transactions.length} transactions categorized and synced.`;
+            statusEl.style.color = '#34d399';
+
             state.transactions = await fetchTransactions(state.user.id);
             triggerCalculations();
             renderStatementList();
-
-            statusEl.textContent = 'Upload and processing complete.';
-            statusEl.style.color = '#34d399';
         } catch (err) {
-            statusEl.textContent = `Processing failed: ${err.message}`;
+            statusEl.textContent = 'Error: ' + err.message;
             statusEl.style.color = '#fb7185';
+        } finally {
+            e.target.value = '';
         }
     });
 });

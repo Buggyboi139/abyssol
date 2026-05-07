@@ -30,7 +30,7 @@ export function calculateCashFlow(personalExpensesRaw) {
     };
 }
 
-export function calculateHousingMatrix(spouseContrib, targetPrice, downPct, rate, loanType) {
+export function calculateHousingMatrix(spouseContrib, targetPrice, downPct, rate, loanType, isVaTaxExempt = false) {
     const taxRate = state.locationData?.tax_rate ?? 0.22;
     const effectiveMonthlyGross = (state.income / 12) + (state.taxFreeIncome / (1 - taxRate));
     const personalMax = effectiveMonthlyGross * 0.28;
@@ -42,16 +42,30 @@ export function calculateHousingMatrix(spouseContrib, targetPrice, downPct, rate
     let pmt = 0;
     if (loanAmt > 0) pmt = (r === 0) ? (loanAmt / n) : (loanAmt * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
     
-    const monthlyPropTax = (targetPrice * 0.012) / 12;
+    const monthlyPropTax = isVaTaxExempt ? 0 : (targetPrice * 0.012) / 12;
     const monthlyIns = (targetPrice * 0.005) / 12;
     let pmi = 0;
-    if (loanType === 'fha' && downPct < 20) pmi = (loanAmt * 0.0085) / 12;
-    else if (loanType === 'conv' && downPct < 20) pmi = (loanAmt * 0.005) / 12;
+    if (loanType === 'va') {
+        pmi = 0;
+    } else if (loanType === 'fha' && downPct < 20) {
+        pmi = (loanAmt * 0.0085) / 12;
+    } else if (loanType === 'conv' && downPct < 20) {
+        pmi = (loanAmt * 0.005) / 12;
+    }
     
     const actualPayment = pmt + monthlyPropTax + monthlyIns + pmi;
     
     let amortizationFactor = (r === 0) ? (1 / n) : ((r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
-    const combinedFactor = ((1 - (downPct/100)) * amortizationFactor) + (0.012/12) + (0.005/12) + ((1 - (downPct/100)) * (pmi > 0 ? (loanType==='fha'?0.0085/12:0.005/12) : 0));
+    let pmiFactor = 0;
+    if (loanType === 'va') {
+        pmiFactor = 0;
+    } else if (loanType === 'fha') {
+        pmiFactor = 0.0085 / 12;
+    } else {
+        pmiFactor = 0.005 / 12;
+    }
+    
+    const combinedFactor = ((1 - (downPct/100)) * amortizationFactor) + (isVaTaxExempt ? 0 : (0.012/12)) + (0.005/12) + ((1 - (downPct/100)) * (pmi > 0 ? pmiFactor : 0));
     const maxPurchase = combinedFactor > 0 ? combinedMax / combinedFactor : 0;
 
     return { combinedMax, actualPayment, maxPurchase };
@@ -79,7 +93,7 @@ export function calculateFIRE(contribution, returnRate, inflation) {
     const realReturn = (returnRate - inflation) / 100;
     let port = state.portfolio;
     let age = state.age;
-    const ages = [age];
+    const ages =[age];
     const balances = [port];
     
     while (port < fiNumber && age < 100) {

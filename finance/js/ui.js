@@ -187,11 +187,15 @@ function updateOverview() {
 }
 
 function updateBudget() {
-    let personalExp = 0;
-    document.querySelectorAll('.expense-input').forEach(i => {
-        personalExp += (parseFloat(i.value) || 0);
+    const filtered = filterTransactions(state.transactions, state.filters);
+    let automatedExp = 0;
+    filtered.forEach(t => {
+        if (t.type === 'expense') {
+            automatedExp += Math.abs(Number(t.amount) || 0);
+        }
     });
-    const { personalDiscretionary, sharedObligation, freeCashFlow } = calculateCashFlow(personalExp);
+
+    const { personalDiscretionary, sharedObligation, freeCashFlow } = calculateCashFlow(automatedExp);
 
     if (document.getElementById('budgetPersonal')) document.getElementById('budgetPersonal').textContent = fmt(personalDiscretionary);
     if (document.getElementById('budgetShared')) document.getElementById('budgetShared').textContent = fmt(sharedObligation);
@@ -212,12 +216,13 @@ function updatePurchases() {
     const hDown = parseFloat(document.getElementById('downPayment')?.value) || 0;
     const hRate = state.marketRates.mortgage_30yr || 0;
     const lType = document.getElementById('loanType')?.value || 'conv';
+    const isVaTaxExempt = document.getElementById('vaTaxExempt')?.checked || false;
     
     if (document.getElementById('targetHomePriceDisplay')) document.getElementById('targetHomePriceDisplay').textContent = fmt(hPrice);
     if (document.getElementById('liveMortgageRate')) document.getElementById('liveMortgageRate').textContent = `${hRate.toFixed(2)}%`;
     if (document.getElementById('downLabel')) document.getElementById('downLabel').textContent = `${hDown.toFixed(1)}%`;
 
-    const hm = calculateHousingMatrix(sH, hPrice, hDown, hRate, lType);
+    const hm = calculateHousingMatrix(sH, hPrice, hDown, hRate, lType, isVaTaxExempt);
     if (document.getElementById('actualHousingPayment')) document.getElementById('actualHousingPayment').textContent = fmt(hm.actualPayment) + '/mo';
     if (document.getElementById('maxHomePriceValue')) document.getElementById('maxHomePriceValue').textContent = fmt(hm.maxPurchase);
     if (document.getElementById('maxHousing')) document.getElementById('maxHousing').textContent = fmt(hm.combinedMax);

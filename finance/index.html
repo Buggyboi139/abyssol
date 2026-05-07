@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://agfngkzohlrmxjhysafn.supabase.co; img-src 'self' data: blob:;">
 <title>Abyssol | Financial Intelligence</title>
-<link rel="stylesheet" href="css/base.css?v=4">
-<link rel="stylesheet" href="css/layout.css?v=4">
-<link rel="stylesheet" href="css/components.css?v=4">
-<link rel="stylesheet" href="css/dashboard.css?v=4">
+<link rel="stylesheet" href="css/base.css?v=5">
+<link rel="stylesheet" href="css/layout.css?v=5">
+<link rel="stylesheet" href="css/components.css?v=5">
+<link rel="stylesheet" href="css/dashboard.css?v=5">
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script type="module" src="js/app.js?v=4" defer></script>
+<script type="module" src="js/app.js?v=5" defer></script>
 </head>
 <body>
 <noscript>
@@ -40,20 +40,38 @@
 <div id="left-color-bar"></div>
 
 <nav>
+<div class="nav-left" style="display: flex; align-items: center; gap: 15px;">
+<button type="button" id="hamburgerBtn" style="background:transparent; border:none; color:var(--text-main); font-size:1.8rem; cursor:pointer;">☰</button>
 <div class="logo-container">
 <div class="logo-text">Abyssol</div>
 </div>
+</div>
 <div class="nav-actions">
+<button type="button" id="profileBtn" style="background:transparent; border:none; color:var(--text-main); font-size:1.5rem; cursor:pointer;">⚙️</button>
 <button type="button" id="signOutBtn" class="nav-link">Sign Out</button>
 </div>
 </nav>
 
-<div class="app-wrapper hidden" id="appWrapper">
-<aside class="sidebar">
-<div id="setupForm" class="control-panel sidebar-panel">
+<div id="hamburgerMenu" class="hamburger-menu hidden">
+<div class="menu-content">
+<button type="button" id="closeMenuBtn" class="icon-btn close-btn" style="align-self:flex-end;">×</button>
+<ul class="nav-menu-list">
+<li><button type="button" class="menu-link" data-tab="tab-benchmarking">Benchmarking</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-budget">Current Budget</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-sync">Data Sync</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-fire">FIRE Projector</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-purchases">Purchase Matrix</button></li>
+<li><button type="button" class="menu-link active" data-tab="tab-overview">Total Overview</button></li>
+</ul>
+</div>
+</div>
+
+<div id="profileModal" class="modal-overlay hidden">
+<div class="modal-content control-panel">
+<button type="button" id="closeProfileBtn" class="icon-btn close-btn">×</button>
+<div id="setupForm">
 <h2 class="mb-20" style="font-weight:800; font-size:1.4rem; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Profile Setup</h2>
 <div id="errorBanner" class="error-banner" role="alert" aria-live="assertive"></div>
-
 <div class="sidebar-section">
 <div class="gt-label mb-10 text-center">Income & Black Box</div>
 <div class="input-group mb-10">
@@ -146,18 +164,12 @@
 </div>
 </div>
 </div>
-</aside>
+</div>
+</div>
 
+<div class="app-wrapper hidden" id="appWrapper">
 <main class="workspace">
 <div id="dashboardWorkspace" class="active-view">
-<div class="dashboard-tabs">
-<button type="button" class="tab-link active" data-tab="tab-overview">Total Overview & History</button>
-<button type="button" class="tab-link" data-tab="tab-budget">Current Budget</button>
-<button type="button" class="tab-link" data-tab="tab-purchases">Purchase Matrix</button>
-<button type="button" class="tab-link" data-tab="tab-fire">FIRE Projector</button>
-<button type="button" class="tab-link" data-tab="tab-benchmarking">Benchmarking</button>
-<button type="button" class="tab-link" data-tab="tab-sync">Data Sync</button>
-</div>
 
 <div id="tab-overview" class="tab-pane active">
 <div class="filter-bar mb-20 control-panel" style="padding: 15px 25px; border-radius: 16px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
@@ -283,7 +295,7 @@ Click the button above to generate a personalized AI analysis based on your filt
 <div class="chart-container-donut mb-25"><canvas id="budgetDonutChart"></canvas></div>
 <div class="line-items">
 <div class="item-row">
-<span>Personal Discretionary</span>
+<span>Personal Discretionary (Automated from Ledger)</span>
 <span id="budgetPersonal">$0</span>
 </div>
 <div class="item-row">
@@ -301,6 +313,7 @@ Click the button above to generate a personalized AI analysis based on your filt
 <div class="module-container active" style="margin-bottom:0;">
 <div class="module-header"><span>Personal Expense Engine</span></div>
 <div class="module-content" style="padding-top:10px;">
+<div class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Expenses are now dynamically sourced directly from your mapped transactions in the Total Overview ledger. The categories below are maintained for historical context.</div>
 <details class="expense-category" open>
 <summary class="category-header">
 Housing & Utilities <span class="category-total" id="catTotalHousing">$0</span>
@@ -315,7 +328,6 @@ Housing & Utilities <span class="category-total" id="catTotalHousing">$0</span>
 </div>
 </div>
 </div>
-<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="housing">+ Add Custom</button>
 </div>
 </details>
 
@@ -333,7 +345,6 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 </div>
-<button type="button" class="secondary-btn btn-small add-custom-btn" data-category="transport">+ Add Custom</button>
 </div>
 </details>
 </div>
@@ -370,6 +381,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 <select id="loanType" class="glass-input">
 <option value="conv">Conventional</option>
 <option value="fha">FHA</option>
+<option value="va">VA Loan</option>
 </select>
 </div>
 <div class="input-group flex-1">
@@ -378,12 +390,16 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 <input type="range" id="downPayment" min="0" max="50" step="0.5" value="20">
 </div>
 </div>
+<div class="input-group" style="flex: 0 0 auto; flex-direction: row; align-items: center; gap: 10px; margin-top: 25px;">
+<input type="checkbox" id="vaTaxExempt" style="width:18px; height:18px; cursor:pointer;">
+<label for="vaTaxExempt" style="margin:0; cursor:pointer;">VA Tax Exempt</label>
+</div>
 </div>
 </div>
 </div>
 </div>
 <div class="outputs-col">
-<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Assumes a 28% front-end DTI ratio, 1.2% property tax, and standard PMI rules if under 20% down.">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Assumes a 28% front-end DTI ratio, 1.2% property tax (unless VA Tax Exempt), and standard PMI rules if under 20% down.">
 <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
 <div class="budget-display transition-color text-center" id="actualHousingPayment" style="font-size: 3rem;">$0/mo</div>
 <div class="line-items mt-25">

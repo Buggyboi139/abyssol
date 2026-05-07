@@ -13,9 +13,9 @@
 .module-content { padding: 25px; width: 100%; box-sizing: border-box; }
 .calc-row { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px; width: 100%; box-sizing: border-box; }
 .clean-row { background: transparent; border: none; padding: 0; box-shadow: none; }
-.chart-container { position: relative; width: 100%; height: 200px; margin-top: 20px; }
-.chart-h-300 { height: 300px; }
-.chart-container-donut { position: relative; width: 100%; height: 250px; display: flex; align-items: center; justify-content: center; }
+.chart-container { position: relative; width: 100%; height: 40vh; max-height: 300px; margin-top: 20px; }
+.chart-h-300 { height: 40vh; max-height: 300px; }
+.chart-container-donut { position: relative; width: 100%; height: 40vh; max-height: 250px; display: flex; align-items: center; justify-content: center; }
 .expense-category { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; margin-bottom: 15px; overflow: hidden; }
 .category-header { padding: 20px; font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); transition: 0.3s; }
 .category-header:hover { background: rgba(255,255,255,0.05); }
@@ -41,8 +41,6 @@
 .delete-tx-btn:hover { background: rgba(251, 113, 133, 0.1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 768px) { .gt-value { font-size: 2rem; } .budget-display { font-size: 2.2rem !important; } .dash-card { padding: 20px; border-radius: 24px; } .module-header { padding: 15px 20px; } .module-content { padding: 20px; } .item-row { flex-wrap: wrap; font-size: 0.95rem; } .calc-row { padding: 15px; } .market-rate-banner { margin-top: 15px; } .outputs-col { margin-top: 20px; } .layout-grid { grid-template-columns: 1fr; gap: 20px; } .delete-tx-btn { opacity: 1; } }
-
-/* Budget category rows */
 .budget-cat-row { margin-bottom: 18px; }
 .budget-cat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px; }
 .budget-cat-name { font-weight: 600; font-size: 0.95rem; }
@@ -53,45 +51,16 @@
 .budget-bar-fill { height: 100%; border-radius: 10px; transition: width 0.4s ease; }
 .budget-cat-footer { display: flex; justify-content: space-between; margin-top: 4px; }
 @media (max-width: 600px) { .budget-cat-header { flex-direction: column; align-items: flex-start; } }
-
-/* Trends view category filter */
 #trendsCategoryFilter { display: flex; flex-wrap: wrap; gap: 8px; }
-#chartContainerTrends canvas,
-#chartContainerCompare canvas { width: 100% !important; }
-
-/* Month-to-Date snapshot panel */
+#chartContainerTrends canvas, #chartContainerCompare canvas { width: 100% !important; }
 .mtd-panel { border-radius: 16px; }
-@media (max-width: 768px) {
-    .mtd-panel > div:first-child { flex-direction: column; }
-    .mtd-panel > div:first-child > div:nth-child(2) { justify-content: space-between; }
-}
-
-/* Upload progress steps */
+@media (max-width: 768px) { .mtd-panel > div:first-child { flex-direction: column; } .mtd-panel > div:first-child > div:nth-child(2) { justify-content: space-between; } }
 .upload-step { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--text-muted); }
 .upload-step.step-done { color: #34d399; }
 .upload-step.step-active { color: #38bdf8; }
 .upload-step.step-error { color: #fb7185; }
 .step-icon { font-size: 0.9rem; width: 20px; text-align: center; }
-
-/* Transaction tag chips */
 .tx-tags-row { min-height: 24px; }
-.tag-chip {
-    display: inline-flex;
-    align-items: center;
-    background: rgba(56, 189, 248, 0.12);
-    border: 1px solid rgba(56, 189, 248, 0.3);
-    color: #38bdf8;
-    border-radius: 12px;
-    padding: 2px 8px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s;
-    user-select: none;
-}
-.tag-chip:hover {
-    background: rgba(56, 189, 248, 0.25);
-    border-color: #38bdf8;
-}
+.tag-chip { display: inline-flex; align-items: center; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; border-radius: 12px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s; user-select: none; }
+.tag-chip:hover { background: rgba(56, 189, 248, 0.25); border-color: #38bdf8; }
 .tag-inline-input:focus { border-color: #38bdf8; }

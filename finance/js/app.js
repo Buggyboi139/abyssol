@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tx) {
                 tx.category = newCat;
                 triggerCalculations();
-                updateTransactionCategory(id, newCat).catch(err => console.error('Failed to update category', err));
+                updateTransactionCategory(id, newCat).catch(err => console.error(err));
             }
         }
     });
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const id = e.target.getAttribute('data-id');
             state.transactions = state.transactions.filter(t => t.id !== id);
             triggerCalculations();
-            deleteTransaction(id).catch(err => console.error('Failed to delete transaction', err));
+            deleteTransaction(id).catch(err => console.error(err));
         }
     });
 
@@ -237,4 +237,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             statusEl.textContent = 'Saving transactions to database...';
             let transactions = Array.isArray(data?.transactions)
                 ? data.transactions
-                : JSON.parse((data?.result || '
+                : JSON.parse(data?.result || '[]');
+                
+            for (let tx of transactions) {
+                await addTransaction(tx);
+            }
+            
+            state.transactions = await fetchTransactions(state.user.id);
+            triggerCalculations();
+            renderStatementList();
+
+            statusEl.textContent = 'Upload and processing complete.';
+            statusEl.style.color = '#34d399';
+        } catch (err) {
+            statusEl.textContent = `Processing failed: ${err.message}`;
+            statusEl.style.color = '#fb7185';
+        }
+    });
+});

@@ -1,9 +1,21 @@
 import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory, deleteTransaction, addTransaction } from './api.js';
 import { state } from './state.js';
 import { initAuth } from './auth.js';
-import { triggerCalculations, renderStatementList } from './ui.js';
+import { triggerCalculations, renderStatementList, buildCategorySelectHTML } from './ui.js';
 import { resizeCharts } from './charts.js';
 import { filterTransactions, getPreProcessingSummary } from './calculators.js';
+import { FLAT_CATEGORIES, PARENT_CATEGORIES } from './categories.js';
+
+function populateCategoryFilters() {
+    const filterCat = document.getElementById('filterCategory');
+    if (filterCat) {
+        filterCat.innerHTML = buildCategorySelectHTML('all', true);
+    }
+    const newTxCat = document.getElementById('newTxCategory');
+    if (newTxCat) {
+        newTxCat.innerHTML = buildCategorySelectHTML('Uncategorized', false);
+    }
+}
 
 function switchView(view) {
     state.activeView = view;
@@ -12,19 +24,20 @@ function switchView(view) {
         c.classList.remove('active-pane');
         c.classList.add('hidden-pane');
     });
-    
+
+    const titleEl = document.getElementById('trendsHeaderTitle');
     if (view === 'timeline') {
         document.getElementById('viewTimelineBtn')?.classList.add('active');
         document.getElementById('chartContainerTimeline')?.classList.replace('hidden-pane', 'active-pane');
-        document.getElementById('trendsHeaderTitle').textContent = 'Timeline & Cash Flow';
+        if (titleEl) titleEl.textContent = 'Income & Spending Over Time';
     } else if (view === 'category') {
         document.getElementById('viewCategoryBtn')?.classList.add('active');
         document.getElementById('chartContainerCategory')?.classList.replace('hidden-pane', 'active-pane');
-        document.getElementById('trendsHeaderTitle').textContent = 'Category Breakdown';
+        if (titleEl) titleEl.textContent = 'Spending by Category';
     } else if (view === 'merchant') {
         document.getElementById('viewMerchantBtn')?.classList.add('active');
         document.getElementById('chartContainerMerchant')?.classList.replace('hidden-pane', 'active-pane');
-        document.getElementById('trendsHeaderTitle').textContent = 'Merchant Drill-Down';
+        if (titleEl) titleEl.textContent = 'Top Merchants';
     }
     triggerCalculations();
     setTimeout(resizeCharts, 50);
@@ -32,6 +45,7 @@ function switchView(view) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await fetchMarketData(state);
+    populateCategoryFilters();
     initAuth();
 
     document.querySelectorAll('.menu-link').forEach(btn => {
@@ -62,13 +76,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const formInputs = document.querySelectorAll('#setupForm input, #setupForm select');
     formInputs.forEach(input => input.addEventListener('change', () => triggerCalculations()));
 
-    document.querySelectorAll('.expense-input').forEach(input => input.addEventListener('input', () => triggerCalculations()));
-    document.getElementById('spouseHousingContribution')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('targetHomePrice')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('downPayment')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('loanType')?.addEventListener('change', () => triggerCalculations());
     document.getElementById('vaTaxExempt')?.addEventListener('change', () => triggerCalculations());
-    document.getElementById('spouseAutoContribution')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('targetCarPrice')?.addEventListener('input', () => triggerCalculations());
     document.getElementById('autoTerm')?.addEventListener('change', () => triggerCalculations());
     document.getElementById('fireContribution')?.addEventListener('input', () => triggerCalculations());
@@ -113,15 +124,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('addTransactionForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!state.user) return;
-        
+
         const date = document.getElementById('newTxDate').value;
         let amount = parseFloat(document.getElementById('newTxAmount').value) || 0;
         const type = document.getElementById('newTxType').value;
         const merchant = document.getElementById('newTxMerchant').value;
         const category = document.getElementById('newTxCategory').value;
-        
+
         amount = type === 'income' ? Math.abs(amount) : -Math.abs(amount);
-        
+
         const newTx = {
             user_id: state.user.id,
             date,
@@ -129,18 +140,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             type,
             clean_merchant: merchant,
             description: merchant,
-            category: type === 'income' ? 'Uncategorized' : category
+            category: type === 'income' ? 'Income' : category
         };
-        
+
         const optimisticTx = { ...newTx, id: 'temp-' + Date.now() };
         state.transactions.unshift(optimisticTx);
-        state.transactions.sort((a,b) => new Date(b.date) - new Date(a.date));
+        state.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
         triggerCalculations();
-        
+
         e.target.reset();
         document.getElementById('newTxType').value = 'expense';
         document.getElementById('newTxCategory').value = 'Uncategorized';
-        
+
         const { data, error } = await addTransaction(newTx);
         if (data && data[0]) {
             const idx = state.transactions.findIndex(t => t.id === optimisticTx.id);
@@ -156,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             btn.innerHTML = '✨ Analyzing...';
             btn.disabled = true;
-            outputEl.innerHTML = '<span class="transition-color" style="color:#38bdf8;">Generating localized and contextualized statistical summary...</span>';
+            outputEl.innerHTML = '<span style="color:#38bdf8;">Generating your personalized spending analysis...</span>';
 
             const filtered = filterTransactions(state.transactions, state.filters);
             const summary = getPreProcessingSummary(filtered);
@@ -175,10 +186,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (error) throw error;
-            outputEl.innerHTML = data.result || 'Analysis complete. Adjusted payload dramatically reduced token count while increasing macroeconomic accuracy.';
+            outputEl.innerHTML = data.result || 'Analysis complete.';
             outputEl.style.color = '#f8fafc';
         } catch (err) {
-            outputEl.innerHTML = `<span class="text-danger">Failed to retrieve insights: ${err.message}</span>`;
+            outputEl.innerHTML = `<span class="text-danger">Could not generate insights: ${err.message}</span>`;
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -191,14 +202,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const originalText = btn.innerHTML;
 
         try {
-            btn.innerHTML = '✨ Optimizing...';
+            btn.innerHTML = '✨ Working...';
             btn.disabled = true;
             outputEl.classList.remove('hidden');
-            outputEl.innerHTML = 'Cross-referencing expenditures against recommended 50/30/20 thresholds...';
+            outputEl.innerHTML = 'Reviewing your spending against recommended guidelines...';
 
             const payload = {
                 income: state.income,
-                sharedContribution: state.sharedContribution,
                 transactions: state.transactions
             };
 
@@ -207,12 +217,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (error) throw error;
-            outputEl.innerHTML = data.result || 'AI suggests your current discretionary to savings ratio is highly efficient.';
+            outputEl.innerHTML = data.result || 'Review complete.';
         } catch (err) {
-            outputEl.innerHTML = `<span class="text-danger">Error running optimization: ${err.message}</span>`;
+            outputEl.innerHTML = `<span class="text-danger">Error: ${err.message}</span>`;
             outputEl.style.color = '#fb7185';
-            outputEl.style.background = 'rgba(251, 113, 133, 0.1)';
-            outputEl.style.borderColor = 'rgba(251, 113, 133, 0.3)';
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -225,7 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const statusEl = document.getElementById('uploadStatus');
 
         try {
-            statusEl.textContent = 'Uploading document to secure storage...';
+            statusEl.textContent = 'Uploading to secure storage...';
             statusEl.style.color = '#60a5fa';
 
             let mimeType = file.type;
@@ -233,16 +241,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const filePath = `${state.user.id}/${Date.now()}_${file.name}`;
             const { error: uploadError } = await supabase.storage.from('statements').upload(filePath, file);
-            if (uploadError) throw new Error('Storage upload failed: ' + uploadError.message);
+            if (uploadError) throw new Error('Upload failed: ' + uploadError.message);
 
-            statusEl.textContent = 'Sending to Edge Function for AI processing...';
-            
+            statusEl.textContent = 'Processing with AI — this may take a moment...';
+
+            const categoryList = FLAT_CATEGORIES.join(', ');
             const promptEnhancement = `CRITICAL RULES FOR TRANSACTION NORMALIZATION:
-1. Determine transaction direction by context. "Payroll", "Deposit" = income. "Payment", "Withdrawal", stores = expense.
-2. Mathematical Standardization: ALL income/deposits MUST be positive numbers (+). ALL expenses MUST be negative numbers (-).
-3. Type Flagging: Add a "type" field string with exactly "income" or "expense".
-4. Category Tagging: Restrict category to EXACTLY one of: Housing, Transport, Food, Utilities, Entertainment, Health, Shopping, Uncategorized.`;
-            
+1. Determine direction by context. "Payroll", "Deposit", "Refund" = income. Stores, payments, withdrawals = expense.
+2. ALL income MUST be positive. ALL expenses MUST be negative.
+3. Add a "type" field: exactly "income" or "expense".
+4. Add a "confidence" field: a number 0.0–1.0 representing how certain you are of the category.
+5. Category MUST be one of these exact strings: ${categoryList}.
+6. Use the most specific subcategory possible (e.g. "Food & Dining > Groceries" rather than just "Food & Dining").`;
+
             const { data, error: funcError } = await supabase.functions.invoke('process-statement', {
                 body: { filePath, mimeType, userId: state.user.id, prompt: promptEnhancement }
             });
@@ -250,11 +261,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (funcError) throw new Error(funcError.message);
             if (data?.error) throw new Error(data.error);
 
-            statusEl.textContent = 'Saving transactions to database...';
+            statusEl.textContent = 'Saving transactions...';
             let transactions = Array.isArray(data?.transactions)
                 ? data.transactions
                 : JSON.parse((data?.result || '[]').replace(/```json/gi, '').replace(/```/g, '').trim());
-            
+
             transactions = transactions.map(t => {
                 let amt = parseFloat(t.amount) || 0;
                 let desc = (t.clean_merchant || t.description || '').toLowerCase();
@@ -262,15 +273,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (t.type === 'income') isIncome = true;
                 else if (t.type === 'expense') isIncome = false;
                 else if (desc.includes('payroll') || desc.includes('deposit') || desc.includes('refund')) isIncome = true;
-                else if (desc.includes('target') || desc.includes('payment') || desc.includes('withdrawal')) isIncome = false;
                 else isIncome = amt > 0;
-                
+
                 return {
                     ...t,
                     user_id: state.user.id,
                     type: isIncome ? 'income' : 'expense',
                     amount: isIncome ? Math.abs(amt) : -Math.abs(amt),
-                    category: t.category || 'Uncategorized'
+                    category: t.category || 'Uncategorized',
+                    confidence: typeof t.confidence === 'number' ? t.confidence : null
                 };
             });
 
@@ -279,7 +290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (insertError) throw insertError;
             }
 
-            statusEl.textContent = `Success! ${transactions.length} transactions categorized and synced.`;
+            statusEl.textContent = `Done! ${transactions.length} transactions imported.`;
             statusEl.style.color = '#34d399';
 
             state.transactions = await fetchTransactions(state.user.id);

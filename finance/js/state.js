@@ -4,7 +4,6 @@ export const state = {
     isHydrating: false,
     income: 0,
     taxFreeIncome: 0,
-    sharedContribution: 0,
     portfolio: 0,
     creditScore: 720,
     age: 25,
@@ -13,7 +12,8 @@ export const state = {
     sex: 'all',
     education: 'all',
     race: 'all',
-    transactions:[],
+    transactions: [],
+    budgetLimits: {},
     marketRates: {
         mortgage_30yr: 6.85,
         auto_new: 7.20,
@@ -22,7 +22,7 @@ export const state = {
     locationData: null,
     compareLocationData: null,
     filters: {
-        dateRange: 'all',
+        dateRange: 'this-month',
         category: 'all'
     },
     activeView: 'timeline'

@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://agfngkzohlrmxjhysafn.supabase.co; img-src 'self' data: blob:;">
-<title>Abyssol | Financial Intelligence</title>
-<link rel="stylesheet" href="css/base.css?v=5">
-<link rel="stylesheet" href="css/layout.css?v=5">
-<link rel="stylesheet" href="css/components.css?v=5">
-<link rel="stylesheet" href="css/dashboard.css?v=5">
+<title>Abyssol | Personal Finance</title>
+<link rel="stylesheet" href="css/base.css?v=6">
+<link rel="stylesheet" href="css/layout.css?v=6">
+<link rel="stylesheet" href="css/components.css?v=6">
+<link rel="stylesheet" href="css/dashboard.css?v=6">
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script type="module" src="js/app.js?v=5" defer></script>
+<script type="module" src="js/app.js?v=6" defer></script>
 </head>
 <body>
 <noscript>
@@ -56,12 +56,12 @@
 <div class="menu-content">
 <button type="button" id="closeMenuBtn" class="icon-btn close-btn" style="align-self:flex-end;">×</button>
 <ul class="nav-menu-list">
-<li><button type="button" class="menu-link" data-tab="tab-benchmarking">Benchmarking</button></li>
-<li><button type="button" class="menu-link" data-tab="tab-budget">Current Budget</button></li>
-<li><button type="button" class="menu-link" data-tab="tab-sync">Data Sync</button></li>
-<li><button type="button" class="menu-link" data-tab="tab-fire">FIRE Projector</button></li>
-<li><button type="button" class="menu-link" data-tab="tab-purchases">Purchase Matrix</button></li>
-<li><button type="button" class="menu-link active" data-tab="tab-overview">Total Overview</button></li>
+<li><button type="button" class="menu-link active" data-tab="tab-overview">Dashboard</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-budget">My Budget</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-purchases">Affordability</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-fire">Retirement Planner</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-benchmarking">Income Rank</button></li>
+<li><button type="button" class="menu-link" data-tab="tab-sync">Import Statements</button></li>
 </ul>
 </div>
 </div>
@@ -70,33 +70,26 @@
 <div class="modal-content control-panel">
 <button type="button" id="closeProfileBtn" class="icon-btn close-btn">×</button>
 <div id="setupForm">
-<h2 class="mb-20" style="font-weight:800; font-size:1.4rem; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Profile Setup</h2>
+<h2 class="mb-20" style="font-weight:800; font-size:1.4rem; background: var(--gradient-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">My Profile</h2>
 <div id="errorBanner" class="error-banner" role="alert" aria-live="assertive"></div>
 <div class="sidebar-section">
-<div class="gt-label mb-10 text-center">Income & Black Box</div>
+<div class="gt-label mb-10 text-center">Income</div>
 <div class="input-group mb-10">
-<label for="baseIncome" id="baseIncomeLabel">Personal Annual Gross</label>
+<label for="baseIncome">Annual Salary / Income (before tax)</label>
 <div class="unit-wrapper icon-prefix">
 <span class="prefix">$</span>
 <input type="number" id="baseIncome" class="glass-input" placeholder="0" min="0" required>
 </div>
 </div>
 <div class="input-group mb-10">
-<label for="taxFreeIncome">Monthly Tax-Free Income</label>
+<label for="taxFreeIncome">Monthly Tax-Free Income (optional)</label>
 <div class="unit-wrapper icon-prefix">
 <span class="prefix">$</span>
 <input type="number" id="taxFreeIncome" class="glass-input" placeholder="0" min="0" value="0">
 </div>
 </div>
 <div class="input-group mb-10">
-<label for="sharedContribution">Shared Household Contribution (Black Box)</label>
-<div class="unit-wrapper icon-prefix">
-<span class="prefix">$</span>
-<input type="number" id="sharedContribution" class="glass-input" placeholder="0" min="0" required>
-</div>
-</div>
-<div class="input-group mb-10">
-<label for="currentPortfolio">Current Personal Liquidity / Portfolio</label>
+<label for="currentPortfolio">Savings &amp; Investments</label>
 <div class="unit-wrapper icon-prefix">
 <span class="prefix">$</span>
 <input type="number" id="currentPortfolio" class="glass-input" placeholder="0" min="0" value="0">
@@ -105,7 +98,7 @@
 </div>
 
 <div class="sidebar-section">
-<div class="gt-label mb-10 text-center">Credit & Deep Demographics</div>
+<div class="gt-label mb-10 text-center">About Me</div>
 <div class="input-group mb-10">
 <label for="creditScore">FICO Credit Score</label>
 <input type="number" id="creditScore" class="glass-input" placeholder="720" min="300" max="850" value="720">
@@ -131,7 +124,7 @@
 <label for="householdType">Household Type</label>
 <select id="householdType" class="glass-input">
 <option value="all">All Types</option>
-<option value="single">Single Earner</option>
+<option value="single">Single</option>
 <option value="dual">Dual Income</option>
 </select>
 </div>
@@ -173,52 +166,52 @@
 
 <div id="tab-overview" class="tab-pane active">
 <div class="filter-bar mb-20 control-panel" style="padding: 15px 25px; border-radius: 16px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-<span class="gt-label" style="margin-right: auto;">Global Filters</span>
+<span class="gt-label" style="margin-right: auto;">Filters</span>
 <select id="filterDateRange" class="glass-input btn-small" style="width: auto;">
-<option value="all">All Time</option>
-<option value="30">Last 30 Days</option>
+<option value="this-month">This Month</option>
+<option value="last-month">Last Month</option>
 <option value="90">Last 90 Days</option>
+<option value="180">Last 6 Months</option>
+<option value="365">Last 12 Months</option>
+<option value="ytd">Year to Date</option>
+<option value="all">All Time</option>
 </select>
 <select id="filterCategory" class="glass-input btn-small" style="width: auto;">
 <option value="all">All Categories</option>
-<option value="Housing">Housing</option>
-<option value="Transport">Transport</option>
-<option value="Food">Food</option>
-<option value="Utilities">Utilities</option>
-<option value="Entertainment">Entertainment</option>
-<option value="Health">Health</option>
-<option value="Shopping">Shopping</option>
-<option value="Uncategorized">Uncategorized</option>
 </select>
 </div>
 
 <div class="dashboard-grid">
-<div class="dash-card text-center" data-tooltip="Total parsed income for the selected period.">
+<div class="dash-card text-center" data-tooltip="Total income received in the selected period.">
 <div class="gt-label">Total Income</div>
 <div class="gt-value transition-color" id="kpiTotalIncome" style="color: #34d399;">$0</div>
 </div>
-<div class="dash-card text-center" data-tooltip="Total parsed expenses for the selected period.">
-<div class="gt-label">Total Spend</div>
+<div class="dash-card text-center" data-tooltip="Total amount spent in the selected period.">
+<div class="gt-label">Total Spending</div>
 <div class="gt-value transition-color" id="kpiTotalSpend" style="color: #fb7185;">$0</div>
 </div>
-<div class="dash-card text-center" data-tooltip="Net cash flow (Income - Spend).">
-<div class="gt-label">Net Cash Flow</div>
+<div class="dash-card text-center" data-tooltip="Income minus spending. Positive means you kept money. Negative means you spent more than you earned.">
+<div class="gt-label">Money Left Over</div>
 <div class="gt-value transition-color" id="kpiNetCashFlow">$0</div>
 </div>
-<div class="dash-card text-center" data-tooltip="Percentage of income retained based on actual parsed data.">
+<div class="dash-card text-center" data-tooltip="What percentage of your income you kept (did not spend).">
 <div class="gt-label">Savings Rate</div>
 <div class="gt-value transition-color" id="kpiSavingsRate">0%</div>
+</div>
+<div class="dash-card text-center" data-tooltip="If you keep spending at today's pace, this is your estimated total spending by the end of this month.">
+<div class="gt-label">Projected Month-End Spend</div>
+<div class="gt-value transition-color" id="kpiSpendingPace">$0</div>
 </div>
 </div>
 
 <div class="bento-box mt-25">
 <div class="bento-left module-container active" style="margin-bottom:0;">
 <div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-<span id="trendsHeaderTitle">Multi-View Analytics</span>
+<span id="trendsHeaderTitle">Income &amp; Spending Over Time</span>
 <div class="view-toggle" style="display: flex;">
 <button type="button" id="viewTimelineBtn" class="secondary-btn btn-small active" style="border-radius: 20px 0 0 20px;">Timeline</button>
 <button type="button" id="viewCategoryBtn" class="secondary-btn btn-small" style="border-radius: 0 0 0 0; margin-left: -1px;">Category</button>
-<button type="button" id="viewMerchantBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Merchant</button>
+<button type="button" id="viewMerchantBtn" class="secondary-btn btn-small" style="border-radius: 0 20px 20px 0; margin-left: -1px;">Merchants</button>
 </div>
 </div>
 <div class="module-content">
@@ -228,18 +221,18 @@
 </div>
 
 <div class="module-header mt-25" style="display: flex; justify-content: space-between; align-items: center; border-radius: 0; border-top: 1px solid var(--border-glass);">
-<span>AI Financial Analyst</span>
-<button type="button" id="aiInsightsBtn" class="secondary-btn btn-small" style="background: rgba(56, 189, 248, 0.1); border-color: #38bdf8; color: #38bdf8;">✨ Generate Insights</button>
+<span>AI Insights</span>
+<button type="button" id="aiInsightsBtn" class="secondary-btn btn-small" style="background: rgba(56, 189, 248, 0.1); border-color: #38bdf8; color: #38bdf8;">✨ Analyze My Spending</button>
 </div>
 <div class="module-content">
 <div id="aiInsightsOutput" class="fs-09" style="color: var(--text-muted); line-height: 1.6;">
-Click the button above to generate a personalized AI analysis based on your filtered transactions.
+Click the button above to get a personalized analysis of your spending patterns.
 </div>
 </div>
 </div>
 
 <div class="bento-right module-container active" style="margin-bottom:0;">
-<div class="module-header"><span>Persistent Ledger</span></div>
+<div class="module-header"><span>My Transactions</span></div>
 <div class="module-content" style="padding: 15px; display: flex; flex-direction: column; height: 100%; max-height: 800px;">
 <form id="addTransactionForm" class="mb-15 clean-row" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border-glass);">
 <div class="input-row mb-10" style="gap: 10px;">
@@ -251,25 +244,18 @@ Click the button above to generate a personalized AI analysis based on your filt
 </div>
 <div class="input-group" style="flex: 0.5;">
 <select id="newTxType" class="glass-input btn-small">
-<option value="expense">Exp</option>
-<option value="income">Inc</option>
+<option value="expense">Expense</option>
+<option value="income">Income</option>
 </select>
 </div>
 </div>
 <div class="input-row mb-10" style="gap: 10px;">
 <div class="input-group" style="flex: 2;">
-<input type="text" id="newTxMerchant" class="glass-input btn-small" placeholder="Merchant" required>
+<input type="text" id="newTxMerchant" class="glass-input btn-small" placeholder="Description / Merchant" required>
 </div>
 <div class="input-group" style="flex: 1.5;">
 <select id="newTxCategory" class="glass-input btn-small">
-<option value="Housing">Housing</option>
-<option value="Transport">Transport</option>
-<option value="Food">Food</option>
-<option value="Utilities">Utilities</option>
-<option value="Entertainment">Entertainment</option>
-<option value="Health">Health</option>
-<option value="Shopping">Shopping</option>
-<option value="Uncategorized" selected>Uncat</option>
+<option value="Uncategorized">Uncategorized</option>
 </select>
 </div>
 </div>
@@ -287,64 +273,47 @@ Click the button above to generate a personalized AI analysis based on your filt
 <div class="layout-grid">
 <div class="module-container active" style="margin-bottom:0;">
 <div class="module-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-<span>Split Finance Budget</span>
-<button type="button" id="aiBudgetBtn" class="secondary-btn btn-small">✨ AI Optimize</button>
+<span>My Budget</span>
+<button type="button" id="aiBudgetBtn" class="secondary-btn btn-small">✨ Get AI Suggestions</button>
 </div>
 <div class="module-content">
 <div id="aiBudgetOutput" class="fs-09 mb-20 hidden" style="color: #34d399; background: rgba(52, 211, 153, 0.1); padding: 15px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.3);"></div>
 <div class="chart-container-donut mb-25"><canvas id="budgetDonutChart"></canvas></div>
 <div class="line-items">
 <div class="item-row">
-<span>Personal Discretionary (Automated from Ledger)</span>
-<span id="budgetPersonal">$0</span>
+<span>Total Spending This Period</span>
+<span id="budgetTotalSpend">$0</span>
 </div>
 <div class="item-row">
-<span>Shared Household Obligation</span>
-<span id="budgetShared">$0</span>
+<span>Your Monthly Take-Home</span>
+<span id="budgetMonthlyIncome">$0</span>
 </div>
 <div class="item-row no-border-bottom">
-<span>Personal Savings/Debt</span>
-<span id="budgetSavings">$0</span>
+<span>Money Left Over</span>
+<span id="budgetLeftOver">$0</span>
 </div>
 </div>
 </div>
 </div>
 
 <div class="module-container active" style="margin-bottom:0;">
-<div class="module-header"><span>Personal Expense Engine</span></div>
+<div class="module-header"><span>Spending by Category</span></div>
 <div class="module-content" style="padding-top:10px;">
-<div class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Expenses are now dynamically sourced directly from your mapped transactions in the Total Overview ledger. The categories below are maintained for historical context.</div>
+<div class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Your spending below is pulled directly from your imported and manual transactions. Switch to the Dashboard to add or edit transactions.</div>
 <details class="expense-category" open>
 <summary class="category-header">
-Housing & Utilities <span class="category-total" id="catTotalHousing">$0</span>
+Housing <span class="category-total" id="catTotalHousing">$0</span>
 </summary>
 <div class="category-body">
-<div class="input-row clean-row">
-<div class="input-group">
-<label>Personal Housing Share</label>
-<div class="unit-wrapper icon-prefix">
-<span class="prefix">$</span>
-<input type="number" id="expHousingPrimary" class="glass-input expense-input sync-housing">
-</div>
-</div>
-</div>
+<div class="fs-09" style="color:var(--text-muted);">Imported from your transactions automatically.</div>
 </div>
 </details>
-
 <details class="expense-category">
 <summary class="category-header">
 Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </summary>
 <div class="category-body">
-<div class="input-row clean-row">
-<div class="input-group">
-<label>Personal Auto Loan</label>
-<div class="unit-wrapper icon-prefix">
-<span class="prefix">$</span>
-<input type="number" id="expAutoPrimary" class="glass-input expense-input sync-auto">
-</div>
-</div>
-</div>
+<div class="fs-09" style="color:var(--text-muted);">Imported from your transactions automatically.</div>
 </div>
 </details>
 </div>
@@ -354,19 +323,12 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 
 <div id="tab-purchases" class="tab-pane">
 <div class="module-container active">
-<div class="module-header"><span>28/36 Housing Rule (Split Setup)</span></div>
+<div class="module-header"><span>Home Affordability — 28/36 Rule</span></div>
 <div class="module-content layout-grid">
 <div class="controls-col">
 <div class="market-rate-banner" id="housingRateBanner">
 <div class="mr-title">Live Market Rate (30yr Fixed)</div>
 <div class="mr-data"><span id="liveMortgageRate">6.85%</span></div>
-</div>
-<div class="input-group mb-15 mt-15">
-<label for="spouseHousingContribution">Spouse Monthly Housing Contribution</label>
-<div class="unit-wrapper icon-prefix">
-<span class="prefix">$</span>
-<input type="number" id="spouseHousingContribution" class="glass-input" placeholder="0" min="0" value="0">
-</div>
 </div>
 <div class="slider-container" style="background:none; border:none; box-shadow:none; padding:0; margin:0; max-width:100%;">
 <div class="gt-label mb-10">Target Home Purchase Price</div>
@@ -399,7 +361,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 <div class="outputs-col">
-<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Assumes a 28% front-end DTI ratio, 1.2% property tax (unless VA Tax Exempt), and standard PMI rules if under 20% down.">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Based on a 28% front-end debt-to-income ratio, 1.2% property tax (unless VA Tax Exempt), and standard PMI rules if under 20% down.">
 <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
 <div class="budget-display transition-color text-center" id="actualHousingPayment" style="font-size: 3rem;">$0/mo</div>
 <div class="line-items mt-25">
@@ -408,7 +370,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 <span id="maxHomePriceValue">$0</span>
 </div>
 <div class="item-row">
-<span>Max Total Monthly (Combined)</span>
+<span>Your Maximum Monthly Housing</span>
 <span id="maxHousing">$0</span>
 </div>
 </div>
@@ -417,19 +379,12 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 <div class="module-container active">
-<div class="module-header"><span>20/4/10 Auto Financing (Split Setup)</span></div>
+<div class="module-header"><span>Auto Affordability — 20/4/10 Rule</span></div>
 <div class="module-content layout-grid">
 <div class="controls-col">
 <div class="market-rate-banner" id="autoRateBanner">
 <div class="mr-title">Live Market Rate (Auto)</div>
 <div class="mr-data"><span id="liveAutoRate">7.20%</span></div>
-</div>
-<div class="input-group mb-15 mt-15">
-<label for="spouseAutoContribution">Spouse Monthly Auto Contribution</label>
-<div class="unit-wrapper icon-prefix">
-<span class="prefix">$</span>
-<input type="number" id="spouseAutoContribution" class="glass-input" placeholder="0" min="0" value="0">
-</div>
 </div>
 <div class="slider-container" style="background:none; border:none; box-shadow:none; padding:0; margin:0; max-width:100%;">
 <div class="gt-label mb-10">Target Vehicle Price</div>
@@ -452,7 +407,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </div>
 </div>
 <div class="outputs-col">
-<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Assumes a maximum of 10% of gross monthly income allocated to auto financing.">
+<div class="dash-card" style="padding: 25px; box-shadow:none; background:rgba(0,0,0,0.2);" data-tooltip="Based on a maximum of 10% of your gross monthly income going toward auto financing.">
 <div class="gt-label text-center mb-5">Estimated Monthly Payment</div>
 <div class="budget-display transition-color text-center" id="actualAutoPayment" style="font-size: 3rem;">$0/mo</div>
 <div class="line-items mt-25">
@@ -461,7 +416,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 <span id="maxCarPrice">$0</span>
 </div>
 <div class="item-row">
-<span>Max Monthly Transport (Combined)</span>
+<span>Your Maximum Monthly Auto</span>
 <span id="maxTransport">$0</span>
 </div>
 </div>
@@ -473,29 +428,29 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 
 <div id="tab-fire" class="tab-pane">
 <div class="module-container active">
-<div class="module-header"><span>FIRE Projector</span></div>
+<div class="module-header"><span>Retirement Planner</span></div>
 <div class="module-content">
 <div class="layout-grid mb-25" style="align-items: center;">
 <div class="dash-card" style="padding:20px; background:rgba(0,0,0,0.2); box-shadow:none; border:1px solid var(--border-highlight);">
-<div class="gt-label text-center">Projected Personal FI Number</div>
+<div class="gt-label text-center">Your Retirement Target (25× Annual Expenses)</div>
 <div class="gt-value text-center" id="fiNumberValue" style="color:#34d399; font-size:3rem;">$0</div>
 </div>
 <div class="dash-card" style="padding:20px; background:rgba(0,0,0,0.2); box-shadow:none; border:1px solid var(--border-glass);">
-<div class="gt-label text-center">FI Age</div>
+<div class="gt-label text-center">Projected Retirement Age</div>
 <div class="gt-value text-center" id="fiAgeValue" style="font-size:3rem;">--</div>
 </div>
 </div>
 <div class="calc-row clean-row" style="margin-bottom: 0;">
 <div class="input-row">
 <div class="input-group">
-<label for="fireContribution">Monthly Contribution</label>
+<label for="fireContribution">Monthly Investment Contribution</label>
 <div class="unit-wrapper icon-prefix">
 <span class="prefix">$</span>
 <input type="number" id="fireContribution" class="glass-input" placeholder="0" value="0" min="0">
 </div>
 </div>
 <div class="input-group">
-<label for="marketReturn" data-tooltip="Expected annual market return minus historical inflation.">Expected Return</label>
+<label for="marketReturn" data-tooltip="Expected annual market return minus historical inflation rate.">Expected Annual Return</label>
 <div class="unit-wrapper">
 <input type="number" id="marketReturn" class="glass-input" value="7" min="0">
 <span class="unit">%</span>
@@ -512,16 +467,16 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 
 <div id="tab-benchmarking" class="tab-pane">
 <div class="dashboard-grid">
-<div class="dash-card" data-tooltip="Cross-references your age, location, education, and household type against localized Census microdata.">
-<div class="gt-label">Personal Socioeconomic Percentile</div>
+<div class="dash-card" data-tooltip="Compares your income against people with similar age, location, education, and household type using Census data.">
+<div class="gt-label">My Income Rank</div>
 <div class="gt-value" id="percentileValue">Top --%</div>
-<div class="fs-09 text-center mb-15" id="detailedPercentiles" style="color: var(--text-muted);">Loading detailed metrics...</div>
+<div class="fs-09 text-center mb-15" id="detailedPercentiles" style="color: var(--text-muted);">Loading...</div>
 <div class="chart-container"><canvas id="bellCurveChart"></canvas></div>
 </div>
 <div class="dash-card">
-<div class="gt-label mb-15">Geo-Arbitrage Engine</div>
+<div class="gt-label mb-15">Compare Cost of Living</div>
 <div class="geo-arbitrage-box" style="border:none; padding:0; margin:0;">
-<label for="geoCompare">Compare against:</label>
+<label for="geoCompare">If I lived in:</label>
 <select id="geoCompare" class="glass-input">
 <option value="tx">Austin, TX</option>
 <option value="ny">New York, NY</option>
@@ -532,7 +487,7 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 </select>
 <div class="line-items mt-15" style="padding: 10px 15px;">
 <div class="item-row">
-<span id="geoNetLabel" class="fs-09">Personal Take-Home</span>
+<span id="geoNetLabel" class="fs-09">My Adjusted Take-Home Pay</span>
 <span id="altNetIncome" class="fs-09">$0</span>
 </div>
 </div>
@@ -543,17 +498,17 @@ Transportation <span class="category-total" id="catTotalTransport">$0</span>
 
 <div id="tab-sync" class="tab-pane">
 <div class="module-container active">
-<div class="module-header"><span>Secure Statement Upload</span></div>
+<div class="module-header"><span>Import Bank Statements</span></div>
 <div class="module-content">
 <div class="dash-card mb-20" style="background:rgba(0,0,0,0.2); box-shadow:none; padding:25px;">
 <div class="gt-label mb-10">AI Transaction Categorization</div>
-<p class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Upload personal bank statements (PDF/CSV).</p>
+<p class="fs-09 mb-20" style="color:var(--text-muted); line-height:1.5;">Upload your bank statement (PDF or CSV). The AI will read each transaction, figure out what it was for, and add it to your ledger automatically.</p>
 <div class="upload-dropzone" id="uploadDropzone">
 <input type="file" id="statementUpload" accept=".pdf,.csv" class="hidden-element">
-<label for="statementUpload" class="primary-btn" style="display:inline-block; margin-top:0; padding:12px 30px; font-size:1rem;">Select Document</label>
+<label for="statementUpload" class="primary-btn" style="display:inline-block; margin-top:0; padding:12px 30px; font-size:1rem;">Select File</label>
 <div id="uploadStatus" class="mt-15 fs-09" style="color:var(--text-muted);">No file selected</div>
 </div>
-<div class="gt-label mt-25 mb-10">Historical Uploads</div>
+<div class="gt-label mt-25 mb-10">Previous Uploads</div>
 <div id="historicalStatementsList" class="line-items mt-15"></div>
 </div>
 </div>

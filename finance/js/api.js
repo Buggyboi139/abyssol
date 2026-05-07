@@ -12,12 +12,8 @@ export async function fetchMarketData(state) {
             .limit(1);
         if (error || !data || data.length === 0) return;
         const row = data[0];
-        if (typeof row.fred_mortgage_30yr === 'number') {
-            state.marketRates.mortgage_30yr = row.fred_mortgage_30yr;
-        }
-        if (typeof row.fred_auto_new === 'number') {
-            state.marketRates.auto_new = row.fred_auto_new;
-        }
+        if (typeof row.fred_mortgage_30yr === 'number') state.marketRates.mortgage_30yr = row.fred_mortgage_30yr;
+        if (typeof row.fred_auto_new === 'number') state.marketRates.auto_new = row.fred_auto_new;
         const inflationValue = row.fred_inflation_rate ?? row.fred_inflation;
         if (typeof inflationValue === 'number' && inflationValue > 0 && inflationValue < 25) {
             state.marketRates.inflation_cpi = inflationValue;
@@ -65,9 +61,9 @@ export async function fetchTransactions(userId) {
         .order('date', { ascending: false });
     if (error) {
         console.warn('fetchTransactions error', error);
-        return[];
+        return [];
     }
-    return data ||[];
+    return data || [];
 }
 
 export async function listStatements(userId) {
@@ -79,7 +75,7 @@ export async function listStatements(userId) {
         console.warn('listStatements error', error);
         return [];
     }
-    return data ||[];
+    return data || [];
 }
 
 export async function updateTransactionCategory(id, category) {
@@ -110,4 +106,26 @@ export async function addTransaction(transaction) {
         return { data: null, error };
     }
     return { data, error: null };
+}
+
+export async function fetchBudgetLimits(userId) {
+    const { data, error } = await supabase
+        .from('budget_limits')
+        .select('*')
+        .eq('user_id', userId);
+    if (error) {
+        console.warn('fetchBudgetLimits error', error);
+        return {};
+    }
+    const map = {};
+    (data || []).forEach(row => { map[row.category] = row.monthly_limit; });
+    return map;
+}
+
+export async function saveBudgetLimit(userId, category, monthlyLimit) {
+    const { error } = await supabase
+        .from('budget_limits')
+        .upsert({ user_id: userId, category, monthly_limit: monthlyLimit, updated_at: new Date() });
+    if (error) console.warn('saveBudgetLimit error', error);
+    return error;
 }

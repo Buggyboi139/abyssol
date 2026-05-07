@@ -1,9 +1,8 @@
 import { state } from './state.js';
 import { fetchLocationData, saveUserProfile, listStatements } from './api.js';
-import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant } from './calculators.js';
+import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant, calculateSpendingPace, normalizeCat } from './calculators.js';
 import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart, drawMerchantChart } from './charts.js';
-
-const CATEGORIES =['Housing', 'Transport', 'Food', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Uncategorized'];
+import { CATEGORY_TAXONOMY, FLAT_CATEGORIES, PARENT_CATEGORIES, getCategoryColor, getCategoryParent } from './categories.js';
 
 function fmt(amt) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amt || 0);
@@ -21,10 +20,26 @@ const debouncedSaveProfile = debounce((userId, payload) => {
     saveUserProfile(userId, payload);
 }, 700);
 
+export function buildCategorySelectHTML(selectedValue = 'Uncategorized', includeAll = false) {
+    let html = includeAll ? '<option value="all">All Categories</option>' : '';
+    for (const [parent, subs] of Object.entries(CATEGORY_TAXONOMY)) {
+        if (subs.length === 0) {
+            html += `<option value="${parent}" ${selectedValue === parent ? 'selected' : ''}>${parent}</option>`;
+        } else {
+            html += `<optgroup label="${parent}">`;
+            subs.forEach(sub => {
+                const full = `${parent} > ${sub}`;
+                html += `<option value="${full}" ${selectedValue === full ? 'selected' : ''}>${sub}</option>`;
+            });
+            html += `</optgroup>`;
+        }
+    }
+    return html;
+}
+
 export function hydrateUI(profile) {
     state.income = Number(profile.income) || 0;
     state.taxFreeIncome = Number(profile.tax_free_income) || 0;
-    state.sharedContribution = Number(profile.shared_contribution) || 0;
     state.portfolio = Number(profile.portfolio) || 0;
     state.creditScore = Number(profile.credit_score) || 720;
     state.age = Number(profile.age) || 25;
@@ -36,7 +51,6 @@ export function hydrateUI(profile) {
 
     if (document.getElementById('baseIncome')) document.getElementById('baseIncome').value = state.income || '';
     if (document.getElementById('taxFreeIncome')) document.getElementById('taxFreeIncome').value = state.taxFreeIncome || '';
-    if (document.getElementById('sharedContribution')) document.getElementById('sharedContribution').value = state.sharedContribution || '';
     if (document.getElementById('currentPortfolio')) document.getElementById('currentPortfolio').value = state.portfolio || '';
     if (document.getElementById('creditScore')) document.getElementById('creditScore').value = state.creditScore;
     if (document.getElementById('age')) document.getElementById('age').value = state.age;
@@ -50,7 +64,6 @@ export function hydrateUI(profile) {
 function readStateFromDom() {
     state.income = parseFloat(document.getElementById('baseIncome')?.value) || 0;
     state.taxFreeIncome = parseFloat(document.getElementById('taxFreeIncome')?.value) || 0;
-    state.sharedContribution = parseFloat(document.getElementById('sharedContribution')?.value) || 0;
     state.portfolio = parseFloat(document.getElementById('currentPortfolio')?.value) || 0;
     state.creditScore = parseFloat(document.getElementById('creditScore')?.value) || 720;
     state.age = parseInt(document.getElementById('age')?.value, 10) || 25;
@@ -65,7 +78,6 @@ function buildProfilePayload() {
     return {
         income: state.income,
         tax_free_income: state.taxFreeIncome,
-        shared_contribution: state.sharedContribution,
         portfolio: state.portfolio,
         credit_score: state.creditScore,
         age: state.age,
@@ -77,17 +89,25 @@ function buildProfilePayload() {
     };
 }
 
+const locationCache = {};
+
 export async function triggerCalculations(options = {}) {
     readStateFromDom();
 
     if (state.location) {
-        state.locationData = await fetchLocationData(state.location);
+        if (!locationCache[state.location]) {
+            locationCache[state.location] = await fetchLocationData(state.location);
+        }
+        state.locationData = locationCache[state.location];
     }
 
     const compareEl = document.getElementById('geoCompare');
     const compareLoc = compareEl ? compareEl.value : null;
-    if (compareLoc && compareLoc !== state.location) {
-        state.compareLocationData = await fetchLocationData(compareLoc);
+    if (compareLoc) {
+        if (!locationCache[compareLoc]) {
+            locationCache[compareLoc] = await fetchLocationData(compareLoc);
+        }
+        state.compareLocationData = locationCache[compareLoc];
     } else {
         state.compareLocationData = state.locationData;
     }
@@ -106,7 +126,7 @@ export async function triggerCalculations(options = {}) {
 function renderFlatLedger(filteredTransactions) {
     const ledger = document.getElementById('historicalLedger');
     if (!ledger) return;
-    
+
     if (!filteredTransactions || filteredTransactions.length === 0) {
         ledger.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No transactions match filters.</span></div>';
         return;
@@ -119,15 +139,16 @@ function renderFlatLedger(filteredTransactions) {
         const prefix = isIncome ? '+' : '';
         const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
         const bg = isIncome ? 'rgba(52, 211, 153, 0.05)' : 'transparent';
-        
+        const currentCat = normalizeCat(t.category);
+
         return `<div class="item-row" style="align-items:center; background: ${bg}; padding: 12px; border-radius: 8px;">
             <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
                 <span style="font-size:0.85rem; color:var(--text-muted);">${t.date || 'Unknown'}</span>
                 <span>${desc}</span>
             </span>
             ${!isIncome ? `
-            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:120px;">
-                ${CATEGORIES.map(c => `<option value="${c}" ${t.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+            <select class="glass-input btn-small category-select" data-id="${t.id}" style="width:auto; padding:4px 24px 4px 8px; font-size:0.8rem; margin-right:10px; min-width:140px;">
+                ${buildCategorySelectHTML(currentCat)}
             </select>
             ` : `<span style="margin-right:10px; font-size:0.8rem; color:#34d399; min-width:120px; display:inline-block; text-align:center;">Income</span>`}
             <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
@@ -137,14 +158,11 @@ function renderFlatLedger(filteredTransactions) {
 }
 
 function updateOverview() {
-    const liqEl = document.getElementById('overviewLiquidity');
-    if (liqEl) liqEl.textContent = fmt(state.portfolio);
-
     const filtered = filterTransactions(state.transactions, state.filters);
-    
+
     let totalIn = 0;
     let totalOut = 0;
-    
+
     filtered.forEach(t => {
         const amt = Math.abs(Number(t.amount) || 0);
         const isIncome = t.type === 'income' || Number(t.amount) > 0;
@@ -154,16 +172,25 @@ function updateOverview() {
 
     if (document.getElementById('kpiTotalIncome')) document.getElementById('kpiTotalIncome').textContent = fmt(totalIn);
     if (document.getElementById('kpiTotalSpend')) document.getElementById('kpiTotalSpend').textContent = fmt(totalOut);
-    
+
     const netFlow = totalIn - totalOut;
     const netEl = document.getElementById('kpiNetCashFlow');
     if (netEl) {
         netEl.textContent = fmt(netFlow);
         netEl.style.color = netFlow < 0 ? '#fb7185' : '#34d399';
     }
-    
+
     const sr = totalIn > 0 ? (netFlow / totalIn) * 100 : 0;
     if (document.getElementById('kpiSavingsRate')) document.getElementById('kpiSavingsRate').textContent = `${sr.toFixed(1)}%`;
+
+    const pace = calculateSpendingPace(state.transactions);
+    const paceEl = document.getElementById('kpiSpendingPace');
+    if (paceEl) {
+        paceEl.textContent = fmt(pace.projectedTotal);
+        const taxRate = state.locationData?.tax_rate ?? 0.22;
+        const monthlyIncome = ((state.income / 12) * (1 - taxRate)) + state.taxFreeIncome;
+        paceEl.style.color = pace.projectedTotal > monthlyIncome ? '#fb7185' : '#34d399';
+    }
 
     renderFlatLedger(filtered);
 
@@ -175,12 +202,13 @@ function updateOverview() {
         if (typeof drawHistoryChart === 'function') drawHistoryChart(labels, inflows, outflows);
     } else if (state.activeView === 'category') {
         const grouped = groupTransactionsByCategory(filtered);
-        const labels = Object.keys(grouped).sort((a,b) => grouped[b].total - grouped[a].total);
+        const labels = Object.keys(grouped).sort((a, b) => grouped[b].total - grouped[a].total);
         const totals = labels.map(l => grouped[l].total);
-        if (typeof drawCategoryDonutChart === 'function') drawCategoryDonutChart(labels, totals);
+        const colors = labels.map(l => getCategoryColor(l));
+        if (typeof drawCategoryDonutChart === 'function') drawCategoryDonutChart(labels, totals, colors);
     } else if (state.activeView === 'merchant') {
         const grouped = groupTransactionsByMerchant(filtered);
-        const labels = Object.keys(grouped).sort((a,b) => grouped[b].total - grouped[a].total).slice(0,10);
+        const labels = Object.keys(grouped).sort((a, b) => grouped[b].total - grouped[a].total).slice(0, 10);
         const totals = labels.map(l => grouped[l].total);
         if (typeof drawMerchantChart === 'function') drawMerchantChart(labels, totals);
     }
@@ -188,22 +216,22 @@ function updateOverview() {
 
 function updateBudget() {
     const filtered = filterTransactions(state.transactions, state.filters);
-    let automatedExp = 0;
+    let totalExp = 0;
     filtered.forEach(t => {
-        if (t.type === 'expense') {
-            automatedExp += Math.abs(Number(t.amount) || 0);
+        if (t.type === 'expense' || Number(t.amount) < 0) {
+            totalExp += Math.abs(Number(t.amount) || 0);
         }
     });
 
-    const { personalDiscretionary, sharedObligation, freeCashFlow } = calculateCashFlow(automatedExp);
+    const { netPersonalMonthly, freeCashFlow } = calculateCashFlow(totalExp);
 
-    if (document.getElementById('budgetPersonal')) document.getElementById('budgetPersonal').textContent = fmt(personalDiscretionary);
-    if (document.getElementById('budgetShared')) document.getElementById('budgetShared').textContent = fmt(sharedObligation);
-    if (document.getElementById('budgetSavings')) document.getElementById('budgetSavings').textContent = fmt(freeCashFlow);
+    if (document.getElementById('budgetTotalSpend')) document.getElementById('budgetTotalSpend').textContent = fmt(totalExp);
+    if (document.getElementById('budgetMonthlyIncome')) document.getElementById('budgetMonthlyIncome').textContent = fmt(netPersonalMonthly);
+    if (document.getElementById('budgetLeftOver')) document.getElementById('budgetLeftOver').textContent = fmt(Math.max(0, freeCashFlow));
 
     if (typeof drawDonutChart === 'function') {
         try {
-            drawDonutChart(personalDiscretionary, sharedObligation, Math.max(0, freeCashFlow));
+            drawDonutChart(totalExp, Math.max(0, freeCashFlow));
         } catch (e) {
             console.error(e);
         }
@@ -211,34 +239,32 @@ function updateBudget() {
 }
 
 function updatePurchases() {
-    const sH = parseFloat(document.getElementById('spouseHousingContribution')?.value) || 0;
     const hPrice = parseFloat(document.getElementById('targetHomePrice')?.value) || 0;
     const hDown = parseFloat(document.getElementById('downPayment')?.value) || 0;
     const hRate = state.marketRates.mortgage_30yr || 0;
     const lType = document.getElementById('loanType')?.value || 'conv';
     const isVaTaxExempt = document.getElementById('vaTaxExempt')?.checked || false;
-    
+
     if (document.getElementById('targetHomePriceDisplay')) document.getElementById('targetHomePriceDisplay').textContent = fmt(hPrice);
     if (document.getElementById('liveMortgageRate')) document.getElementById('liveMortgageRate').textContent = `${hRate.toFixed(2)}%`;
     if (document.getElementById('downLabel')) document.getElementById('downLabel').textContent = `${hDown.toFixed(1)}%`;
 
-    const hm = calculateHousingMatrix(sH, hPrice, hDown, hRate, lType, isVaTaxExempt);
+    const hm = calculateHousingMatrix(hPrice, hDown, hRate, lType, isVaTaxExempt);
     if (document.getElementById('actualHousingPayment')) document.getElementById('actualHousingPayment').textContent = fmt(hm.actualPayment) + '/mo';
     if (document.getElementById('maxHomePriceValue')) document.getElementById('maxHomePriceValue').textContent = fmt(hm.maxPurchase);
-    if (document.getElementById('maxHousing')) document.getElementById('maxHousing').textContent = fmt(hm.combinedMax);
+    if (document.getElementById('maxHousing')) document.getElementById('maxHousing').textContent = fmt(hm.personalMax);
 
-    const sA = parseFloat(document.getElementById('spouseAutoContribution')?.value) || 0;
     const aPrice = parseFloat(document.getElementById('targetCarPrice')?.value) || 0;
     const aTerm = parseInt(document.getElementById('autoTerm')?.value, 10) || 48;
     const aRate = state.marketRates.auto_new || 0;
-    
+
     if (document.getElementById('targetCarPriceDisplay')) document.getElementById('targetCarPriceDisplay').textContent = fmt(aPrice);
     if (document.getElementById('liveAutoRate')) document.getElementById('liveAutoRate').textContent = `${aRate.toFixed(2)}%`;
 
-    const am = calculateAutoMatrix(sA, aPrice, aTerm, aRate);
+    const am = calculateAutoMatrix(aPrice, aTerm, aRate);
     if (document.getElementById('actualAutoPayment')) document.getElementById('actualAutoPayment').textContent = fmt(am.actualPayment) + '/mo';
     if (document.getElementById('maxCarPrice')) document.getElementById('maxCarPrice').textContent = fmt(am.maxPurchase);
-    if (document.getElementById('maxTransport')) document.getElementById('maxTransport').textContent = fmt(am.combinedMax);
+    if (document.getElementById('maxTransport')) document.getElementById('maxTransport').textContent = fmt(am.personalMax);
 }
 
 function updateFIRE() {
@@ -248,39 +274,31 @@ function updateFIRE() {
         ? state.marketRates.inflation_cpi
         : 3.1;
     const f = calculateFIRE(c, r, inf);
-    
+
     if (document.getElementById('fiNumberValue')) document.getElementById('fiNumberValue').textContent = fmt(f.fiNumber);
     if (document.getElementById('fiAgeValue')) document.getElementById('fiAgeValue').textContent = f.finalAge;
-    
+
     if (typeof drawFireChart === 'function') {
-        try {
-            drawFireChart(f.ages, f.balances, f.fiNumber);
-        } catch (e) {
-            console.error(e);
-        }
+        try { drawFireChart(f.ages, f.balances, f.fiNumber); } catch (e) { console.error(e); }
     }
 }
 
 function updateBenchmarking() {
     const taxRate = state.locationData?.tax_rate ?? 0.22;
     const grossedUpTaxFree = (state.taxFreeIncome * 12) / (1 - taxRate);
-    const equiv = state.income + grossedUpTaxFree + (state.sharedContribution * 12);
+    const equiv = state.income + grossedUpTaxFree;
 
     let p = 50;
     if (state.locationData && equiv > 0) {
         const microP = getPercentile(state.locationData, state.householdType, state.sex, state.education, state.race, equiv);
         p = microP ?? Math.max(1, 100 - Math.floor(equiv / 2000));
     }
-    
+
     if (document.getElementById('percentileValue')) document.getElementById('percentileValue').textContent = `Top ${p}%`;
-    if (document.getElementById('detailedPercentiles')) document.getElementById('detailedPercentiles').textContent = `Based on personal income vs localized deep demographics`;
-    
+    if (document.getElementById('detailedPercentiles')) document.getElementById('detailedPercentiles').textContent = `Based on your income vs. your local area`;
+
     if (typeof drawBellCurve === 'function') {
-        try {
-            drawBellCurve(p);
-        } catch (e) {
-            console.error(e);
-        }
+        try { drawBellCurve(p); } catch (e) { console.error(e); }
     }
 
     const compareData = state.compareLocationData;
@@ -288,7 +306,7 @@ function updateBenchmarking() {
     const colDelta = (compareData?.col_multiplier ?? 1) / (state.locationData?.col_multiplier ?? 1);
     const nominalMonthly = (state.income / 12) * (1 - compareTaxRate) + state.taxFreeIncome;
     const altNet = nominalMonthly / colDelta;
-    
+
     if (document.getElementById('altNetIncome')) document.getElementById('altNetIncome').textContent = fmt(altNet);
 }
 
@@ -301,7 +319,7 @@ export async function renderStatementList() {
     listEl.innerHTML = '';
 
     if (files.length === 0) {
-        listEl.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No historical uploads found.</span></div>';
+        listEl.innerHTML = '<div class="item-row no-border-bottom"><span style="color:var(--text-muted)">No uploads yet.</span></div>';
         return;
     }
 

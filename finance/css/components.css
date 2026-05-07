@@ -7,7 +7,7 @@
 .btn-small { padding: 8px 16px; font-size: 0.85rem; min-height: 44px; }
 .auth-overlay { position: fixed; inset: 0; background: rgba(5, 7, 10, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.3s ease; }
 .auth-card { max-width: 450px; width: 90%; }
-.control-panel { background: linear-gradient(145deg, rgba(30, 41, 59, 0.15) 0%, rgba(15, 23, 42, 0.4) 100%); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); text-align: left; padding: 40px; border-radius: 32px; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); width: 100%; margin: 0 auto; box-sizing: border-box; }
+.control-panel { background: linear-gradient(145deg, rgba(30, 41, 59, 0.15) 0%, rgba(15, 23, 42, 0.4) 100%); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); text-align: left; padding: 40px; border-radius: 32px; border: 1px solid var(--border-glass); box-shadow: 0 30px 60px rgba(0,0,0,0.5); width: 100%; margin: 0 auto; box-sizing: border-box; overflow-x: hidden; }
 .sidebar-panel { padding: 25px 20px; border-radius: 24px; }
 .sidebar-section { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 15px; margin-bottom: 20px; }
 .input-row { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; width: 100%; box-sizing: border-box; }
@@ -30,7 +30,16 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 28px
 @media (hover: hover) { .nav-link:hover { color: var(--text-main); background: rgba(255,255,255,0.1); } .primary-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(59, 130, 246, 0.5); } .secondary-btn:hover { background: rgba(255,255,255,0.05); color: #f8fafc; border-color: #f8fafc; } }
 select.glass-input { appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"), linear-gradient(145deg, rgba(14, 165, 233, 0.03) 0%, rgba(15, 23, 42, 0.3) 100%); background-repeat: no-repeat, no-repeat; background-position: right 15px center, center; background-size: 16px, 100%; padding-right: 40px; cursor: pointer; }
 select.glass-input:focus { background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"), linear-gradient(145deg, rgba(14, 165, 233, 0.1) 0%, rgba(15, 23, 42, 0.5) 100%); background-repeat: no-repeat, no-repeat; background-position: right 15px center, center; background-size: 16px, 100%; }
-@media (max-width: 600px) { .input-row { flex-direction: column; align-items: stretch; gap: 15px; } .input-group { width: 100%; } .slider-container { padding: 10px 0; } }
+
+@media (max-width: 768px) {
+    .control-panel { padding: 20px; border-radius: 24px; }
+    .modal-content.control-panel { padding: calc(20px + env(safe-area-inset-top)) 15px 20px 15px; border-radius: 0; }
+    .sidebar-section { padding: 12px; margin-bottom: 15px; }
+    .input-row { flex-direction: column; align-items: stretch; gap: 15px; }
+    .input-group { width: 100%; }
+    .slider-container { padding: 10px 0; }
+}
+
 [data-tooltip] { position: relative; cursor: help; }
 [data-tooltip]::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-8px); background: rgba(15, 23, 42, 0.95); color: #f8fafc; padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; white-space: normal; width: max-content; max-width: 250px; text-align: center; border: 1px solid var(--border-highlight); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1000; font-weight: 500; line-height: 1.4; text-transform: none; letter-spacing: normal; }
 [data-tooltip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(-4px); }

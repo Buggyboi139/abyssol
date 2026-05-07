@@ -129,3 +129,16 @@ export async function saveBudgetLimit(userId, category, monthlyLimit) {
     if (error) console.warn('saveBudgetLimit error', error);
     return error;
 }
+
+export async function recordCategorizationCorrection(userId, merchantName, oldCategory, newCategory) {
+    const { error } = await supabase
+        .from('categorization_corrections')
+        .upsert({
+            user_id: userId,
+            merchant_name: merchantName,
+            old_category: oldCategory,
+            corrected_category: newCategory,
+            created_at: new Date()
+        }, { onConflict: 'user_id,merchant_name' });
+    if (error) console.warn('recordCategorizationCorrection (non-critical):', error.message);
+}

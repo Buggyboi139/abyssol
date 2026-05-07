@@ -143,6 +143,15 @@ export async function triggerCalculations(options = {}) {
     updateBenchmarking();
 }
 
+function confidenceBadge(t) {
+    if (typeof t.confidence !== 'number') return '';
+    if (t.type === 'income' || Number(t.amount) > 0) return '';
+    if (t.confidence >= 0.75) return '';
+    const label = t.confidence < 0.5 ? 'Low confidence' : 'Check category';
+    const color = t.confidence < 0.5 ? '#fb7185' : '#f59e0b';
+    return `<span title="AI confidence: ${Math.round(t.confidence * 100)}%" style="font-size:0.7rem; color:${color}; background:${color}22; padding:2px 7px; border-radius:10px; border:1px solid ${color}44; white-space:nowrap; margin-right:6px;">${label}</span>`;
+}
+
 function renderFlatLedger(filteredTransactions) {
     const ledger = document.getElementById('historicalLedger');
     if (!ledger) return;
@@ -171,6 +180,7 @@ function renderFlatLedger(filteredTransactions) {
                 ${buildCategorySelectHTML(currentCat)}
             </select>
             ` : `<span style="margin-right:10px; font-size:0.8rem; color:#34d399; min-width:120px; display:inline-block; text-align:center;">Income</span>`}
+            ${confidenceBadge(t)}
             <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
             <button class="delete-tx-btn" data-id="${t.id}" title="Delete">🗑️</button>
         </div>`;

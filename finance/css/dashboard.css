@@ -65,3 +65,10 @@
     .mtd-panel > div:first-child { flex-direction: column; }
     .mtd-panel > div:first-child > div:nth-child(2) { justify-content: space-between; }
 }
+
+/* Upload progress steps */
+.upload-step { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--text-muted); }
+.upload-step.step-done { color: #34d399; }
+.upload-step.step-active { color: #38bdf8; }
+.upload-step.step-error { color: #fb7185; }
+.step-icon { font-size: 0.9rem; width: 20px; text-align: center; }

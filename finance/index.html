@@ -211,6 +211,10 @@
 <select id="filterCategory" class="glass-input btn-small" style="width: auto;">
 <option value="all">All Categories</option>
 </select>
+<select id="filterConfidence" class="glass-input btn-small" style="width: auto;">
+  <option value="all">All Confidence</option>
+  <option value="low">Low Confidence Only</option>
+</select>
 </div>
 
 <div class="dashboard-grid">
@@ -613,6 +617,20 @@ Click the button above to get a personalized analysis of your spending patterns.
 <input type="file" id="statementUpload" accept=".pdf,.csv" class="hidden-element">
 <label for="statementUpload" class="primary-btn" style="display:inline-block; margin-top:0; padding:12px 30px; font-size:1rem;">Select File</label>
 <div id="uploadStatus" class="mt-15 fs-09" style="color:var(--text-muted);">No file selected</div>
+<div id="uploadProgressSteps" class="hidden-element mt-15" style="display:flex; flex-direction:column; gap:8px;">
+  <div class="upload-step" id="stepUpload">
+    <span class="step-icon">⏳</span>
+    <span class="step-label">Uploading file...</span>
+  </div>
+  <div class="upload-step" id="stepProcess">
+    <span class="step-icon">⏳</span>
+    <span class="step-label">Reading transactions with AI...</span>
+  </div>
+  <div class="upload-step" id="stepSave">
+    <span class="step-icon">⏳</span>
+    <span class="step-label">Saving to your account...</span>
+  </div>
+</div>
 </div>
 <div class="gt-label mt-25 mb-10">Previous Uploads</div>
 <div id="historicalStatementsList" class="line-items mt-15"></div>

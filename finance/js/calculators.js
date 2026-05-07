@@ -49,6 +49,10 @@ export function filterTransactions(transactions, filters) {
         });
     }
 
+    if (filters.confidence && filters.confidence === 'low') {
+        filtered = filtered.filter(t => typeof t.confidence === 'number' && t.confidence < 0.75);
+    }
+
     return filtered;
 }
 

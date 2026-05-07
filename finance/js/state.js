@@ -30,7 +30,8 @@ export const state = {
     compareLocationData: null,
     filters: {
         dateRange: 'this-month',
-        category: 'all'
+        category: 'all',
+        confidence: 'all'
     },
     activeView: 'timeline'
 };

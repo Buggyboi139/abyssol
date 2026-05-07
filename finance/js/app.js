@@ -1,4 +1,4 @@
-import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory, deleteTransaction, addTransaction } from './api.js';
+import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory, deleteTransaction, addTransaction, recordCategorizationCorrection } from './api.js';
 import { state } from './state.js';
 import { initAuth } from './auth.js';
 import { triggerCalculations, renderStatementList, buildCategorySelectHTML } from './ui.js';
@@ -110,6 +110,46 @@ function renderCompareView() {
     }
 }
 
+function buildMerchantMemory(transactions, limit = 40) {
+    const merchantVotes = {};
+    transactions.forEach(t => {
+        if (t.type === 'income' || Number(t.amount) > 0) return;
+        const merchant = (t.clean_merchant || t.description || '').trim();
+        const cat = t.category || 'Uncategorized';
+        if (!merchant || merchant.length < 2) return;
+        if (!merchantVotes[merchant]) merchantVotes[merchant] = {};
+        merchantVotes[merchant][cat] = (merchantVotes[merchant][cat] || 0) + 1;
+    });
+
+    const merchantMap = {};
+    Object.entries(merchantVotes).forEach(([merchant, votes]) => {
+        const topCat = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (topCat && topCat !== 'Uncategorized') merchantMap[merchant] = topCat;
+    });
+
+    const sorted = Object.entries(merchantMap)
+        .sort((a, b) => {
+            const aTotal = Object.values(merchantVotes[a[0]]).reduce((s, v) => s + v, 0);
+            const bTotal = Object.values(merchantVotes[b[0]]).reduce((s, v) => s + v, 0);
+            return bTotal - aTotal;
+        })
+        .slice(0, limit);
+
+    if (sorted.length === 0) return '';
+    return '\n\nKNOWN MERCHANT MAPPINGS (use these exact categories for these merchants):\n' +
+        sorted.map(([m, c]) => `- "${m}" → ${c}`).join('\n');
+}
+
+function setUploadStep(stepId, status) {
+    const stepEl = document.getElementById(stepId);
+    if (!stepEl) return;
+    stepEl.className = 'upload-step' + (status !== 'pending' ? ` step-${status}` : '');
+    const icon = stepEl.querySelector('.step-icon');
+    if (icon) {
+        icon.textContent = status === 'done' ? '✅' : status === 'error' ? '❌' : status === 'active' ? '🔄' : '⏳';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await fetchMarketData(state);
     populateCategoryFilters();
@@ -161,6 +201,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.filters.category = e.target.value;
         triggerCalculations();
     });
+    document.getElementById('filterConfidence')?.addEventListener('change', (e) => {
+        state.filters.confidence = e.target.value;
+        triggerCalculations();
+    });
 
     document.getElementById('viewTimelineBtn')?.addEventListener('click', () => switchView('timeline'));
     document.getElementById('viewCategoryBtn')?.addEventListener('click', () => switchView('category'));
@@ -174,9 +218,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const newCat = e.target.value;
             const tx = state.transactions.find(t => t.id === id);
             if (tx) {
+                const oldCat = tx.category;
+                const merchantName = (tx.clean_merchant || tx.description || '').trim();
                 tx.category = newCat;
                 triggerCalculations();
                 updateTransactionCategory(id, newCat).catch(err => console.error('Failed to update category', err));
+                if (state.user && merchantName) {
+                    recordCategorizationCorrection(state.user.id, merchantName, oldCat, newCat)
+                        .catch(() => {});
+                }
             }
         }
     });
@@ -300,19 +350,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const file = e.target.files[0];
         if (!file || !state.user) return;
         const statusEl = document.getElementById('uploadStatus');
+        const stepsEl = document.getElementById('uploadProgressSteps');
+        let currentStep = 'stepUpload';
+
+        ['stepUpload', 'stepProcess', 'stepSave'].forEach(s => setUploadStep(s, 'pending'));
+        stepsEl?.classList.remove('hidden-element');
+        if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--text-muted)'; }
 
         try {
-            statusEl.textContent = 'Uploading to secure storage...';
-            statusEl.style.color = '#60a5fa';
-
             let mimeType = file.type;
             if (file.name.toLowerCase().endsWith('.csv')) mimeType = 'text/csv';
 
+            currentStep = 'stepUpload';
+            setUploadStep('stepUpload', 'active');
             const filePath = `${state.user.id}/${Date.now()}_${file.name}`;
             const { error: uploadError } = await supabase.storage.from('statements').upload(filePath, file);
             if (uploadError) throw new Error('Upload failed: ' + uploadError.message);
+            setUploadStep('stepUpload', 'done');
 
-            statusEl.textContent = 'Processing with AI — this may take a moment...';
+            currentStep = 'stepProcess';
+            setUploadStep('stepProcess', 'active');
 
             const categoryList = FLAT_CATEGORIES.join(', ');
             const promptEnhancement = `CRITICAL RULES FOR TRANSACTION NORMALIZATION:
@@ -323,14 +380,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 5. Category MUST be one of these exact strings: ${categoryList}.
 6. Use the most specific subcategory possible (e.g. "Food & Dining > Groceries" rather than just "Food & Dining").`;
 
+            const merchantMemory = buildMerchantMemory(state.transactions);
+            const fullPrompt = promptEnhancement + merchantMemory;
+
             const { data, error: funcError } = await supabase.functions.invoke('process-statement', {
-                body: { filePath, mimeType, userId: state.user.id, prompt: promptEnhancement }
+                body: { filePath, mimeType, userId: state.user.id, prompt: fullPrompt }
             });
 
             if (funcError) throw new Error(funcError.message);
             if (data?.error) throw new Error(data.error);
+            setUploadStep('stepProcess', 'done');
 
-            statusEl.textContent = 'Saving transactions...';
+            currentStep = 'stepSave';
+            setUploadStep('stepSave', 'active');
+
             let transactions = Array.isArray(data?.transactions)
                 ? data.transactions
                 : JSON.parse((data?.result || '[]').replace(/```json/gi, '').replace(/```/g, '').trim());
@@ -354,22 +417,68 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             });
 
-            if (transactions.length > 0) {
-                const { error: insertError } = await supabase.from('transactions').insert(transactions);
+            const existingSet = new Set(
+                state.transactions.map(t =>
+                    `${t.date}|${Math.round(Math.abs(Number(t.amount)) * 100)}|${(t.clean_merchant || t.description || '').toLowerCase().trim().substring(0, 30)}`
+                )
+            );
+
+            const newTransactions = transactions.filter(t => {
+                const key = `${t.date}|${Math.round(Math.abs(Number(t.amount)) * 100)}|${(t.clean_merchant || t.description || '').toLowerCase().trim().substring(0, 30)}`;
+                return !existingSet.has(key);
+            });
+
+            const skipped = transactions.length - newTransactions.length;
+
+            if (newTransactions.length > 0) {
+                const { error: insertError } = await supabase.from('transactions').insert(newTransactions);
                 if (insertError) throw insertError;
             }
 
-            statusEl.textContent = `Done! ${transactions.length} transactions imported.`;
-            statusEl.style.color = '#34d399';
+            setUploadStep('stepSave', 'done');
+
+            const msg = `Done! ${newTransactions.length} transaction${newTransactions.length !== 1 ? 's' : ''} imported${skipped > 0 ? ` · ${skipped} duplicate${skipped > 1 ? 's' : ''} skipped` : ''}.`;
+            if (statusEl) { statusEl.textContent = msg; statusEl.style.color = '#34d399'; }
 
             state.transactions = await fetchTransactions(state.user.id);
             triggerCalculations();
             renderStatementList();
         } catch (err) {
-            statusEl.textContent = 'Error: ' + err.message;
-            statusEl.style.color = '#fb7185';
+            setUploadStep(currentStep, 'error');
+            if (statusEl) { statusEl.textContent = 'Error: ' + err.message; statusEl.style.color = '#fb7185'; }
         } finally {
             e.target.value = '';
+            setTimeout(() => {
+                stepsEl?.classList.add('hidden-element');
+                ['stepUpload', 'stepProcess', 'stepSave'].forEach(s => setUploadStep(s, 'pending'));
+            }, 4000);
         }
     });
+
+    const dropzone = document.getElementById('uploadDropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '#38bdf8';
+            dropzone.style.background = 'rgba(56, 189, 248, 0.08)';
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.style.borderColor = '';
+            dropzone.style.background = '';
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '';
+            dropzone.style.background = '';
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+            const uploadInput = document.getElementById('statementUpload');
+            if (uploadInput) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                uploadInput.files = dt.files;
+                uploadInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
 });

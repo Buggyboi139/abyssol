@@ -194,117 +194,6 @@ export function drawBudgetBarsChart(categories, actuals, limits) {
             borderRadius: 4,
         });
     }
-    
-    export function drawCategoryTimeSeriesChart(categoryMonthData, selectedCategories) {
-        const ctx = document.getElementById('categoryTimeSeriesChart')?.getContext('2d');
-        if (!ctx) return;
-    
-        const monthSet = new Set();
-        selectedCategories.forEach(cat => {
-            Object.keys(categoryMonthData[cat] || {}).forEach(m => monthSet.add(m));
-        });
-        const labels = Array.from(monthSet).sort();
-    
-        const CH_COLORS = ['#f59e0b','#0ea5e9','#8b5cf6','#34d399','#fb7185','#6366f1','#ec4899','#38bdf8','#a78bfa','#4ade80','#fbbf24','#94a3b8'];
-    
-        const datasets = selectedCategories.map((cat, i) => {
-            const color = CH_COLORS[i % CH_COLORS.length];
-            return {
-                label: cat,
-                data: labels.map(m => categoryMonthData[cat]?.[m] || 0),
-                borderColor: color,
-                backgroundColor: color + '22',
-                fill: false,
-                tension: 0.3,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-            };
-        });
-    
-        if (charts.categoryTimeSeries) {
-            charts.categoryTimeSeries.data.labels = labels;
-            charts.categoryTimeSeries.data.datasets = datasets;
-            charts.categoryTimeSeries.update();
-            return;
-        }
-    
-        charts.categoryTimeSeries = new Chart(ctx, {
-            type: 'line',
-            data: { labels, datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12, padding: 16 } },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-                        }
-                    }
-                },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                    y: {
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() }
-                    }
-                }
-            }
-        });
-    }
-    
-    export function drawMonthComparisonChart(months, categoryTotals) {
-        const ctx = document.getElementById('monthComparisonChart')?.getContext('2d');
-        if (!ctx) return;
-    
-        const categories = Object.keys(categoryTotals).sort((a, b) => {
-            const totA = months.reduce((s, m) => s + (categoryTotals[a][m] || 0), 0);
-            const totB = months.reduce((s, m) => s + (categoryTotals[b][m] || 0), 0);
-            return totB - totA;
-        });
-    
-        const MONTH_COLORS = ['#0ea5e9','#8b5cf6','#34d399','#fb7185','#f59e0b','#6366f1'];
-    
-        const datasets = months.map((month, i) => ({
-            label: new Date(month + '-01').toLocaleString('default', { month: 'short', year: '2-digit' }),
-            data: categories.map(cat => categoryTotals[cat]?.[month] || 0),
-            backgroundColor: MONTH_COLORS[i % MONTH_COLORS.length],
-            borderRadius: 4,
-        }));
-    
-        if (charts.monthComparison) {
-            charts.monthComparison.data.labels = categories;
-            charts.monthComparison.data.datasets = datasets;
-            charts.monthComparison.update();
-            return;
-        }
-    
-        charts.monthComparison = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: categories, datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12 } },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
-                        }
-                    }
-                },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', maxRotation: 30 } },
-                    y: {
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() }
-                    }
-                }
-            }
-        });
-    }
 
     charts.budgetBars = new Chart(ctx, {
         type: 'bar',
@@ -324,6 +213,117 @@ export function drawBudgetBarsChart(categories, actuals, limits) {
             scales: {
                 x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() } },
                 y: { grid: { display: false }, ticks: { color: '#f8fafc' } }
+            }
+        }
+    });
+}
+    
+export function drawCategoryTimeSeriesChart(categoryMonthData, selectedCategories) {
+    const ctx = document.getElementById('categoryTimeSeriesChart')?.getContext('2d');
+    if (!ctx) return;
+
+    const monthSet = new Set();
+    selectedCategories.forEach(cat => {
+        Object.keys(categoryMonthData[cat] || {}).forEach(m => monthSet.add(m));
+    });
+    const labels = Array.from(monthSet).sort();
+
+    const CH_COLORS = ['#f59e0b','#0ea5e9','#8b5cf6','#34d399','#fb7185','#6366f1','#ec4899','#38bdf8','#a78bfa','#4ade80','#fbbf24','#94a3b8'];
+
+    const datasets = selectedCategories.map((cat, i) => {
+        const color = CH_COLORS[i % CH_COLORS.length];
+        return {
+            label: cat,
+            data: labels.map(m => categoryMonthData[cat]?.[m] || 0),
+            borderColor: color,
+            backgroundColor: color + '22',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+        };
+    });
+
+    if (charts.categoryTimeSeries) {
+        charts.categoryTimeSeries.data.labels = labels;
+        charts.categoryTimeSeries.data.datasets = datasets;
+        charts.categoryTimeSeries.update();
+        return;
+    }
+
+    charts.categoryTimeSeries = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12, padding: 16 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() }
+                }
+            }
+        }
+    });
+}
+
+export function drawMonthComparisonChart(months, categoryTotals) {
+    const ctx = document.getElementById('monthComparisonChart')?.getContext('2d');
+    if (!ctx) return;
+
+    const categories = Object.keys(categoryTotals).sort((a, b) => {
+        const totA = months.reduce((s, m) => s + (categoryTotals[a][m] || 0), 0);
+        const totB = months.reduce((s, m) => s + (categoryTotals[b][m] || 0), 0);
+        return totB - totA;
+    });
+
+    const MONTH_COLORS = ['#0ea5e9','#8b5cf6','#34d399','#fb7185','#f59e0b','#6366f1'];
+
+    const datasets = months.map((month, i) => ({
+        label: new Date(month + '-01').toLocaleString('default', { month: 'short', year: '2-digit' }),
+        data: categories.map(cat => categoryTotals[cat]?.[month] || 0),
+        backgroundColor: MONTH_COLORS[i % MONTH_COLORS.length],
+        borderRadius: 4,
+    }));
+
+    if (charts.monthComparison) {
+        charts.monthComparison.data.labels = categories;
+        charts.monthComparison.data.datasets = datasets;
+        charts.monthComparison.update();
+        return;
+    }
+
+    charts.monthComparison = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: categories, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 12 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', maxRotation: 30 } },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#94a3b8', callback: v => '$' + v.toLocaleString() }
+                }
             }
         }
     });

@@ -31,7 +31,8 @@ export const state = {
     filters: {
         dateRange: 'this-month',
         category: 'all',
-        confidence: 'all'
+        confidence: 'all',
+        tag: 'all'
     },
     activeView: 'timeline'
 };

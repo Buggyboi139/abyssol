@@ -53,6 +53,13 @@ export function filterTransactions(transactions, filters) {
         filtered = filtered.filter(t => typeof t.confidence === 'number' && t.confidence < 0.75);
     }
 
+    if (filters.tag && filters.tag !== 'all') {
+        filtered = filtered.filter(t => {
+            const tags = Array.isArray(t.tags) ? t.tags : [];
+            return tags.includes(filters.tag);
+        });
+    }
+
     return filtered;
 }
 

@@ -72,3 +72,26 @@
 .upload-step.step-active { color: #38bdf8; }
 .upload-step.step-error { color: #fb7185; }
 .step-icon { font-size: 0.9rem; width: 20px; text-align: center; }
+
+/* Transaction tag chips */
+.tx-tags-row { min-height: 24px; }
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    user-select: none;
+}
+.tag-chip:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+}
+.tag-inline-input:focus { border-color: #38bdf8; }

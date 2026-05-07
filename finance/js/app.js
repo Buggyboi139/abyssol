@@ -1,4 +1,4 @@
-import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory, deleteTransaction, addTransaction, recordCategorizationCorrection } from './api.js';
+import { fetchMarketData, fetchTransactions, supabase, updateTransactionCategory, deleteTransaction, addTransaction, recordCategorizationCorrection, updateTransactionTags } from './api.js';
 import { state } from './state.js';
 import { initAuth } from './auth.js';
 import { triggerCalculations, renderStatementList, buildCategorySelectHTML } from './ui.js';
@@ -150,6 +150,18 @@ function setUploadStep(stepId, status) {
     }
 }
 
+function updateTagFilterOptions() {
+    const select = document.getElementById('filterTag');
+    if (!select) return;
+    const currentVal = select.value;
+    const allTags = new Set();
+    state.transactions.forEach(t => {
+        if (Array.isArray(t.tags)) t.tags.forEach(tag => allTags.add(tag));
+    });
+    select.innerHTML = '<option value="all">All Tags</option>' +
+        Array.from(allTags).sort().map(tag => `<option value="${tag}" ${currentVal === tag ? 'selected' : ''}>${tag}</option>`).join('');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await fetchMarketData(state);
     populateCategoryFilters();
@@ -205,6 +217,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.filters.confidence = e.target.value;
         triggerCalculations();
     });
+    document.getElementById('filterTag')?.addEventListener('change', (e) => {
+        state.filters.tag = e.target.value;
+        triggerCalculations();
+    });
+
+    window.addEventListener('transactionsUpdated', updateTagFilterOptions);
 
     document.getElementById('viewTimelineBtn')?.addEventListener('click', () => switchView('timeline'));
     document.getElementById('viewCategoryBtn')?.addEventListener('click', () => switchView('category'));
@@ -237,6 +255,58 @@ document.addEventListener('DOMContentLoaded', async () => {
             state.transactions = state.transactions.filter(t => t.id !== id);
             triggerCalculations();
             deleteTransaction(id).catch(err => console.error('Failed to delete transaction', err));
+        }
+
+        if (e.target.classList.contains('tag-chip')) {
+            const id = e.target.getAttribute('data-id');
+            const tag = e.target.getAttribute('data-tag');
+            const tx = state.transactions.find(t => t.id === id);
+            if (tx) {
+                tx.tags = (Array.isArray(tx.tags) ? tx.tags : []).filter(t => t !== tag);
+                triggerCalculations();
+                updateTagFilterOptions();
+                updateTransactionTags(id, tx.tags).catch(err => console.error('Failed to update tags', err));
+            }
+        }
+
+        if (e.target.classList.contains('btn-add-tag')) {
+            const id = e.target.getAttribute('data-id');
+            const tx = state.transactions.find(t => t.id === id);
+            if (!tx) return;
+
+            const existingInput = e.target.parentElement.querySelector('.tag-inline-input');
+            if (existingInput) { existingInput.focus(); return; }
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'tag-inline-input glass-input btn-small';
+            input.placeholder = 'Add tag…';
+            input.style.cssText = 'width:90px; padding:2px 8px; font-size:0.75rem; border-radius:12px;';
+
+            const existingTagSet = new Set();
+            state.transactions.forEach(t => { if (Array.isArray(t.tags)) t.tags.forEach(tag => existingTagSet.add(tag)); });
+            if (existingTagSet.size > 0) {
+                input.setAttribute('list', 'tagSuggestions');
+            }
+
+            e.target.parentElement.insertBefore(input, e.target);
+            input.focus();
+
+            const commitTag = async () => {
+                const newTag = input.value.trim().toLowerCase().replace(/\s+/g, '-');
+                input.remove();
+                if (!newTag) return;
+                tx.tags = [...new Set([...(Array.isArray(tx.tags) ? tx.tags : []), newTag])];
+                triggerCalculations();
+                updateTagFilterOptions();
+                updateTransactionTags(id, tx.tags).catch(err => console.error('Failed to update tags', err));
+            };
+
+            input.addEventListener('blur', commitTag);
+            input.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Enter') commitTag();
+                if (ev.key === 'Escape') input.remove();
+            });
         }
     });
 
@@ -291,13 +361,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const filtered = filterTransactions(state.transactions, state.filters);
             const summary = getPreProcessingSummary(filtered);
 
+            const usedTags = new Set();
+            filtered.forEach(t => { if (Array.isArray(t.tags)) t.tags.forEach(tag => usedTags.add(tag)); });
+
             const payload = {
                 income: state.income,
                 taxFreeIncome: state.taxFreeIncome,
                 portfolio: state.portfolio,
                 age: state.age,
                 location: state.location,
-                transactionsSummary: summary
+                transactionsSummary: summary,
+                tags: usedTags.size > 0 ? Array.from(usedTags) : undefined
             };
 
             const { data, error } = await supabase.functions.invoke('ai-advisor', {

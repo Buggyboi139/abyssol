@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { fetchLocationData, saveUserProfile, listStatements, saveBudgetLimit } from './api.js';
+import { fetchLocationData, saveUserProfile, listStatements, saveBudgetLimit, updateTransactionTags } from './api.js';
 import { calculateCashFlow, calculateHousingMatrix, calculateAutoMatrix, calculateFIRE, groupTransactionsByMonth, getPercentile, groupTransactionsByCategory, filterTransactions, groupTransactionsByMerchant, calculateSpendingPace, normalizeCat, calculateBudgetStatus, calculateRollingAverage } from './calculators.js';
 import { drawHistoryChart, drawDonutChart, drawFireChart, drawBellCurve, drawCategoryDonutChart, drawMerchantChart, drawBudgetBarsChart } from './charts.js';
 import { CATEGORY_TAXONOMY, FLAT_CATEGORIES, PARENT_CATEGORIES, getCategoryColor, getCategoryParent } from './categories.js';
@@ -141,6 +141,7 @@ export async function triggerCalculations(options = {}) {
     updatePurchases();
     updateFIRE();
     updateBenchmarking();
+    window.dispatchEvent(new CustomEvent('transactionsUpdated'));
 }
 
 function confidenceBadge(t) {
@@ -150,6 +151,14 @@ function confidenceBadge(t) {
     const label = t.confidence < 0.5 ? 'Low confidence' : 'Check category';
     const color = t.confidence < 0.5 ? '#fb7185' : '#f59e0b';
     return `<span title="AI confidence: ${Math.round(t.confidence * 100)}%" style="font-size:0.7rem; color:${color}; background:${color}22; padding:2px 7px; border-radius:10px; border:1px solid ${color}44; white-space:nowrap; margin-right:6px;">${label}</span>`;
+}
+
+function getAllUserTags() {
+    const tagSet = new Set();
+    state.transactions.forEach(t => {
+        if (Array.isArray(t.tags)) t.tags.forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
 }
 
 function renderFlatLedger(filteredTransactions) {
@@ -169,6 +178,11 @@ function renderFlatLedger(filteredTransactions) {
         const desc = (t.clean_merchant || t.description || t.raw_description || t.category || 'Transaction').toString();
         const bg = isIncome ? 'rgba(52, 211, 153, 0.05)' : 'transparent';
         const currentCat = normalizeCat(t.category);
+        const txTags = Array.isArray(t.tags) ? t.tags : [];
+        const tagsHTML = `<div class="tx-tags-row" data-id="${t.id}" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-right:8px;">
+    ${txTags.map(tag => `<span class="tag-chip" data-tag="${tag}" data-id="${t.id}" title="Click to remove">${tag} ×</span>`).join('')}
+    <button type="button" class="add-tag-btn btn-add-tag" data-id="${t.id}" title="Add tag" style="background:transparent; border:1px dashed rgba(255,255,255,0.2); color:var(--text-muted); border-radius:12px; padding:2px 8px; font-size:0.7rem; cursor:pointer; white-space:nowrap;">+ tag</button>
+</div>`;
 
         return `<div class="item-row" style="align-items:center; background: ${bg}; padding: 12px; border-radius: 8px;">
             <span style="flex:1; display:flex; flex-direction:column; gap:4px;">
@@ -180,6 +194,7 @@ function renderFlatLedger(filteredTransactions) {
                 ${buildCategorySelectHTML(currentCat)}
             </select>
             ` : `<span style="margin-right:10px; font-size:0.8rem; color:#34d399; min-width:120px; display:inline-block; text-align:center;">Income</span>`}
+            ${tagsHTML}
             ${confidenceBadge(t)}
             <span style="color:${color}; font-weight:600; width:80px; text-align:right;">${prefix}${fmt(Math.abs(amt))}</span>
             <button class="delete-tx-btn" data-id="${t.id}" title="Delete">🗑️</button>

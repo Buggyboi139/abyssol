@@ -142,3 +142,12 @@ export async function recordCategorizationCorrection(userId, merchantName, oldCa
         }, { onConflict: 'user_id,merchant_name' });
     if (error) console.warn('recordCategorizationCorrection (non-critical):', error.message);
 }
+
+export async function updateTransactionTags(id, tags) {
+    const { error } = await supabase
+        .from('transactions')
+        .update({ tags })
+        .eq('id', id);
+    if (error) console.warn('updateTransactionTags error:', error.message);
+    return error;
+}

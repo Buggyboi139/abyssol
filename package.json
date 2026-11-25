@@ -1,0 +1,28 @@
+{
+  "name": "abyssol",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Private dashboard for the Abyssol games: Cloudflare Pages, Supabase, and scheduled sync jobs.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "bun test",
+    "local": "bun scripts/local.mjs",
+    "pages": "wrangler pages dev dist --port 8788 --compatibility-date=2025-01-01",
+    "hash-password": "node scripts/hash-password.mjs",
+    "sync": "node sync/run.mjs",
+    "sync:hourly": "node sync/run.mjs hourly",
+    "sync:daily": "node sync/run.mjs daily"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.7",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
+    "vite": "^6.0.7",
+    "wrangler": "^3.107.0"
+  }
+}

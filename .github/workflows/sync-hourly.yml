@@ -1,0 +1,62 @@
+# Hourly pull: RevenueCat, PostHog, and each game's own database counts.
+# A source with no secret set is skipped and says so; a platform that is not
+# live is skipped too. Results land in the central database (sync_runs) and in
+# this run's summary.
+name: Sync hourly
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days back to pull (default 3)
+        required: false
+        default: ''
+      game:
+        description: One game's slug (default every game)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-hourly
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+      POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+      PEARL_TIDE_REVENUECAT_API_KEY: ${{ secrets.PEARL_TIDE_REVENUECAT_API_KEY }}
+      PEARL_TIDE_POSTHOG_PROJECT_ID: ${{ secrets.PEARL_TIDE_POSTHOG_PROJECT_ID }}
+      PEARL_TIDE_GAME_DB_URL: ${{ secrets.PEARL_TIDE_GAME_DB_URL }}
+      CHILLWATER_REVENUECAT_API_KEY: ${{ secrets.CHILLWATER_REVENUECAT_API_KEY }}
+      CHILLWATER_POSTHOG_PROJECT_ID: ${{ secrets.CHILLWATER_POSTHOG_PROJECT_ID }}
+      CHILLWATER_GAME_DB_URL: ${{ secrets.CHILLWATER_GAME_DB_URL }}
+      GAME3_REVENUECAT_API_KEY: ${{ secrets.GAME3_REVENUECAT_API_KEY }}
+      GAME3_POSTHOG_PROJECT_ID: ${{ secrets.GAME3_POSTHOG_PROJECT_ID }}
+      GAME3_GAME_DB_URL: ${{ secrets.GAME3_GAME_DB_URL }}
+      GAME4_REVENUECAT_API_KEY: ${{ secrets.GAME4_REVENUECAT_API_KEY }}
+      GAME4_POSTHOG_PROJECT_ID: ${{ secrets.GAME4_POSTHOG_PROJECT_ID }}
+      GAME4_GAME_DB_URL: ${{ secrets.GAME4_GAME_DB_URL }}
+      INPUT_DAYS: ${{ inputs.days }}
+      INPUT_GAME: ${{ inputs.game }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.x
+      - run: bun install --frozen-lockfile
+      - name: Pull
+        run: |
+          args=(hourly)
+          if [[ "$INPUT_DAYS" =~ ^[0-9]+$ ]]; then args+=(--days "$INPUT_DAYS"); fi
+          if [[ "$INPUT_GAME" =~ ^[a-z0-9-]+$ ]]; then args+=(--game "$INPUT_GAME"); fi
+          bun sync/run.mjs "${args[@]}"

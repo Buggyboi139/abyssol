@@ -1,0 +1,61 @@
+# Twice-daily pull: App Store Connect (sales and analytics reports) and Google
+# Play (vitals, installs, ratings, reviews). Both stores publish a day at a
+# time, a day or two late, so each run reaches back ten days and overwrites.
+# A platform that is not live is skipped and says so.
+name: Sync daily
+
+on:
+  schedule:
+    - cron: '20 2,14 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Days back to pull (default 10)
+        required: false
+        default: ''
+      game:
+        description: One game's slug (default every game)
+        required: false
+        default: ''
+      create_report_request:
+        description: Apple, once, with an Admin key - make the ongoing analytics report request
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-daily
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      ASC_VENDOR_NUMBER: ${{ secrets.ASC_VENDOR_NUMBER }}
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_PLAY_BUCKET: ${{ secrets.GOOGLE_PLAY_BUCKET }}
+      INPUT_DAYS: ${{ inputs.days }}
+      INPUT_GAME: ${{ inputs.game }}
+      INPUT_CREATE: ${{ inputs.create_report_request }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.x
+      - run: bun install --frozen-lockfile
+      - name: Pull
+        run: |
+          args=(daily)
+          if [[ "$INPUT_DAYS" =~ ^[0-9]+$ ]]; then args+=(--days "$INPUT_DAYS"); fi
+          if [[ "$INPUT_GAME" =~ ^[a-z0-9-]+$ ]]; then args+=(--game "$INPUT_GAME"); fi
+          if [[ "$INPUT_CREATE" == "true" ]]; then args+=(--create-report-request); fi
+          bun sync/run.mjs "${args[@]}"

@@ -1,0 +1,71 @@
+{
+  "_": "The games the dashboard shows, in tab order. Only public identifiers belong here: keys, tokens, and account numbers come from environment variables named <env_prefix>_* (see README.md). A platform's sync runs only while its status is live.",
+  "games": [
+    {
+      "slug": "pearl-tide",
+      "display_name": "Pearl Tide",
+      "env_prefix": "PEARL_TIDE",
+      "status": "live",
+      "ios_bundle_id": "com.pearltide.swim",
+      "android_package_id": "com.pearltide.swim",
+      "platforms": {
+        "ios": { "status": "live", "app_store_id": "6820164397" },
+        "android": { "status": "in_review" }
+      },
+      "posthog": { "platform_property": "platform", "error_event": "App:Error" },
+      "game_db": {
+        "label": "Reef Runway",
+        "queries": {
+          "community_players_total": "select count(*) from runway.players where not house",
+          "community_active_players_7d": "select count(distinct p.id) from runway.players p where not p.house and (exists (select 1 from runway.ratings r where r.voter = p.id and r.at > now() - interval '7 days') or exists (select 1 from runway.entries e where e.player = p.id and e.updated_at > now() - interval '7 days'))",
+          "community_weekly_entries": "select count(*) from runway.entries e join runway.weeks w on w.id = e.week join runway.players p on p.id = e.player where w.state = 'live' and not p.house"
+        }
+      }
+    },
+    {
+      "slug": "chillwater-lake",
+      "display_name": "Chillwater Lake",
+      "env_prefix": "CHILLWATER",
+      "status": "in_review",
+      "ios_bundle_id": "com.lakeangler.game",
+      "android_package_id": "com.lakeangler.game",
+      "platforms": {
+        "ios": { "status": "in_review", "app_store_id": "6838396514" },
+        "android": { "status": "prelaunch" }
+      },
+      "posthog": { "platform_property": "platform", "error_event": "App:Error" },
+      "game_db": {
+        "label": "Leaderboards",
+        "queries": {
+          "community_players_total": "select count(*) from boards.players where not test",
+          "community_active_players_7d": "select count(distinct c.player) from boards.catches c join boards.players p on p.id = c.player where not p.test and c.at > now() - interval '7 days'",
+          "community_weekly_entries": "select count(*) from boards.entries e join boards.weeks w on w.id = e.week join boards.players p on p.id = e.player where w.state = 'open' and not p.test"
+        }
+      }
+    },
+    {
+      "slug": "game-3",
+      "display_name": "Game 3",
+      "env_prefix": "GAME3",
+      "status": "prelaunch",
+      "ios_bundle_id": null,
+      "android_package_id": null,
+      "platforms": {
+        "ios": { "status": "prelaunch" },
+        "android": { "status": "prelaunch" }
+      }
+    },
+    {
+      "slug": "game-4",
+      "display_name": "Game 4",
+      "env_prefix": "GAME4",
+      "status": "prelaunch",
+      "ios_bundle_id": null,
+      "android_package_id": null,
+      "platforms": {
+        "ios": { "status": "prelaunch" },
+        "android": { "status": "prelaunch" }
+      }
+    }
+  ]
+}

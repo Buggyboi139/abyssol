@@ -347,6 +347,20 @@ function storyRow(p, steps) {
   return h('li', { class: 'story' }, kids, h('span', { class: 'story-when' }, `${ago(p.last_seen)} · #${p.tag}`));
 }
 
+/** Straight-line run-rate projections, clearly labeled as projected and kept separate from actuals. */
+function projectedPanel(p) {
+  const about = info('Projected',
+    fact('Downloads pace', p.dl_basis),
+    fact('Revenue pace', p.rev_basis),
+    say('Straight-line estimates based on completed days (today in progress is left out). Actuals remain unchanged above.'));
+  return h('section', { class: 'panel wide' },
+    panelHead('Projected', about, tag('Projected', 'warn', 'clock')),
+    h('div', { class: 'tstats' }, p.tiles.map((t) => h('div', { class: 'tstat' },
+      h('div', { class: 'stat-label' }, t.label),
+      h('div', { class: 'stat-value' }, fmt(t.value, t.format)),
+      t.sub && h('div', { class: 'stat-sub' }, t.sub)))));
+}
+
 /** What each of the last day's players did, the most recent first. */
 function storiesPanel(s) {
   const about = info('What players did', fact('Source', 'PostHog'), fact('Players', `${s.players.length}${s.players.length >= s.limit ? ' most recent' : ''}`), fact('As of', time(s.as_of)),
@@ -415,6 +429,7 @@ function gameView(v) {
       playersPanel(v.charts.players), downloadsPanel(v.charts.downloads), x.listing ? listingPanel(x.listing) : ranksPanel(v.charts.ranks),
       x.listing && ranksPanel(v.charts.ranks), x.listing && retentionPanel(v.charts.retention),
       x.benchmarks && benchPanel(x.benchmarks),
+      x.projected && projectedPanel(x.projected),
       revenuePanel(v.charts.revenue), !x.listing && retentionPanel(v.charts.retention),
       ftuePanel(v.charts.ftue), productsPanel(v.charts.products),
       x.stories && storiesPanel(x.stories), syncPanel(v.sync)),

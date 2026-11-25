@@ -581,6 +581,53 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   }
   extras.benchmarks = benchmarks;
 
+  // ---- Projected: clearly labeled run-rate estimates, separate from actuals ----
+  let projected = null;
+  if (state === 'live' && (downloads || rev)) {
+    const tiles = [];
+    let dlBasis = null, revBasis = null;
+    if (downloads) {
+      // Average whole completed days (omit today in progress when earlier days exist) so a partial day never drags down pace.
+      const completed = downloads.daily.length > 1 ? downloads.daily.slice(0, -1).filter((v) => v != null) : downloads.daily.filter((v) => v != null);
+      if (completed.length) {
+        const pace = completed.reduce((a, v) => a + v, 0) / completed.length;
+        const recent = completed.length >= 7 ? completed.slice(-7) : null;
+        const pace7 = recent ? recent.reduce((a, v) => a + v, 0) / recent.length : null;
+        const forward = pace7 ?? pace;
+        dlBasis = `${pace.toFixed(1)}/day over ${completed.length} completed ${completed.length === 1 ? 'day' : 'days'}${pace7 != null ? ` (last 7d: ${pace7.toFixed(1)}/day)` : ''} · ${downloads.source}`;
+        tiles.push({ id: 'dl_pace', label: 'Daily pace', value: pace, format: 'num', sub: pace7 != null ? `7d · ${pace7.toFixed(1)}/day` : 'downloads/day' });
+        if (downloads.days_live < 30) {
+          const left = 30 - downloads.days_live;
+          tiles.push({ id: 'dl_30d', label: 'First 30 days', value: Math.round(downloads.total + pace * left), format: 'int', sub: `projected · ${left}d left` });
+        } else {
+          tiles.push({ id: 'dl_30d', label: 'Next 30 days', value: Math.round(forward * 30), format: 'int', sub: 'projected' });
+        }
+        if (downloads.days_live < 90) {
+          tiles.push({ id: 'dl_90d', label: '90-day total', value: Math.round(downloads.total + pace * (90 - downloads.days_live)), format: 'int', sub: 'projected' });
+        } else {
+          tiles.push({ id: 'dl_90d', label: 'Next 90 days', value: Math.round(forward * 90), format: 'int', sub: 'projected' });
+        }
+        tiles.push({
+          id: 'dl_365d',
+          label: downloads.days_live < 365 ? 'First year total' : 'Next 12 months',
+          value: Math.round(downloads.days_live < 365 ? downloads.total + pace * (365 - downloads.days_live) : forward * 365),
+          format: 'int', sub: 'projected',
+        });
+      }
+    }
+    if (revLine) {
+      const completedRev = revLine.length > 1 ? revLine.slice(0, -1).filter((v) => v != null) : revLine.filter((v) => v != null);
+      if (completedRev.length) {
+        const revPace = completedRev.reduce((a, v) => a + v, 0) / completedRev.length;
+        revBasis = `$${revPace.toFixed(2)}/day over ${completedRev.length} completed ${completedRev.length === 1 ? 'day' : 'days'} in the ${n}D range · RevenueCat`;
+        tiles.push({ id: 'rev_30d', label: '30-day revenue', value: revPace * 30, format: 'usd', sub: 'projected' });
+        tiles.push({ id: 'rev_365d', label: '12-month revenue', value: revPace * 365, format: 'usd', sub: 'projected' });
+      }
+    }
+    if (tiles.length) projected = { tiles, dl_basis: dlBasis, rev_basis: revBasis };
+  }
+  extras.projected = projected;
+
   return {
     game, range, platform, from, to, days: n, state, state_label: STATE_WORD[state] || 'Pre-launch',
     clock: { zone, name: zoneName(zone, now) }, today,

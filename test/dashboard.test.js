@@ -373,12 +373,14 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
     life: { 'apple.downloads': youngDays.map((d) => [d, 8]), 'revenuecat.new_customers': [...youngDays.map((d) => [d, 10]), [addDays(to, -1), 14], [to, 12]] },
   };
   const youngView = buildGame(youngRaw, { range: '30d', now });
-  // Official Apple (136) + real-time tail only for the 2 unposted days (14 + 12 = 26) = 162 — never 162/19*30 = 256.
+  // Official Apple (136) + real-time tail only for the 2 unposted days (14 + 12 = 26) = 162 — actuals never extrapolate.
   expect(youngView.charts.downloads.total).toBe(162);
   expect(youngView.charts.downloads.official_total).toBe(136);
   expect(youngView.charts.downloads.realtime_tail).toBe(26);
   expect(youngView.kpis.find((k) => k.id === 'installs').value).toBe(162);
   expect(row(youngView, 'downloads_month').value).toBe(162);
+  // Projections live in their own clearly labeled panel (18 completed days: 17*8 + 14 = 150 -> 8.33/day; + 11 days left = 254).
+  expect(youngView.extras.projected.tiles.find((t) => t.id === 'dl_30d')).toMatchObject({ label: 'First 30 days', value: Math.round(162 + (150 / 18) * 11), sub: 'projected · 11d left' });
   // Search clicks wait for the search-only counts; retention with no cohorts says what it needs.
   expect(row(an, 'search_clicks')).toMatchObject({ value: null, verdict: null, need: 'Comes with the next App Store sync', average: null });
   expect(row(an, 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' });

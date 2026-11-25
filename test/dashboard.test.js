@@ -2,7 +2,7 @@
 // local Postgres, the sync against stand-in APIs, and the Pages Functions.
 import { test, expect, beforeAll } from 'bun:test';
 import { makeDb, dbFetch, rpc, LOCAL_KEY } from '../scripts/localdb.mjs';
-import { hashPassword, verifyPassword, makeSession, readSession, signingKey, COOKIE } from '../server/auth.js';
+import { hashPassword, verifyPassword, verifyUsername, makeSession, readSession, signingKey, COOKIE } from '../server/auth.js';
 import { buildGame, change, rangeDates, addDays } from '../server/metrics.js';
 import { saleOf } from '../functions/api/webhooks/revenuecat.js';
 import { sync } from '../sync/run.mjs';
@@ -10,7 +10,8 @@ import { loadGames } from '../sync/lib/config.mjs';
 import { mockFetch, mockEnv, mockGameDb } from '../sync/mock/fetch.mjs';
 import { pages } from './pages.mjs';
 
-const DB = 'http://db.test', PASSWORD = 'correct horse battery staple';
+const DB = 'http://db.test', USERNAME = 'Owner', PASSWORD = 'correct horse battery staple';
+const LOGIN = { username: USERNAME, password: PASSWORD };
 let pg, env, call, cookie, realFetch;
 
 beforeAll(async () => {
@@ -20,7 +21,7 @@ beforeAll(async () => {
   globalThis.fetch = dbFetch(pg, DB, realFetch);
   env = {
     SUPABASE_URL: DB, SUPABASE_SERVICE_ROLE_KEY: LOCAL_KEY, SESSION_SECRET: 'x'.repeat(40),
-    DASHBOARD_PASSWORD: await hashPassword(PASSWORD, 1000), REVENUECAT_WEBHOOK_AUTH: 'webhook-secret-for-tests',
+    DASHBOARD_USERNAME: USERNAME, DASHBOARD_PASSWORD: await hashPassword(PASSWORD, 1000), REVENUECAT_WEBHOOK_AUTH: 'webhook-secret-for-tests',
   };
   call = pages(env);
 });
@@ -48,6 +49,20 @@ test('a session is good until it runs out, and not once changed or signed with a
   expect(await readSession(signingKey({ ...env, SESSION_SECRET: 'y'.repeat(40) }), token, now)).toBeNull();
   expect(signingKey({ SESSION_SECRET: 'short', DASHBOARD_PASSWORD: env.DASHBOARD_PASSWORD })).toBe('');
   expect(signingKey({ SESSION_SECRET: 'x'.repeat(40), DASHBOARD_PASSWORD: 'plain text' })).toBe('');
+  // Changing the username signs everyone out, and with none set nothing is signed.
+  expect(await readSession(signingKey({ ...env, DASHBOARD_USERNAME: 'someone-else' }), token, now)).toBeNull();
+  expect(signingKey({ ...env, DASHBOARD_USERNAME: '' })).toBe('');
+  expect(signingKey({ ...env, DASHBOARD_USERNAME: 'two words' })).toBe('');
+});
+
+test('a username matches in any case, and nothing matches when none is set', async () => {
+  expect(await verifyUsername('owner', env)).toBe(true);
+  expect(await verifyUsername('  OWNER ', env)).toBe(true);
+  expect(await verifyUsername('owner2', env)).toBe(false);
+  expect(await verifyUsername('', env)).toBe(false);
+  expect(await verifyUsername(undefined, env)).toBe(false);
+  expect(await verifyUsername('', { DASHBOARD_USERNAME: '' })).toBe(false);
+  expect(await verifyUsername('x', {})).toBe(false);
 });
 
 test('every data route answers 401 without a session', async () => {
@@ -61,12 +76,19 @@ test('every data route answers 401 without a session', async () => {
   expect((await call('/api/overview', { headers: { cookie: `${COOKIE}=v1.9999999999.abc.def` } })).status).toBe(401);
 });
 
-test('login refuses a wrong password and another site, and sets an HttpOnly, Secure, SameSite=Lax cookie for the right one', async () => {
-  expect((await call('/api/login', { method: 'POST', body: { password: 'wrong' } })).status).toBe(401);
+test('login refuses a wrong username, a wrong password and another site, and sets an HttpOnly, Secure, SameSite=Lax cookie for the right pair', async () => {
+  const wrongPass = await call('/api/login', { method: 'POST', body: { username: USERNAME, password: 'wrong' } });
+  expect(wrongPass.status).toBe(401);
+  const wrongUser = await call('/api/login', { method: 'POST', body: { username: 'intruder', password: PASSWORD } });
+  expect(wrongUser.status).toBe(401);
+  // The answer is the same for both, so it never says which one was wrong.
+  expect(await wrongUser.json()).toEqual(await wrongPass.json());
+  expect(wrongUser.headers.get('set-cookie')).toBeNull();
+  expect((await call('/api/login', { method: 'POST', body: { password: PASSWORD } })).status).toBe(401);
   expect((await call('/api/login', { method: 'POST', body: 'not json' })).status).toBe(400);
-  expect((await call('/api/login', { method: 'POST', body: { password: PASSWORD }, headers: { origin: 'https://evil.test' } })).status).toBe(403);
+  expect((await call('/api/login', { method: 'POST', body: LOGIN, headers: { origin: 'https://evil.test' } })).status).toBe(403);
   expect((await call('/api/login')).status).toBe(405);
-  const r = await call('/api/login', { method: 'POST', body: { password: PASSWORD }, headers: { origin: 'https://dash.test' } });
+  const r = await call('/api/login', { method: 'POST', body: { username: 'owner', password: PASSWORD }, headers: { origin: 'https://dash.test' } });
   expect(r.status).toBe(200);
   const set = r.headers.get('set-cookie');
   expect(set).toMatch(new RegExp(`^${COOKIE}=v1\\.`));
@@ -192,16 +214,18 @@ test('retention counts the players whose day N fell inside the range', () => {
 
 test('the eleventh login attempt in fifteen minutes is turned away', async () => {
   let last;
-  for (let i = 0; i < 12; i++) last = await call('/api/login', { method: 'POST', body: { password: 'wrong' }, headers: { 'cf-connecting-ip': '203.0.113.9' } });
+  for (let i = 0; i < 12; i++) last = await call('/api/login', { method: 'POST', body: { username: USERNAME, password: 'wrong' }, headers: { 'cf-connecting-ip': '203.0.113.9' } });
   expect(last.status).toBe(429);
-  expect((await call('/api/login', { method: 'POST', body: { password: PASSWORD }, headers: { 'cf-connecting-ip': '203.0.113.9' } })).status).toBe(429);
-  expect((await call('/api/login', { method: 'POST', body: { password: PASSWORD }, headers: { 'cf-connecting-ip': '198.51.100.7' } })).status).toBe(200);
+  expect((await call('/api/login', { method: 'POST', body: LOGIN, headers: { 'cf-connecting-ip': '203.0.113.9' } })).status).toBe(429);
+  expect((await call('/api/login', { method: 'POST', body: LOGIN, headers: { 'cf-connecting-ip': '198.51.100.7' } })).status).toBe(200);
 });
 
 test('with nothing configured the API fails closed', async () => {
   const bare = pages({});
   expect((await bare('/api/overview')).status).toBe(401);
-  expect((await bare('/api/login', { method: 'POST', body: { password: PASSWORD } })).status).toBe(503);
+  expect((await bare('/api/login', { method: 'POST', body: LOGIN })).status).toBe(503);
+  // A password with no username set is not enough.
+  expect((await pages({ ...env, DASHBOARD_USERNAME: '' })('/api/login', { method: 'POST', body: LOGIN })).status).toBe(503);
   expect((await bare('/api/webhooks/revenuecat?game=pearl-tide', { method: 'POST', body: {} })).status).toBe(503);
   const noDb = pages({ ...env, SUPABASE_URL: '' });
   expect((await noDb('/api/overview', { headers: { cookie } })).status).toBe(503);

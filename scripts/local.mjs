@@ -22,7 +22,7 @@ import { mockFetch, mockEnv, mockGameDb } from '../sync/mock/fetch.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), flag = (f) => args.includes(f);
 const port = Number(args[args.indexOf('--port') + 1]) || 54329;
-const PASSWORD = 'abyssol-local';
+const USERNAME = 'admin', PASSWORD = 'abyssol-local';
 
 const pg = await makeDb();
 await serveDb(pg, port);
@@ -41,11 +41,12 @@ const vars = path.join(ROOT, '.dev.vars');
 fs.writeFileSync(vars, [
   `SUPABASE_URL=${url}`,
   `SUPABASE_SERVICE_ROLE_KEY=${LOCAL_KEY}`,
+  `DASHBOARD_USERNAME=${USERNAME}`,
   `DASHBOARD_PASSWORD=${await hashPassword(PASSWORD)}`,
   `SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}`,
   `REVENUECAT_WEBHOOK_AUTH=local-webhook-${crypto.randomBytes(8).toString('hex')}`,
 ].join('\n') + '\n', { mode: 0o600 });
 
 console.log(`\nLocal database on ${url} (made-up numbers; it lasts until you stop this).`);
-console.log(`Wrote .dev.vars. The local password is "${PASSWORD}".`);
+console.log(`Wrote .dev.vars. The local sign-in is "${USERNAME}" and "${PASSWORD}".`);
 console.log('Next: bun run build && bun run pages   then open http://localhost:8788');

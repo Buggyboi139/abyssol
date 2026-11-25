@@ -1,9 +1,10 @@
-// The dashboard's password check and session cookie, on Web Crypto, so the
+// The dashboard's sign-in check and session cookie, on Web Crypto, so the
 // same code runs in Cloudflare's Functions, Node 20+, and Bun.
 //
-// DASHBOARD_PASSWORD holds a hash, never the password:
+// DASHBOARD_USERNAME is the one username (any case). DASHBOARD_PASSWORD holds a
+// hash, never the password:
 //   pbkdf2-sha256$<iterations>$<salt, base64>$<hash, base64>
-// (`bun run hash-password` makes one). SESSION_SECRET signs the cookie.
+// (`bun run set-login` makes both). SESSION_SECRET signs the cookie.
 
 const enc = new TextEncoder();
 const toB64 = (buf) => { let s = ''; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b); return btoa(s); };
@@ -51,11 +52,23 @@ async function hmac(secret, text) {
   return new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(text)));
 }
 
-/** What sessions are signed with. The password's hash is part of it, so changing the password signs everyone out. */
+/** The configured username, trimmed and lowercased; '' when none or not usable (1 to 64 characters, no spaces). */
+export const usernameOf = (env) => { const u = String(env?.DASHBOARD_USERNAME || '').trim().toLowerCase(); return u.length <= 64 && /^\S+$/.test(u) ? u : ''; };
+
+/** True only for the configured username, in any case. With none configured, nothing matches. */
+export async function verifyUsername(given, env) {
+  const want = usernameOf(env);
+  const same = await sameSecret(typeof given === 'string' ? given.trim().toLowerCase().slice(0, 256) : '', want);
+  return !!want && same;
+}
+
+/** Whether sign-in can work at all: a username, a password hash, and a session secret. */
+export const configured = (env) => !!usernameOf(env) && isHash(env?.DASHBOARD_PASSWORD) && String(env?.SESSION_SECRET || '').length >= 32;
+
+/** What sessions are signed with. The username and the password's hash are part of it, so changing either signs everyone out. */
 export function signingKey(env) {
-  const secret = String(env?.SESSION_SECRET || '');
-  if (secret.length < 32 || !isHash(env?.DASHBOARD_PASSWORD)) return '';
-  return `${secret}\n${String(env.DASHBOARD_PASSWORD).trim()}`;
+  if (!configured(env)) return '';
+  return `${String(env.SESSION_SECRET)}\n${usernameOf(env)}\n${String(env.DASHBOARD_PASSWORD).trim()}`;
 }
 
 export async function makeSession(key, now = Date.now(), days = SESSION_DAYS) {

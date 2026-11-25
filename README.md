@@ -1,6 +1,6 @@
 # Abyssol dashboard
 
-A private, password-protected dashboard for the four Abyssol games: revenue,
+A private dashboard behind a username and password for the four Abyssol games: revenue,
 installs, players, retention, stability, and conversion, a tab a game.
 
 - **Page:** a Vite and Chart.js single-page app, served by Cloudflare Pages.
@@ -25,23 +25,33 @@ and "No live data yet". Its sync is skipped, and the skip is recorded.
 
    Copy the project URL and the service role key (Project Settings, API keys).
 
-2. **Password and session secret.** Run these on your machine. Nothing is sent
-   anywhere, and the password is not echoed.
+2. **Username, password, and session secret.** Run these on your machine.
+   Nothing is sent anywhere, and the password is not shown as you type it.
 
    ```bash
    bun install
    ```
 
    ```bash
-   bun run hash-password
+   bun run set-login
    ```
 
    ```bash
    bun run hash-password --secret
    ```
 
-   The first prints the `DASHBOARD_PASSWORD` hash. The second prints a
-   `SESSION_SECRET`.
+   The first asks for a username and a password and prints
+   `DASHBOARD_USERNAME` and the `DASHBOARD_PASSWORD` hash. The second prints a
+   `SESSION_SECRET`. With wrangler signed in (`bun x wrangler login`) and the
+   Pages project made, this sets all three on the project instead of printing
+   them:
+
+   ```bash
+   bun run set-login --cloudflare <project-name> --new-secret
+   ```
+
+   To change the username or password later, run it again without
+   `--new-secret`, then redeploy.
 
 3. **Cloudflare Pages.** In Workers & Pages, create a Pages project connected
    to this repository:
@@ -73,13 +83,14 @@ Set these in the Pages project (Settings, Variables and Secrets), type
 
 | Name | Value |
 |---|---|
-| `DASHBOARD_PASSWORD` | The hash from `bun run hash-password`. It starts with `pbkdf2-sha256$`. Never the password itself: a value that is not a hash matches nothing. |
+| `DASHBOARD_USERNAME` | The one username: 1 to 64 characters, no spaces, any case. Without it nobody can sign in. |
+| `DASHBOARD_PASSWORD` | The hash from `bun run set-login`. It starts with `pbkdf2-sha256$`. Never the password itself: a value that is not a hash matches nothing. |
 | `SESSION_SECRET` | 32 characters or more, from `bun run hash-password --secret`. Signs the session cookie. |
 | `SUPABASE_URL` | The central project's URL, `https://<project-ref>.supabase.co`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | The central project's service role (secret) key. |
 | `REVENUECAT_WEBHOOK_AUTH` | Optional. 16 characters or more. Only for the [RevenueCat webhook](#revenuecat-webhook). |
 
-Changing `DASHBOARD_PASSWORD` or `SESSION_SECRET` signs everyone out.
+Changing `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, or `SESSION_SECRET` signs everyone out.
 
 ## GitHub Actions secrets
 
@@ -196,7 +207,7 @@ Every route but the first three answers `401` without a valid session cookie.
 
 | Route | What it does |
 |---|---|
-| `POST /api/login` | Body `{"password": "..."}`. Sets the session cookie. Ten tries per caller per 15 minutes. |
+| `POST /api/login` | Body `{"username": "...", "password": "..."}`. Sets the session cookie. A wrong username and a wrong password get the same `401`. Ten tries per caller per 15 minutes. |
 | `POST /api/logout` | Clears the cookie. |
 | `GET /api/session` | `{"authenticated": true}` or `false`. |
 | `GET /api/overview?range=7d\|30d\|90d` | Totals and a card a game. |
@@ -227,7 +238,7 @@ bun run local
 bun run build && bun run pages
 ```
 
-Open `http://localhost:8788`. The local password is `abyssol-local`.
+Open `http://localhost:8788`. The local sign-in is `admin` and `abyssol-local`.
 `bun run local --force` fills the pre-launch games too, and `--empty`
 fills none.
 
@@ -267,8 +278,8 @@ Source sync health badges show the exact time of the last successful pull.
 
 ## Security
 
-- The password is checked on the server against a PBKDF2-SHA256 hash. The
-  session cookie is signed (HMAC-SHA256) and set `HttpOnly; Secure;
+- The username and password are checked on the server, the password against
+  a PBKDF2-SHA256 hash. The session cookie is signed (HMAC-SHA256) and set `HttpOnly; Secure;
   SameSite=Lax` with the `__Host-` prefix.
 - The page holds no key. It only calls `/api`, and the Functions read the
   central database with the service role key.
@@ -278,4 +289,4 @@ Source sync health badges show the exact time of the last successful pull.
   `.dev.vars`, `*.p8`, and service account files are ignored by git.
 - On Cloudflare's free plan, a Function gets about 10 ms of CPU. If sign-in
   fails with error 1102, make the hash again with fewer rounds:
-  `bun run hash-password --iterations 50000`.
+  `bun run set-login --iterations 50000`.

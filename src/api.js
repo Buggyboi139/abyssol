@@ -17,7 +17,7 @@ async function request(path, opts = {}) {
 
 export const api = {
   session: () => request('/api/session'),
-  login: (password) => request('/api/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  login: (username, password) => request('/api/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   logout: () => request('/api/logout', { method: 'POST', body: '{}' }),
   overview: (range) => request(`/api/overview?range=${encodeURIComponent(range)}`),
   game: (slug, range, platform) => request(`/api/game/${encodeURIComponent(slug)}?range=${encodeURIComponent(range)}&platform=${encodeURIComponent(platform)}`),
@@ -25,12 +25,12 @@ export const api = {
 
 const WORDS = {
   offline: 'No connection.',
-  not_configured: 'The dashboard is not connected to its database yet.',
+  not_configured: 'The dashboard is not set up yet.',
   database_not_migrated: 'The database has no dashboard tables yet. Run the migrations.',
   database_unreachable: 'The database did not answer.',
   database_error: 'The database returned an error.',
   not_found: 'That game is not on the dashboard.',
   too_many_attempts: 'Too many tries. Wait 15 minutes.',
-  invalid_password: 'That password is not right.',
+  invalid_login: 'Wrong username or password.',
 };
 export const explain = (e) => WORDS[e?.code] || 'Something went wrong.';

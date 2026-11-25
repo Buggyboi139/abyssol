@@ -11,10 +11,11 @@
     "test": "bun test",
     "local": "bun scripts/local.mjs",
     "pages": "wrangler pages dev dist --port 8788 --compatibility-date=2025-01-01",
-    "hash-password": "node scripts/hash-password.mjs",
-    "sync": "node sync/run.mjs",
-    "sync:hourly": "node sync/run.mjs hourly",
-    "sync:daily": "node sync/run.mjs daily"
+    "set-login": "bun scripts/set-login.mjs",
+    "hash-password": "bun scripts/hash-password.mjs",
+    "sync": "bun sync/run.mjs",
+    "sync:hourly": "bun sync/run.mjs hourly",
+    "sync:daily": "bun sync/run.mjs daily"
   },
   "dependencies": {
     "chart.js": "^4.4.7",

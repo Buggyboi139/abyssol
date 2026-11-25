@@ -166,8 +166,8 @@ table.matrix td { vertical-align: top; }
 .brand.big { font-size: 20px; padding: 0 0 10px; }
 .brand.big .logo { width: 26px; height: 26px; }
 .login label { font-size: 12px; color: var(--text-2); }
-.login input[type="password"] { font: inherit; color: var(--text); background: var(--page); border: 1px solid var(--axis); border-radius: 8px; padding: 10px 12px; }
-.login input[type="password"]:focus { outline: 2px solid var(--series-1); outline-offset: 0; border-color: transparent; }
+.login input { font: inherit; color: var(--text); background: var(--page); border: 1px solid var(--axis); border-radius: 8px; padding: 10px 12px; }
+.login input:focus { outline: 2px solid var(--series-1); outline-offset: 0; border-color: transparent; }
 .primary { background: var(--text); color: var(--page); border: 0; border-radius: 8px; padding: 10px 12px; font-weight: 600; margin-top: 6px; }
 .primary:hover:not(:disabled) { background: #fff; }
 .primary:disabled { opacity: 0.6; cursor: default; }

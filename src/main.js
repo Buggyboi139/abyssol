@@ -324,20 +324,21 @@ function showApp() {
 function showLogin(message = '') {
   state.authed = false; state.data = null; state.seq++;
   destroyCharts();
-  const input = h('input', { type: 'password', name: 'password', id: 'password', autocomplete: 'current-password', required: true, autofocus: true });
+  const user = h('input', { type: 'text', name: 'username', id: 'username', autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', required: true, autofocus: true });
+  const input = h('input', { type: 'password', name: 'password', id: 'password', autocomplete: 'current-password', required: true });
   const note = h('p', { class: 'login-note', role: 'alert' }, message);
   const button = h('button', { class: 'primary', type: 'submit' }, 'Sign in');
   const form = h('form', { class: 'login', onsubmit: async (e) => {
     e.preventDefault();
     button.disabled = true; note.textContent = '';
-    try { await api.login(input.value); input.value = ''; showApp(); }
+    try { await api.login(user.value, input.value); input.value = ''; showApp(); }
     catch (err) { note.textContent = explain(err); button.disabled = false; input.select(); }
   } },
   h('div', { class: 'brand big' }, icon('wave', 'logo'), 'Abyssol'),
-  h('input', { type: 'text', name: 'username', autocomplete: 'username', value: 'abyssol', hidden: true }),
+  h('label', { for: 'username' }, 'Username'), user,
   h('label', { for: 'password' }, 'Password'), input, button, note);
   app.replaceChildren(h('div', { class: 'login-wrap' }, form));
-  input.focus();
+  user.focus();
 }
 
 async function signOut() {

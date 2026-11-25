@@ -56,6 +56,10 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Pull
         run: |
+          if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
+            echo "::notice::Not set up yet. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to this repository's Actions secrets (README.md)."
+            exit 0
+          fi
           args=(hourly)
           if [[ "$INPUT_DAYS" =~ ^[0-9]+$ ]]; then args+=(--days "$INPUT_DAYS"); fi
           if [[ "$INPUT_GAME" =~ ^[a-z0-9-]+$ ]]; then args+=(--game "$INPUT_GAME"); fi

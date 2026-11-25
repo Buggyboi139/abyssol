@@ -6,8 +6,8 @@
 //   - event names as the game's analytics ids: FTUE:01_Loaded, Load:Ready, Store:Tap:<product>,
 //     Session:UncleanExit:<Loading|Playing>, Gfx:Level:<1-6>, App:Error
 //   - a `platform` property of ios or android (PostHog's own $os is the fallback)
-// Needs <PREFIX>_POSTHOG_PROJECT_ID and a personal key (query:read): <PREFIX>_POSTHOG_PERSONAL_API_KEY where each
-// game has its own PostHog account (the free plan: one project an organization), else the shared POSTHOG_PERSONAL_API_KEY.
+// Needs <PREFIX>_POSTHOG_PROJECT_ID and a personal key (query:read): the shared POSTHOG_PERSONAL_API_KEY, scoped to
+// every game's project, or <PREFIX>_POSTHOG_PERSONAL_API_KEY for a game whose project is in another PostHog account.
 import { Rows, getJson, addDays, dateRange, keyPart } from '../lib/util.mjs';
 import { ownEnv, sharedEnv } from '../lib/env.mjs';
 
@@ -20,7 +20,7 @@ const platformOf = (raw) => { const s = String(raw || '').toLowerCase(); return 
 export async function run(ctx) {
   const { game, env, fetchImpl, days, platforms, today, now } = ctx;
   const key = sharedEnv(env, game, 'POSTHOG_PERSONAL_API_KEY'), project = ownEnv(env, game, 'POSTHOG_PROJECT_ID');
-  if (!key || !project) return { status: 'skipped', message: `Not connected: set ${game.env_prefix}_POSTHOG_PERSONAL_API_KEY (or POSTHOG_PERSONAL_API_KEY) and ${game.env_prefix}_POSTHOG_PROJECT_ID` };
+  if (!key || !project) return { status: 'skipped', message: `Not connected: set POSTHOG_PERSONAL_API_KEY and ${game.env_prefix}_POSTHOG_PROJECT_ID` };
   const host = (sharedEnv(env, game, 'POSTHOG_HOST') || 'https://us.posthog.com').replace(/\/+$/, '');
   const prop = game.posthog?.platform_property || 'platform', errorEvent = game.posthog?.error_event || 'App:Error';
   if (!/^[A-Za-z0-9_$]+$/.test(prop) || /['\\]/.test(errorEvent)) return { status: 'error', message: 'config/games.json: posthog.platform_property or error_event has characters a query cannot hold' };

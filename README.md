@@ -92,11 +92,10 @@ A source with no secret set is skipped, not failed, and its badge reads
 | `SUPABASE_SERVICE_ROLE_KEY` | Both workflows | The central project's service role key. |
 | `PEARL_TIDE_REVENUECAT_API_KEY` | Hourly | A RevenueCat v2 secret key for the Pearl Tide project, with read access to charts metrics. |
 | `CHILLWATER_REVENUECAT_API_KEY` | Hourly | The same for Chillwater Lake. |
-| `PEARL_TIDE_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Pearl Tide. |
-| `PEARL_TIDE_POSTHOG_PERSONAL_API_KEY` | Hourly | A personal API key (`phx_...`) from Pearl Tide's PostHog account, with the `query:read` scope. |
-| `CHILLWATER_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Chillwater Lake. |
-| `CHILLWATER_POSTHOG_PERSONAL_API_KEY` | Hourly | The same from Chillwater Lake's PostHog account. |
-| `POSTHOG_PERSONAL_API_KEY` | Hourly | Optional. One key for every game, used where a game has none of its own. PostHog's free plan gives an organization one project, so each game is in its own account and needs its own key. |
+| `POSTHOG_PERSONAL_API_KEY` | Hourly | A PostHog personal API key (`phx_...`) with the `query:read` scope, scoped to every game's project. Both games are projects in one organization, so one key covers them. |
+| `PEARL_TIDE_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Pearl Tide: `767644`. |
+| `CHILLWATER_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Chillwater Lake: `768046`. |
+| `<PREFIX>_POSTHOG_PERSONAL_API_KEY` | Hourly | Optional. A key for one game, for a game whose project is in another PostHog account. |
 | `POSTHOG_HOST` | Hourly | Optional. `https://us.posthog.com` (the default) or `https://eu.posthog.com`. `<PREFIX>_POSTHOG_HOST` sets it for one game. |
 | `PEARL_TIDE_GAME_DB_URL` | Hourly | Optional. A read-only Postgres connection string for Pearl Tide's own Supabase project. See [A read-only role](#a-read-only-role-for-a-game-database). |
 | `CHILLWATER_GAME_DB_URL` | Hourly | Optional. The same for Chillwater Lake. |

@@ -104,13 +104,17 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     source: 'RevenueCat', spark: line('revenuecat.revenue'), empty: rev ? null : why(['revenuecat']),
   });
 
+  // PostHog counts only once it has seen a player in this range or the one before: connected with no build
+  // sending yet, its zeros would hide what RevenueCat knows.
+  const seen = (k) => { const t = T(k); return t && (t.sum > 0 || (P(k)?.sum ?? 0) > 0) ? t : null; };
+
   // ---- Installs: the stores' own counts, else new players, else new customers ----
   const inst = (() => {
     const store = [];
     if (platform !== 'android' && T('apple.downloads')) store.push(['apple.downloads', 'App Store']);
     if (platform !== 'ios' && T('google.installs')) store.push(['google.installs', 'Google Play']);
     if (store.length) return { keys: store.map((s) => s[0]), source: store.map((s) => s[1]).join(' + '), label: 'Installs' };
-    if (T('posthog.new_users')) return { keys: ['posthog.new_users'], source: 'New players · PostHog', label: 'New players' };
+    if (seen('posthog.new_users')) return { keys: ['posthog.new_users'], source: 'New players · PostHog', label: 'New players' };
     if (T('revenuecat.new_customers')) return { keys: ['revenuecat.new_customers'], source: 'New customers · RevenueCat', label: 'New customers' };
     return null;
   })();
@@ -123,14 +127,14 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   });
 
   // ---- DAU: the average over whole days (today is still being counted) ----
-  const dauKey = T('posthog.dau') ? 'posthog.dau' : T('revenuecat.active_customers') ? 'revenuecat.active_customers' : null;
+  const dauKey = seen('posthog.dau') ? 'posthog.dau' : T('revenuecat.active_customers') ? 'revenuecat.active_customers' : null;
   const dauLine = dauKey ? line(dauKey) : null;
   const whole = dauLine ? dauLine.slice(0, -1).filter((v) => v != null) : [];
   const dau = dauKey ? (whole.length ? mean(whole) : T(dauKey).avg) : null;
   kpis.push({
     id: 'dau', label: 'DAU', format: 'num', value: dau, prev: dauKey ? P(dauKey)?.avg ?? null : null,
     delta: dauKey ? change(dau, P(dauKey)?.avg, enough(dauKey)) : null,
-    sub: T('posthog.wau') ? [{ label: 'WAU', value: T('posthog.wau').last, format: 'int' }] : [],
+    sub: dauKey === 'posthog.dau' && T('posthog.wau') ? [{ label: 'WAU', value: T('posthog.wau').last, format: 'int' }] : [],
     source: dauKey === 'posthog.dau' ? 'PostHog' : dauKey ? 'Active customers · RevenueCat' : null,
     spark: dauLine, empty: dauKey ? null : why(['posthog', 'revenuecat']),
   });

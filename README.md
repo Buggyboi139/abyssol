@@ -66,6 +66,14 @@ and "No live data yet". Its sync is skipped, and the skip is recorded.
    Add the variables in [Cloudflare Pages variables](#cloudflare-pages-variables)
    as **Secrets**, then deploy again so they take effect.
 
+   Or upload from your machine with no Git connection (a direct-upload
+   project, which is how `abyssol` is set up). A push to GitHub then deploys
+   nothing: run this after each change, and after changing any secret.
+
+   ```bash
+   bun run deploy
+   ```
+
 4. **GitHub Actions.** In the repository's Settings, Secrets and variables,
    Actions, add the secrets in [GitHub Actions secrets](#github-actions-secrets).
    Run **Sync hourly** and **Sync daily** once by hand from the Actions tab.

@@ -120,8 +120,8 @@ function posthog(u, body, today) {
     return out(['day', 'platform', 'event', 'n', 'users'], rows);
   }
   const rows = [];
-  for (const d of dates) for (const p of plats) { const m = mockDay(game, p, d); rows.push([d, p, m.dau, m.sessions, Math.round(m.sessions * 0.9)]); }
-  return out(['day', 'platform', 'users', 'sessions', 'launches'], rows);
+  for (const d of dates) for (const p of plats) { const m = mockDay(game, p, d); rows.push([d, p, m.dau, m.sessions, Math.round(m.sessions * 0.9), 0]); }
+  return out(['day', 'platform', 'users', 'sessions', 'loads', 'opens'], rows);
 }
 
 // ---- App Store Connect ----

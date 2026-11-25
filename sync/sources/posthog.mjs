@@ -3,21 +3,24 @@
 // exits, errors, and where the graphics level settled.
 //
 // What the game must send for this to fill in (README.md, PostHog events):
-//   - event names as the game's analytics ids: FTUE:01_Loaded, Store:Tap:<product>,
+//   - event names as the game's analytics ids: FTUE:01_Loaded, Load:Ready, Store:Tap:<product>,
 //     Session:UncleanExit:<Loading|Playing>, Gfx:Level:<1-6>, App:Error
 //   - a `platform` property of ios or android (PostHog's own $os is the fallback)
-// Needs POSTHOG_PERSONAL_API_KEY (query:read) and <PREFIX>_POSTHOG_PROJECT_ID.
+// Needs <PREFIX>_POSTHOG_PROJECT_ID and a personal key (query:read): <PREFIX>_POSTHOG_PERSONAL_API_KEY where each
+// game has its own PostHog account (the free plan: one project an organization), else the shared POSTHOG_PERSONAL_API_KEY.
 import { Rows, getJson, addDays, dateRange, keyPart } from '../lib/util.mjs';
 import { ownEnv, sharedEnv } from '../lib/env.mjs';
 
 export const source = 'posthog';
 const RETENTION_DAYS = [1, 3, 7, 14, 30];
+// One name a step across the games: Chillwater Lake says Store:Buy and Store:Fail where Pearl Tide says Store:Tap and Store:Error.
+const STORE_STEP = { Buy: 'Tap', Fail: 'Error' };
 const platformOf = (raw) => { const s = String(raw || '').toLowerCase(); return /^(ios|iphone|ipad)/.test(s) ? 'ios' : /^android/.test(s) ? 'android' : 'other'; };
 
 export async function run(ctx) {
   const { game, env, fetchImpl, days, platforms, today, now } = ctx;
   const key = sharedEnv(env, game, 'POSTHOG_PERSONAL_API_KEY'), project = ownEnv(env, game, 'POSTHOG_PROJECT_ID');
-  if (!key || !project) return { status: 'skipped', message: `Not connected: set POSTHOG_PERSONAL_API_KEY and ${game.env_prefix}_POSTHOG_PROJECT_ID` };
+  if (!key || !project) return { status: 'skipped', message: `Not connected: set ${game.env_prefix}_POSTHOG_PERSONAL_API_KEY (or POSTHOG_PERSONAL_API_KEY) and ${game.env_prefix}_POSTHOG_PROJECT_ID` };
   const host = (sharedEnv(env, game, 'POSTHOG_HOST') || 'https://us.posthog.com').replace(/\/+$/, '');
   const prop = game.posthog?.platform_property || 'platform', errorEvent = game.posthog?.error_event || 'App:Error';
   if (!/^[A-Za-z0-9_$]+$/.test(prop) || /['\\]/.test(errorEvent)) return { status: 'error', message: 'config/games.json: posthog.platform_property or error_event has characters a query cannot hold' };
@@ -45,11 +48,12 @@ export async function run(ctx) {
   const step = async (name, fn) => { try { await fn(); okCount++; } catch (e) { failed.push(`${name}: ${e.message}`); } };
 
   // Daily active users and sessions. A session is PostHog's $session_id, or,
-  // where the SDK sends none, a launch (Session:Open:* or FTUE:01_Loaded).
+  // where the SDK sends none, a launch (Load:Ready, which both games send once
+  // a launch; else Session:Open:* or FTUE:01_Loaded).
   await step('actives', async () => {
-    const r = await hogql(`select toDate(timestamp) as day, ${P} as platform, uniq(distinct_id) as users, uniq(properties.$session_id) as sessions, countIf(event like 'Session:Open:%' or event = 'FTUE:01_Loaded') as launches from events where ${span(from, end)} group by day, platform order by day limit 50000`);
+    const r = await hogql(`select toDate(timestamp) as day, ${P} as platform, uniq(distinct_id) as users, uniq(properties.$session_id) as sessions, countIf(event = 'Load:Ready') as loads, countIf(event like 'Session:Open:%' or event = 'FTUE:01_Loaded') as opens from events where ${span(from, end)} group by day, platform order by day limit 50000`);
     zero(['dau', 'sessions']);
-    for (const x of r) { put(x.platform, day(x.day), 'dau', x.users); put(x.platform, day(x.day), 'sessions', Math.max(+x.sessions || 0, +x.launches || 0)); }
+    for (const x of r) { put(x.platform, day(x.day), 'dau', x.users); put(x.platform, day(x.day), 'sessions', Math.max(+x.sessions || 0, +x.loads || 0, +x.opens || 0)); }
   });
 
   // Weekly active users: everyone seen in the seven days ending on each day.
@@ -75,7 +79,7 @@ export async function run(ctx) {
     for (const x of r) {
       const d = day(x.day), parts = String(x.event).split(':');
       if (parts[0] === 'FTUE') { if (parts[1] && parts[1] !== 'Start') put(x.platform, d, `ftue:${keyPart(parts[1])}`, x.users); }
-      else if (parts[0] === 'Store') { if (parts[1]) put(x.platform, d, `store:${keyPart(parts[1])}`, x.n); }
+      else if (parts[0] === 'Store') { if (parts[1]) put(x.platform, d, `store:${keyPart(STORE_STEP[parts[1]] || parts[1])}`, x.n); }
       else if (parts[0] === 'Session') { put(x.platform, d, 'unclean_exits', x.n); if (parts[2]) put(x.platform, d, `unclean_exit:${keyPart(parts[2])}`, x.n); }
       else if (parts[0] === 'Gfx') { if (parts[2]) put(x.platform, d, `gfx_level:${keyPart(parts[2])}`, x.users); }
       else if (x.event === errorEvent) put(x.platform, d, 'app_errors', x.n);

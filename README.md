@@ -92,10 +92,12 @@ A source with no secret set is skipped, not failed, and its badge reads
 | `SUPABASE_SERVICE_ROLE_KEY` | Both workflows | The central project's service role key. |
 | `PEARL_TIDE_REVENUECAT_API_KEY` | Hourly | A RevenueCat v2 secret key for the Pearl Tide project, with read access to charts metrics. |
 | `CHILLWATER_REVENUECAT_API_KEY` | Hourly | The same for Chillwater Lake. |
-| `POSTHOG_PERSONAL_API_KEY` | Hourly | A PostHog personal API key with the `query:read` scope. |
-| `POSTHOG_HOST` | Hourly | Optional. `https://us.posthog.com` (the default) or `https://eu.posthog.com`. |
 | `PEARL_TIDE_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Pearl Tide. |
+| `PEARL_TIDE_POSTHOG_PERSONAL_API_KEY` | Hourly | A personal API key (`phx_...`) from Pearl Tide's PostHog account, with the `query:read` scope. |
 | `CHILLWATER_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Chillwater Lake. |
+| `CHILLWATER_POSTHOG_PERSONAL_API_KEY` | Hourly | The same from Chillwater Lake's PostHog account. |
+| `POSTHOG_PERSONAL_API_KEY` | Hourly | Optional. One key for every game, used where a game has none of its own. PostHog's free plan gives an organization one project, so each game is in its own account and needs its own key. |
+| `POSTHOG_HOST` | Hourly | Optional. `https://us.posthog.com` (the default) or `https://eu.posthog.com`. `<PREFIX>_POSTHOG_HOST` sets it for one game. |
 | `PEARL_TIDE_GAME_DB_URL` | Hourly | Optional. A read-only Postgres connection string for Pearl Tide's own Supabase project. See [A read-only role](#a-read-only-role-for-a-game-database). |
 | `CHILLWATER_GAME_DB_URL` | Hourly | Optional. The same for Chillwater Lake. |
 | `ASC_KEY_ID` | Daily | The App Store Connect API key's id. |
@@ -146,9 +148,9 @@ them to PostHog with these names and one property:
 
 | Event | Example | Feeds |
 |---|---|---|
-| `FTUE:<step>` | `FTUE:01_Loaded`, `FTUE:02_Swam` | First-time funnel, new users, launches |
-| `Session:Open:<kind>` | `Session:Open:Cold` | Sessions, where the SDK sends no session id |
-| `Store:<Step>:<product>` | `Store:Tap:pearls.pouch`, `Store:Sheet:...`, `Store:Bought:...`, `Store:Cancel:...` | Store funnel |
+| `FTUE:<NN_step>` | `FTUE:01_Loaded`, `FTUE:02_Swam` | First-time funnel, in the steps' numbered order |
+| `Load:Ready` | | Launches: the session count where the SDK sends no session id |
+| `Store:<Step>:<product>` | `Store:Tap:pearls.pouch`, `Store:Sheet:...`, `Store:Bought:...`, `Store:Cancel:...` | Store funnel. `Buy` counts as `Tap` and `Fail` as `Error`. |
 | `Session:UncleanExit:<where>` | `Session:UncleanExit:Playing` | Unclean exit rate |
 | `App:Error` | | Error count |
 | `Gfx:Level:<1-6>` | `Gfx:Level:3` | Graphics level |

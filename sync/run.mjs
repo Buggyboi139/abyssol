@@ -32,7 +32,7 @@ export const GROUPS = { hourly: ['revenuecat', 'posthog', 'supabase_game'], dail
  * One sync pass. Returns {runs, daily, hourly}: a run per source and game, and
  * the rows written (or, with dryRun, the rows that would have been).
  */
-export async function sync({ what = 'all', games = loadGames(), only = null, days = null, dryRun = false, force = false, env = process.env, fetchImpl = fetch, queryGameDb = null, createReportRequest = false, store = null, now = Date.now(), pause, log = () => {} } = {}) {
+export async function sync({ what = 'all', games = loadGames(), only = null, days = null, dryRun = false, force = false, env = process.env, fetchImpl = fetch, queryGameDb = null, createReportRequest = false, store = null, now = Date.now(), pause, log = () => {}, say = (res) => res.message || '' } = {}) {
   const names = [...new Set(what.split(',').flatMap((w) => GROUPS[w] || [w]))];
   for (const n of names) if (!SOURCES[n]) throw new Error(`Unknown source "${n}". Use ${Object.keys(GROUPS).join(', ')}, or ${Object.keys(SOURCES).join(', ')}.`);
   const picked = only ? games.filter((g) => g.slug === only) : games;
@@ -57,7 +57,7 @@ export async function sync({ what = 'all', games = loadGames(), only = null, day
         catch (e) { res = { status: 'error', message: `Pulled, but the database refused the rows: ${e.message}` }; }
       }
       runs.push({ source: name, game_slug: game.slug, status: res.status, message: res.message || '', rows: wrote });
-      log(`${res.status.padEnd(7)} ${game.slug.padEnd(16)} ${name.padEnd(14)} ${res.message || ''}`);
+      log(`${res.status.padEnd(7)} ${game.slug.padEnd(16)} ${name.padEnd(14)} ${say(res)}`);
     }
   }
   await store.logRuns(runs.map(({ source, game_slug, status, message }) => ({ source, game_slug, status, message })));
@@ -96,7 +96,11 @@ async function main() {
     queryGameDb = m.mockGameDb; o.pause = 0;
   }
   console.log(`sync ${o.what}${o.only ? ' for ' + o.only : ''}${o.dryRun ? ' (dry run: nothing is written)' : ''}${o.mock ? ' (mock APIs)' : ''}${o.force ? ' (forced: platforms that are not live too)' : ''}`);
-  const { runs, daily, hourly } = await sync({ ...o, games, env, fetchImpl, queryGameDb, log: (l) => console.log(l) });
+  // In GitHub Actions the log and the run summary are public when the repository is, so a pull that worked says only
+  // how many rows it wrote: the numbers (revenue, players) go to the database alone. SYNC_LOG=full prints them.
+  const quiet = !!process.env.GITHUB_ACTIONS && process.env.SYNC_LOG !== 'full';
+  const shown = (status, message) => { const m = String(message || ''); return quiet && status === 'ok' ? (m.includes(':') ? m.split(':')[0] : 'written') : m; };
+  const { runs, daily, hourly } = await sync({ ...o, games, env, fetchImpl, queryGameDb, log: (l) => console.log(l), say: (r) => shown(r.status, r.message) });
 
   if (o.dryRun) {
     // Totals by source, platform, and key, so a dry run shows what it read.
@@ -107,7 +111,7 @@ async function main() {
   }
   if (process.env.GITHUB_STEP_SUMMARY) {
     const icon = { ok: '✅', skipped: '⏭️', error: '❌' };
-    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Sync ${o.what}\n\n| Game | Source | Status | Detail |\n|---|---|---|---|\n` + runs.map((r) => `| ${r.game_slug} | ${r.source} | ${icon[r.status]} ${r.status} | ${String(r.message).replace(/\|/g, '/')} |`).join('\n') + '\n');
+    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Sync ${o.what}\n\n| Game | Source | Status | Detail |\n|---|---|---|---|\n` + runs.map((r) => `| ${r.game_slug} | ${r.source} | ${icon[r.status]} ${r.status} | ${shown(r.status, r.message).replace(/\|/g, '/')} |`).join('\n') + '\n');
   }
   const bad = runs.filter((r) => r.status === 'error');
   if (bad.length) console.log(`\n${bad.length} source${bad.length > 1 ? 's' : ''} reported an error (shown on the dashboard's sync badges).`);

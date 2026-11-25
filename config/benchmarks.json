@@ -1,0 +1,42 @@
+{
+  "_": "Typical numbers the dashboard sets a game's own beside, each with where it comes from. A game's genre (config/games.json) picks its row; games is the fallback. Rates are shares (0.334 is 33.4%). Update a number only with its source.",
+  "page_to_download": {
+    "label": "Product page to download",
+    "what": "Downloads for every product page view",
+    "by_genre": { "games": 0.267, "simulation": 0.334, "casual": 0.341, "rpg": 0.299, "family": 0.284, "adventure": 0.086 },
+    "source": "AppTweak, US App Store, 2025",
+    "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category"
+  },
+  "impression_to_download": {
+    "label": "Impression to download",
+    "what": "Downloads for every time the listing is shown in search or browse",
+    "by_genre": { "games": 0.011, "simulation": 0.027, "casual": 0.011, "rpg": 0.019, "adventure": 0.007 },
+    "source": "AppTweak, US App Store, 2025",
+    "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category"
+  },
+  "impression_to_page": {
+    "label": "Clicks to the listing",
+    "what": "Product page views for every time the listing is shown",
+    "derived": "No published benchmark for unpaid listings. This is AppTweak's impression-to-download rate divided by its page-to-download rate.",
+    "source": "Derived from AppTweak, US App Store, 2025",
+    "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category"
+  },
+  "retention": {
+    "d1": { "label": "Day 1 retention", "low": 0.13, "mid": 0.22, "high": 0.30, "top": 0.40 },
+    "d7": { "label": "Day 7 retention", "mid": 0.04, "high": 0.065, "top": 0.115 },
+    "d30": { "label": "Day 30 retention", "mid": 0.007, "high": 0.017 },
+    "what": "New players who play again that many days later. Low is the bottom quarter of games, typical the median, high the top quarter.",
+    "source": "GameAnalytics, 2026 benchmarks",
+    "url": "https://www.gameanalytics.com/reports/2026-mobile-pc-gaming-benchmarks"
+  },
+  "first_month": {
+    "label": "Downloads in the first month",
+    "what": "The share of new apps that have passed a download count by a given week",
+    "milestones": [
+      { "downloads": 500, "share_by_week": { "0": 0.11, "1": 0.18, "2": 0.22, "3": 0.25, "4": 0.28, "12": 0.40 } },
+      { "downloads": 5000, "share_by_week": { "2": 0.06, "4": 0.10 } }
+    ],
+    "source": "AppBrain, new Android apps",
+    "url": "https://www.appbrain.com/stats/android-app-downloads"
+  }
+}

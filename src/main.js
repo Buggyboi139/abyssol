@@ -3,8 +3,8 @@
 // shows comes from /api; nothing secret is in this file or reaches it.
 import './style.css';
 import { api, Unauthorized, explain } from './api.js';
-import { fmt, day, moment, time, ago, deltaText } from './format.js';
-import { destroyCharts, dayBars, stackedDayBars, dayLines, retentionCurve, sideBars, hourLine, sparkline, SERIES } from './charts.js';
+import { fmt, day, moment, time, ago, deltaText, clockIn, dateOf } from './format.js';
+import { destroyCharts, dayBars, stackedDayBars, dayLines, retentionCurve, sideBars, hourLines, growthLine, rankLines, sparkline, colorOf, SERIES } from './charts.js';
 
 const RANGES = [['7d', '7D'], ['30d', '30D'], ['90d', '90D']];
 const PLATFORMS = [['all', 'All'], ['ios', 'iOS'], ['android', 'Android']];
@@ -127,7 +127,7 @@ const tiles = (list) => h('div', { class: 'tiles' }, list.map((t) => h('div', { 
 function revenuePanel(c) {
   return panel({
     title: 'Daily revenue and transactions', source: 'RevenueCat', wide: true, empty: c.empty,
-    table: () => ({ columns: ['Day (UTC)', 'Revenue', 'Transactions'], rows: c.dates.map((d, i) => [day(d), fmt(c.revenue[i], 'usd'), fmt(c.transactions[i], 'int')]).reverse() }),
+    table: () => ({ columns: ['Day', 'Revenue', 'Transactions'], rows: c.dates.map((d, i) => [day(d), fmt(c.revenue[i], 'usd'), fmt(c.transactions[i], 'int')]).reverse() }),
     body: () => [
       caption('Revenue'),
       h('div', { class: 'quiet-host' }, chartBox(190, 'Revenue each day', (cv) => dayBars(cv, { dates: c.dates, values: c.revenue, format: 'usd', label: 'Revenue', showDates: false })), c.quiet && h('div', { class: 'quiet-note' }, c.quiet)),
@@ -137,12 +137,112 @@ function revenuePanel(c) {
   });
 }
 
-function audiencePanel(c) {
+const notes = (list) => (list?.length ? h('ul', { class: 'notes' }, list.map((t) => h('li', null, t))) : null);
+const stat = (label, value, sub) => h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), h('div', { class: 'stat-value' }, value), sub && h('div', { class: 'stat-sub' }, sub));
+
+/** Today so far and the last 24 hours, in numbers and in words. */
+function todayPanel(t, clock) {
+  const n = (v) => fmt(v, 'int');
+  return h('section', { class: 'panel wide today' },
+    h('header', { class: 'panel-head' }, h('h2', null, 'Today so far'), h('span', { class: 'src' }, `The day started ${clockIn(t.day_started, clock.zone)}`), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `${t.source} · as of ${time(t.as_of)}`)),
+    h('div', { class: 'today-body' },
+      h('div', { class: 'stats' },
+        stat('New today', n(t.now.new)), stat('Active today', n(t.now.active)), stat('Returning today', n(t.now.returning)),
+        t.all_time && stat('All time', n(t.all_time.value), t.all_time.source),
+        stat('Last 24 hours', `${n(t.last24h.new)} / ${n(t.last24h.active)} / ${n(t.last24h.returning)}`, 'new / active / returning'),
+        stat('Purchases, 24 hours', n(t.last24h.purchases), t.last24h.revenue ? fmt(t.last24h.revenue, 'usd') : null)),
+      h('ul', { class: 'news' }, t.news.map((line) => h('li', null, line)))));
+}
+
+/** New, active, and returning players a day, beside the store's own first downloads. */
+function playersPanel(c) {
+  const cell = (s, i, last) => (s.values[i] == null ? (s.late && i >= last - 1 ? 'not posted yet' : '—') : fmt(s.values[i], 'int'));
   return panel({
-    title: 'Installs and DAU', empty: c.empty, items: c.series?.map((s, i) => ({ label: s.label, color: SERIES[i] })),
-    table: () => ({ columns: ['Day (UTC)', ...c.series.map((s) => s.label)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => fmt(s.values[i], 'int'))]).reverse() }),
-    body: () => chartBox(280, c.series.map((s) => s.label).join(' and ') + ' each day', (cv) => dayLines(cv, c)),
+    title: 'Players by day', wide: true, empty: c.empty, source: c.sources?.join(' · '), items: c.series?.map((s, i) => ({ label: s.label, color: colorOf(s, i) })),
+    table: () => ({ columns: ['Day', ...c.series.map((s) => s.label)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => cell(s, i, c.dates.length - 1))]).reverse() }),
+    body: () => [chartBox(300, c.series.map((s) => s.label).join(', ') + ' each day', (cv) => dayLines(cv, c)), notes(c.notes)],
   });
+}
+
+function downloadsPanel(c) {
+  return panel({
+    title: 'Downloads since launch', empty: c.empty, source: c.source,
+    table: () => ({ columns: ['Day', 'That day', 'In all'], rows: c.dates.map((d, i) => [day(d), fmt(c.daily[i], 'int'), fmt(c.cumulative[i], 'int')]).reverse() }),
+    body: () => [
+      h('div', { class: 'stats tight' }, stat('All time', fmt(c.total, 'int'), `${c.days_live} days since ${day(c.launched)}`), stat('Today so far', fmt(c.today, 'int')), stat('Yesterday', fmt(c.yesterday, 'int')),
+        c.marks.filter((m) => m.day > 1).slice(-3).map((m) => stat(`After ${m.day} days`, fmt(m.value, 'int'), day(m.date)))),
+      chartBox(210, 'Downloads in all, day by day since launch', (cv) => growthLine(cv, c)), notes(c.note ? [c.note] : null),
+    ],
+  });
+}
+
+const stars = (n) => h('span', { class: 'stars', role: 'img', 'aria-label': `${n} of 5 stars` }, '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n)));
+
+/** The listing as the store shows it: rating, the versions on sale and waiting, and what reviewers wrote. */
+function listingPanel(l) {
+  const waiting = l.pending.map((p) => h('li', null, h('strong', null, p.version), ` ${p.label.toLowerCase()}${p.release === 'manual' ? ', manual release' : p.release === 'scheduled' ? ', scheduled release' : ''}`));
+  return h('section', { class: 'panel' },
+    h('header', { class: 'panel-head' }, h('h2', null, 'Store listing'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `${l.store} · checked ${ago(l.checked_at)}`)),
+    h('div', { class: 'stats tight' },
+      stat('Rating', l.rating == null ? '—' : l.rating.toFixed(2), l.rating == null ? 'No ratings yet' : stars(l.rating)),
+      stat('Ratings', fmt(l.rating_count, 'int'), l.by_storefront.map((s) => `${s.cc} ${s.count} × ${s.rating.toFixed(1)}`).join(' · ') || null),
+      stat('Written reviews', l.reviews_total == null ? '—' : fmt(l.reviews_total, 'int'), l.connected ? null : 'Needs App Store Connect'),
+      stat('On sale', l.version || '—', l.version_released ? `since ${dateOf(l.version_released)}` : null)),
+    waiting.length ? h('ul', { class: 'versions' }, waiting) : null,
+    l.reviews?.length ? h('ul', { class: 'reviews' }, l.reviews.slice(0, 6).map((r) => h('li', null,
+      h('div', { class: 'review-top' }, stars(r.rating), h('strong', null, r.title), h('span', { class: 'src' }, `${r.territory} · ${dateOf(r.at)}`)),
+      h('p', null, r.body)))) : null,
+    h('div', { class: 'cap' }, `Ratings are added up over the ${l.storefronts.join(', ')} storefronts.`));
+}
+
+function ranksPanel(c) {
+  const shown = (c.series || []).slice(0, SERIES.length);
+  // A line needs two days. Until there are two, the ranks are tiles.
+  const days = c.empty ? 0 : c.dates.filter((_, i) => c.series.some((s) => s.values[i] != null)).length;
+  if (!c.empty && days < 2) {
+    return h('section', { class: 'panel' },
+      h('header', { class: 'panel-head' }, h('h2', null, 'Search rank'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `${c.store} search · ${c.storefront} · checked ${ago(c.checked_at)}`)),
+      h('div', { class: 'stats tight' }, c.series.map((s) => stat(s.term, s.now ? `#${s.now}` : '—', s.now ? null : `Outside the top ${c.depth}`))),
+      notes(['Lower is better. The chart of each term starts once a second day is recorded.']));
+  }
+  return panel({
+    title: 'Search rank', empty: c.empty, source: c.empty ? null : `${c.store} search · ${c.storefront}`, items: shown.map((s, i) => ({ label: `${s.term} ${s.now ? `#${s.now}` : '—'}`, color: SERIES[i] })),
+    table: () => ({ columns: ['Day', ...c.series.map((s) => s.term)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => (s.values[i] == null ? '—' : `#${s.values[i]}`))]).reverse() }),
+    body: () => [chartBox(240, 'Search rank for each term, day by day', (cv) => rankLines(cv, { dates: c.dates, series: shown })), notes([`A term with no rank is outside the top ${c.depth}. The history starts the day the dashboard first looked.`])],
+  });
+}
+
+/** A game's own rates beside what is typical: a bar for the game, a tick for the typical figure, a band for the usual range. */
+function benchPanel(b) {
+  const row = (r) => {
+    const top = Math.max(r.value || 0, r.typical || 0, r.high || 0, r.top || 0) * 1.12 || 1, at = (v) => `${Math.min(100, (v / top) * 100).toFixed(2)}%`;
+    const track = h('div', { class: 'bullet', role: 'img', 'aria-label': `${r.label}: ${r.value == null ? 'no figure yet' : fmt(r.value, r.format)}, typical ${fmt(r.typical, r.format)}` });
+    if (r.low != null && r.high != null) { const band = h('span', { class: 'bullet-band' }); band.style.left = at(r.low); band.style.width = `calc(${at(r.high)} - ${at(r.low)})`; track.append(band); }
+    if (r.value != null) { const bar = h('span', { class: 'bullet-bar' }); bar.style.width = at(r.value); track.append(bar); }
+    if (r.typical != null) { const tick = h('span', { class: 'bullet-tick' }); tick.style.left = at(r.typical); track.append(tick); }
+    const tone = r.tone === 'good' ? 'up' : r.tone === 'bad' ? 'down' : 'flat';
+    return h('li', { class: 'bench', title: r.what },
+      h('div', { class: 'bench-name' }, h('strong', null, r.label), r.basis && h('span', { class: 'src' }, r.basis)),
+      h('div', { class: 'bench-you' }, r.value == null ? '—' : fmt(r.value, r.format)),
+      h('div', { class: 'bench-bar' }, track, h('div', { class: 'bench-scale' }, `${r.milestone ? 'Milestone' : 'Typical'} ${fmt(r.typical, r.format)}${r.low != null && r.high != null ? ` · usual range ${fmt(r.low, r.format)} to ${fmt(r.high, r.format)}` : ''}${r.top != null ? ` · top games ${fmt(r.top, r.format)}` : ''}`)),
+      h('div', { class: 'bench-say' },
+        r.verdict ? h('span', { class: `delta delta-${r.tone || 'flat'}` }, icon(tone), h('span', { class: 'delta-value' }, r.verdict)) : chip({ kind: 'off', badge: r.need || 'No figure yet' }),
+        r.note && h('span', { class: 'src' }, r.note),
+        h('a', { class: 'src link', href: r.url, target: '_blank', rel: 'noopener noreferrer' }, r.source)));
+  };
+  return h('section', { class: 'panel wide' },
+    h('header', { class: 'panel-head' }, h('h2', null, 'Against the average'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `Store rates are for ${b.genre === 'games' ? 'games' : `${b.genre} games`}`)),
+    h('ul', { class: 'benches' }, b.rows.map(row)));
+}
+
+/** What each of the last day's players did, the most recent first. */
+function storiesPanel(s) {
+  return h('section', { class: 'panel wide' },
+    h('header', { class: 'panel-head' }, h('h2', null, 'What players did, last 24 hours'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `PostHog · ${s.players.length}${s.players.length >= s.limit ? ' most recent' : ''} ${s.players.length === 1 ? 'player' : 'players'} · as of ${time(s.as_of)}`)),
+    h('ul', { class: 'stories' }, s.players.map((p) => h('li', { class: 'story' },
+      h('div', { class: 'story-top' }, h('strong', null, p.head), h('span', { class: 'src' }, `${ago(p.last_seen)} · player ${p.tag}`)),
+      h('p', null, p.lines.join(' ')),
+      p.flags.length ? h('div', { class: 'flags' }, p.flags.map((f) => h('span', { class: 'chip chip-warn' }, icon('alert'), f))) : null))));
 }
 
 function retentionPanel(c) {
@@ -196,13 +296,18 @@ const syncPanel = (sync) => h('section', { class: 'panel wide' }, h('header', { 
 
 function gameView(v) {
   const x = v.extras, out = [
+    v.today && todayPanel(v.today, v.clock),
     h('div', { class: 'kpis' }, v.kpis.map((k) => kpiCard(k, v.days))),
     h('div', { class: 'grid' },
-      revenuePanel(v.charts.revenue), audiencePanel(v.charts.audience), retentionPanel(v.charts.retention),
-      ftuePanel(v.charts.ftue), productsPanel(v.charts.products), syncPanel(v.sync)),
-  ];
+      playersPanel(v.charts.players), downloadsPanel(v.charts.downloads), x.listing ? listingPanel(x.listing) : ranksPanel(v.charts.ranks),
+      x.listing && ranksPanel(v.charts.ranks), x.listing && retentionPanel(v.charts.retention),
+      x.benchmarks && benchPanel(x.benchmarks),
+      revenuePanel(v.charts.revenue), !x.listing && retentionPanel(v.charts.retention),
+      ftuePanel(v.charts.ftue), productsPanel(v.charts.products),
+      x.stories && storiesPanel(x.stories), syncPanel(v.sync)),
+  ].filter(Boolean);
   const more = [];
-  if (x.hourly) more.push(panel({ title: 'Players, last 48 hours', source: 'PostHog', wide: true, body: () => chartBox(200, 'Players each hour', (cv) => hourLine(cv, { hours: x.hourly.hours, values: x.hourly.players, label: 'Players' })) }));
+  if (x.hourly) more.push(panel({ title: x.hourly.series.length > 1 ? 'New and active players, last 48 hours' : `${x.hourly.series[0].label} players, last 48 hours`, source: x.hourly.source, wide: true, items: x.hourly.series.length > 1 ? x.hourly.series.map((s, i) => ({ label: s.label, color: colorOf(s, i) })) : null, table: () => ({ columns: ['Hour', ...x.hourly.series.map((s) => s.label)], rows: x.hourly.hours.map((t, i) => [moment(t), ...x.hourly.series.map((s) => fmt(s.values[i], 'int'))]).reverse() }), body: () => [chartBox(200, 'Players each hour', (cv) => hourLines(cv, x.hourly)), notes(x.hourly.note ? [x.hourly.note] : null)] }));
   if (x.store) { const rows = x.store.steps.map((s) => ({ ...s, v: s.count })); more.push(barsPanel({ title: 'Store funnel', source: 'PostHog', rows, label: (r) => r.label, valueText: (r) => fmt(r.count, 'int'), tip: (r) => [`${fmt(r.count, 'int')} times`], columns: ['Step', 'Times'], cells: (r) => [r.label, fmt(r.count, 'int')] })); }
   if (x.gfx) { const rows = x.gfx.levels.map((s) => ({ ...s, v: s.players })); more.push(barsPanel({ title: 'Graphics level', source: 'PostHog', rows, label: (r) => `Level ${r.level}`, valueText: (r) => `${fmt(r.players, 'int')} · ${fmt(r.share, 'pct')}`, tip: (r) => [`${fmt(r.players, 'int')} players`, `${fmt(r.share, 'pct')} of them`], columns: ['Level', 'Players', 'Share'], cells: (r) => [`Level ${r.level}`, fmt(r.players, 'int'), fmt(r.share, 'pct')] })); }
   if (x.community) more.push(h('section', { class: 'panel' }, h('header', { class: 'panel-head' }, h('h2', null, x.community.label), h('span', { class: 'spacer' }), h('span', { class: 'src' }, 'Game database')), tiles(x.community.tiles)));
@@ -228,7 +333,7 @@ function overviewView(o) {
     h('div', { class: 'kpis kpis-4' }, o.totals.map((k) => kpiCard(k, o.days))),
     h('div', { class: 'grid' }, panel({
       title: 'Daily revenue by game', source: 'RevenueCat', wide: true, empty: c.empty, items: c.series?.map((s) => ({ label: s.label, color: color(s.slug) })),
-      table: () => ({ columns: ['Day (UTC)', ...c.series.map((s) => s.label)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => fmt(s.values[i], 'usd'))]).reverse() }),
+      table: () => ({ columns: ['Day', ...c.series.map((s) => s.label)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => fmt(s.values[i], 'usd'))]).reverse() }),
       body: () => h('div', { class: 'quiet-host' }, chartBox(240, 'Revenue each day, by game', (cv) => stackedDayBars(cv, { dates: c.dates, format: 'usd', series: c.series.map((s) => ({ ...s, color: color(s.slug) })) })), c.quiet && h('div', { class: 'quiet-note' }, c.quiet)),
     })),
     h('div', { class: 'games' }, o.games.map((g, i) => gameCard(g, o.days, i))),
@@ -276,7 +381,7 @@ function paintChrome() {
     state.view !== 'overview' && seg('Platform', PLATFORMS, state.platform, (id) => hrefFor(state.view, id)),
     game && h('div', { class: 'plats' }, ['ios', 'android'].map((p) => h('span', { class: 'plat' }, p === 'ios' ? 'iOS' : 'Android', pill(game.platforms[p].status, game.platforms[p].label, 'quiet')))),
     h('span', { class: 'spacer' }),
-    h('span', { class: 'updated', 'aria-live': 'polite' }, state.loading ? 'Loading…' : shown ? `Days are UTC · Updated ${time(shown.generated_at)}` : ''),
+    h('span', { class: 'updated', 'aria-live': 'polite' }, state.loading ? 'Loading…' : shown ? `Days are ${shown.clock?.name || 'UTC'} · Updated ${time(shown.generated_at)}` : ''),
     h('button', { class: 'ghost', type: 'button', onclick: () => load(), disabled: state.loading }, 'Refresh'),
   ].filter(Boolean));
 }

@@ -5,17 +5,24 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-export function loadGames(file = path.join(ROOT, 'config/games.json')) {
-  return JSON.parse(fs.readFileSync(file, 'utf8')).games;
+const FILE = path.join(ROOT, 'config/games.json');
+export function loadConfig(file = FILE) {
+  const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return { timezone: j.timezone || 'UTC', games: j.games };
 }
+export const loadGames = (file = FILE) => loadConfig(file).games;
+/** The one time zone every live number's day is counted in. */
+export const loadZone = (file = FILE) => loadConfig(file).timezone;
 
-/** The rows the `games` table holds: public identifiers and each platform's status. */
-export function gameRows(games) {
+/** The rows the `games` table holds: public identifiers, each platform's status and launch day, and the reporting time zone. */
+export function gameRows(games, zone = 'UTC') {
   return games.map((g) => ({
     slug: g.slug, display_name: g.display_name, status: g.status,
     ios_bundle_id: g.ios_bundle_id ?? null, android_package_id: g.android_package_id ?? null,
     config: {
-      platforms: Object.fromEntries(Object.entries(g.platforms || {}).map(([p, v]) => [p, { status: v.status }])),
+      timezone: zone,
+      platforms: Object.fromEntries(Object.entries(g.platforms || {}).map(([p, v]) => [p, { status: v.status, ...(v.launched ? { launched: v.launched } : {}) }])),
+      ...(g.genre ? { genre: g.genre } : {}),
       ...(g.game_db?.label ? { community_label: g.game_db.label } : {}),
     },
   }));

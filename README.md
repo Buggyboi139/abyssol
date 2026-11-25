@@ -111,6 +111,7 @@ A source with no secret set is skipped, not failed, and its badge reads
 | `SUPABASE_SERVICE_ROLE_KEY` | Both workflows | The central project's service role key. |
 | `PEARL_TIDE_REVENUECAT_API_KEY` | Hourly | A RevenueCat v2 secret key for the Pearl Tide project, with read access to charts metrics. |
 | `CHILLWATER_REVENUECAT_API_KEY` | Hourly | The same for Chillwater Lake. |
+| `<PREFIX>_REVENUECAT_EXCLUDE` | Hourly | Optional. RevenueCat customer ids or purchase ids to leave out of every number, separated by commas: your own test purchase made in production, for example. Set it with `gh secret set` so the id is never in the repository. |
 | `POSTHOG_PERSONAL_API_KEY` | Hourly | A PostHog personal API key (`phx_...`) with the `query:read` scope, scoped to every game's project. Both games are projects in one organization, so one key covers them. |
 | `PEARL_TIDE_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Pearl Tide: `767644`. |
 | `CHILLWATER_POSTHOG_PROJECT_ID` | Hourly | The PostHog project id for Chillwater Lake: `768046`. |
@@ -118,9 +119,9 @@ A source with no secret set is skipped, not failed, and its badge reads
 | `POSTHOG_HOST` | Hourly | Optional. `https://us.posthog.com` (the default) or `https://eu.posthog.com`. `<PREFIX>_POSTHOG_HOST` sets it for one game. |
 | `PEARL_TIDE_GAME_DB_URL` | Hourly | Optional. A read-only Postgres connection string for Pearl Tide's own Supabase project. See [A read-only role](#a-read-only-role-for-a-game-database). |
 | `CHILLWATER_GAME_DB_URL` | Hourly | Optional. The same for Chillwater Lake. |
-| `ASC_KEY_ID` | Daily | The App Store Connect API key's id. |
-| `ASC_ISSUER_ID` | Daily | The App Store Connect issuer id. |
-| `ASC_PRIVATE_KEY` | Daily | The whole text of the key's `.p8` file. |
+| `ASC_KEY_ID` | Both | The App Store Connect API key's id. The hourly store listing pull reads versions and written reviews with it (any role). |
+| `ASC_ISSUER_ID` | Both | The App Store Connect issuer id. |
+| `ASC_PRIVATE_KEY` | Both | The whole text of the key's `.p8` file. |
 | `ASC_VENDOR_NUMBER` | Daily | Your vendor number (App Store Connect, Payments and Financial Reports). Needed for sales reports. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Daily | The service account's key file, as JSON. Invite the account in Play Console with "View app information and download bulk reports". |
 | `GOOGLE_PLAY_BUCKET` | Daily | The `pubsite_prod_...` bucket name (Play Console, Download reports, Statistics, Copy Cloud Storage URI). Needed for installs and ratings. |
@@ -136,7 +137,11 @@ prefix (for example `CHILLWATER_ASC_KEY_ID`) and pass it in the workflow.
 
 `config/games.json` lists the games in tab order: slug, name, bundle ids, the
 status of the game and of each platform (`live`, `in_review`, or `prelaunch`),
-and the secret prefix. Only public identifiers belong in it.
+and the secret prefix. Only public identifiers belong in it. It also holds
+the reporting time zone (`timezone`, one for every game), and for a game its
+`genre` (which store benchmarks apply), the App Store `storefronts` whose
+ratings are added up, the `search_terms` whose rank is tracked, and each
+platform's `launched` date.
 
 When a platform goes live, change its status to `live` and push. The next sync
 updates the `games` table and starts pulling that platform. To rename Game 3
@@ -147,8 +152,9 @@ history stays under the old one.
 
 | Source | Schedule | What it brings | Runs when |
 |---|---|---|---|
-| RevenueCat | Hourly | Revenue, proceeds, transactions, new and active customers, conversion to paying, revenue by product | Any platform is live |
-| PostHog | Hourly | DAU, WAU, sessions, new users, day 1 to day 30 retention, the first-steps funnel, the store funnel, unclean exits, errors, graphics level | Any platform is live |
+| Store listing | Hourly | The rating and rating count by storefront, the version on sale and any waiting for review, written reviews, and the rank for each search term | iOS is live |
+| RevenueCat | Hourly | Revenue, proceeds, transactions, new, active, and returning players (testers left out), conversion to paying, revenue by product, today so far and the last 24 hours | Any platform is live |
+| PostHog | Hourly | DAU, WAU, sessions, new users, day 1 to day 30 retention, the first-steps funnel, the store funnel, unclean exits, errors, load time, graphics level, and a readable note on what each of the last day's players did | Any platform is live |
 | Game database | Hourly | Player counts from the game's own Supabase project | Any platform is live |
 | App Store Connect | Twice daily | Downloads, redownloads, updates, proceeds, impressions, page views, sessions, crashes | iOS is live |
 | Google Play | Twice daily | Crash and ANR rates, active devices, installs, uninstalls, ratings, reviews | Android is live |
@@ -267,14 +273,32 @@ source error), and `--create-report-request`.
 
 ## How the numbers are worked out
 
-Days are UTC. A change compares the range with the same number of days before
-it, and shows only when at least half of those days have data.
+Days are days in the reporting time zone (`timezone` in `config/games.json`,
+Pacific time, which is the day App Store Connect reports). RevenueCat and
+PostHog are both counted on that clock, so a day's numbers from the two cover
+the same hours. The stores post a day at a time, a day or two late, so today
+and the last 24 hours come from RevenueCat and PostHog only.
+
+A change compares the range with the same number of days before it, and shows
+only when at least half of those days have data and fall after launch.
+
+**Testers.** A RevenueCat customer is left out of every number when its
+platform is not live, it was first seen before the platform's `launched` date,
+its app version is not a plain release number or is newer than the version on
+sale, it has a sandbox purchase, or it is named in
+`<PREFIX>_REVENUECAT_EXCLUDE`. The Today panel says how many were left out.
+
+**Against the average.** `config/benchmarks.json` holds the typical figures
+and where each comes from: store conversion rates by genre (AppTweak),
+retention (GameAnalytics), and first-month downloads (AppBrain). Each row
+shows the game's own number, the typical one, and the usual range when the
+source gives one. A row with no number yet says what it is waiting for.
 
 | KPI | Rule |
 |---|---|
 | Revenue | The sum of RevenueCat's revenue. Proceeds and transactions sit under it. |
-| Installs | App Store first-time downloads plus Google Play installs. Before those arrive: PostHog new users, then RevenueCat new customers. The card names its source. |
-| DAU | The average of PostHog's daily active users over whole days. Before PostHog: RevenueCat's active customers. |
+| Installs | App Store first-time downloads plus Google Play installs. Before those arrive: RevenueCat new customers (every install makes one), then PostHog new users. The card names its source. |
+| DAU | The average over whole days of each day's active players: the larger of PostHog's count and RevenueCat's customers last seen that day. |
 | D1 / D7 retention | Of the players who first played N days before each day in the range, the share who played again on day N. |
 | Unclean exit / crash rate | Unclean exits over sessions (PostHog). Crash rate: App Store crashes over sessions, or Google Play's user-perceived crash rate. |
 | Conversion rate | New paying customers over new customers (RevenueCat). |

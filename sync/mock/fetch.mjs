@@ -3,7 +3,11 @@
 // response shape, the same numbers for the same day every run. No network.
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
-import { ymd, addDays, dateRange } from '../lib/util.mjs';
+import { addDays, dateRange } from '../lib/util.mjs';
+import { loadZone } from '../lib/config.mjs';
+import { dayIn, dayStart } from '../../server/zone.js';
+
+const ZONE = loadZone(), DAYMS = 86400000, MOCK_DAYS = 140;
 
 // A number from 0 to 1 that depends only on the text given.
 const rnd = (s) => crypto.createHash('md5').update(String(s)).digest().readUInt32BE(0) / 2 ** 32;
@@ -21,12 +25,19 @@ export function mockDay(game, platform, date) {
   return { newUsers, dau, sales, revenue, transactions: sales.reduce((a, p) => a + p.n, 0), sessions: Math.round(dau * 1.8), payers: Math.min(newUsers, sales.length ? 1 : 0) };
 }
 
-export function mockFetch({ today = ymd(Date.now()) } = {}) {
+/** The games as configured, but launched long enough ago that the made-up history is not all from before launch. */
+export function mockGames(games, now = Date.now()) {
+  const launched = addDays(dayIn(now, ZONE), -MOCK_DAYS);
+  return games.map((g) => ({ ...g, platforms: Object.fromEntries(Object.entries(g.platforms || {}).map(([p, v]) => [p, { ...v, launched }])) }));
+}
+
+export function mockFetch({ today = dayIn(Date.now(), ZONE) } = {}) {
   const calls = [];
   const handler = async (url, opts = {}) => {
     const u = new URL(url); calls.push(`${opts.method || 'GET'} ${u.host}${u.pathname}`);
     const body = typeof opts.body === 'string' ? opts.body : '';
     if (u.host === 'api.revenuecat.com') return revenuecat(u, opts);
+    if (u.host === 'itunes.apple.com') return itunes(u, today);
     if (u.host.endsWith('posthog.com')) return posthog(u, JSON.parse(body), today);
     if (u.host === 'api.appstoreconnect.apple.com' || u.host === 'mock-apple-files.test') return apple(u, today);
     if (u.host === 'api.frankfurter.dev') return json({ base: 'USD', rates: { EUR: 0.9, GBP: 0.8, CAD: 1.4 } });
@@ -43,6 +54,12 @@ function revenuecat(u, opts) {
   const game = (opts.headers?.authorization || '').replace(/^Bearer mock-/, '') || 'game';
   if (u.pathname === '/v2/projects') return json({ items: [{ id: 'projmock', name: game }] });
   const name = u.pathname.split('/').pop(), q = u.searchParams;
+  if (name === 'customers') {
+    const all = mockCustomers(game), at = +q.get('starting_after') || 0, size = +q.get('limit') || 20;
+    return json({ items: all.slice(at, at + size), next_page: at + size < all.length ? `${u.pathname}?limit=${size}&starting_after=${at + size}` : null });
+  }
+  if (name === 'purchases') return json({ items: mockPurchases(decodeURIComponent(u.pathname.split('/').at(-2))), next_page: null });
+  if (name === 'products') return json({ items: PRODUCTS.map(([id]) => ({ id: `prod_${id}`, store_identifier: id, type: 'consumable' })), next_page: null });
   const dates = dateRange(q.get('start_date'), q.get('end_date')), segment = q.get('segment');
   const lastDay = dates[dates.length - 1];
   const cell = (d, measure, seg, value) => ({ cohort: day0(d), incomplete: d === lastDay, measure, ...(seg === null ? {} : { segment: seg }), value: Math.round(value * 100) / 100 });
@@ -50,6 +67,12 @@ function revenuecat(u, opts) {
   if (name === 'revenue') {
     const proceeds = /proceeds/.test(q.get('selectors') || '');
     const measures = [{ display_name: proceeds ? 'Proceeds' : 'Revenue' }, { display_name: 'Transactions' }];
+    if (!segment) {
+      // A sale counted on a reporting-zone day falls on that UTC day or the next.
+      const values = [];
+      for (const d of dates) { const n = ['ios', 'android'].reduce((a, p) => a + mockDay(game, p, d).transactions + mockDay(game, p, addDays(d, -1)).transactions, 0); values.push(cell(d, 0, null, n * 2.5), cell(d, 1, null, n)); }
+      return json({ measures, values });
+    }
     if (segment === 'store') {
       const values = [];
       for (const d of dates) plats.forEach(([p], i) => { const m = mockDay(game, p, d); values.push(cell(d, 0, i + 1, m.revenue * (proceeds ? 0.7 : 1)), cell(d, 1, i + 1, m.transactions)); });
@@ -76,6 +99,54 @@ function revenuecat(u, opts) {
   return json({ type: 'resource_missing' }, 404);
 }
 
+// Everyone RevenueCat has seen: mockDay's new players as customers, some of whom came back, and two testers.
+const customerCache = new Map();
+function mockCustomers(game, now = Date.now()) {
+  const stamp = `${game}|${Math.floor(now / 60000)}`;
+  if (customerCache.has(stamp)) return customerCache.get(stamp);
+  const today = dayIn(now, ZONE), out = [];
+  for (const [p, name] of [['ios', 'iOS'], ['android', 'android']]) for (const d of dateRange(addDays(today, -MOCK_DAYS), today)) {
+    const t0 = dayStart(d, ZONE), n = mockDay(game, p, d).newUsers;
+    for (let i = 0; i < n; i++) {
+      const id = `c|${game}|${p}|${d}|${i}`, first = t0 + Math.floor(rnd(id) * (DAYMS - 120000));
+      if (first > now) continue;
+      const back = rnd(id + 'b') < 0.34 ? int(id + 'k', 1, 12) : 0;
+      out.push({ object: 'customer', id, first_seen_at: first, last_seen_at: Math.min(now, first + back * DAYMS + Math.floor(rnd(id + 'l') * 3600000)), last_seen_platform: name, last_seen_app_version: rnd(id + 'v') < 0.8 ? '1.3.7' : '1.3.6', last_seen_country: rnd(id + 'c') < 0.7 ? 'US' : rnd(id + 'c') < 0.85 ? 'CA' : 'GB' });
+    }
+  }
+  // Two the sync must leave out: one on a build newer than the one on sale, one with a sandbox purchase.
+  out.push({ object: 'customer', id: `c|${game}|ios|tester|build`, first_seen_at: now - 3 * 3600000, last_seen_at: now - 3600000, last_seen_platform: 'iOS', last_seen_app_version: '9.9.9', last_seen_country: 'US' });
+  out.push({ object: 'customer', id: `c|${game}|ios|tester|sandbox`, first_seen_at: now - 5 * 3600000, last_seen_at: now - 2 * 3600000, last_seen_platform: 'iOS', last_seen_app_version: '1.3.7', last_seen_country: 'US' });
+  out.sort((a, b) => b.first_seen_at - a.first_seen_at);
+  customerCache.clear(); customerCache.set(stamp, out);
+  return out;
+}
+// A day's sales belong to that day's new customers, bought a minute and a half after they arrived.
+function mockPurchases(id, now = Date.now()) {
+  const [, game, p, d, i] = id.split('|');
+  const buy = (n, product, price, at, environment = 'production') => ({ object: 'purchase', id: `pur|${id}|${n}`, environment, store: p === 'ios' ? 'app_store' : 'play_store', product_id: `prod_${product}`, purchased_at: Math.min(now, at), quantity: 1, status: 'owned', revenue_in_usd: { currency: 'USD', gross: price, commission: price * 0.3, tax: 0, proceeds: price * 0.7 } });
+  if (d === 'tester') return i === 'sandbox' ? [buy(0, 'pearls.handful', 0.99, now - 2 * 3600000, 'sandbox')] : [];
+  const m = mockDay(game, p, d), first = dayStart(d, ZONE) + Math.floor(rnd(id) * (DAYMS - 120000)), out = [];
+  let k = 0;
+  for (const s of m.sales) for (let n = 0; n < s.n; n++, k++) if (m.newUsers && k % m.newUsers === +i) out.push(buy(k, s.id, s.price, first + 90000));
+  return out;
+}
+
+// ---- The App Store as a shopper sees it ----
+function itunes(u, today) {
+  const q = u.searchParams, id = q.get('id');
+  if (u.pathname === '/lookup') {
+    const cc = q.get('country') || 'us', n = { us: 11, ca: 3, gb: 2 }[cc] || 0;
+    return json({ resultCount: 1, results: [{ trackId: +id, version: '1.3.7', averageUserRating: n ? 4 + rnd(id + cc) * 0.9 : 0, userRatingCount: n, currentVersionReleaseDate: `${addDays(today, -2)}T17:00:00Z`, releaseDate: `${addDays(today, -MOCK_DAYS)}T08:00:00Z` }] });
+  }
+  if (u.pathname === '/search') {
+    const term = q.get('term') || '', at = int(term + today, 0, 11), results = Array.from({ length: 30 }, (_, i) => ({ trackId: 1000 + i }));
+    results[at] = { trackId: 6820164397 }; results[(at + 7) % 30] = { trackId: 6838396514 };
+    return json({ resultCount: results.length, results });
+  }
+  return json({}, 404);
+}
+
 // ---- PostHog ----
 const FTUE = ['01_Loaded', '01b_Swam', '02_Wardrobe', '03_Gift', '04_Tapped', '05_Bought', '06_Dressed', '07_Out', '08_Pearl', '09_Swim', '10_Quest', '11_QuestDone', '12_Home', '13_Decorate', '14_Camera', '15_Runway'];
 const KEEP = [1, 0.93, 0.74, 0.86, 0.69, 0.41, 0.66, 0.9, 0.71, 0.55, 0.43, 0.36, 0.33, 0.21, 0.17, 0.09];
@@ -83,6 +154,32 @@ function posthog(u, body, today) {
   const game = u.pathname.split('/')[3], q = body.query.query;
   const found = [...q.matchAll(/'(\d{4}-\d\d-\d\d)/g)].map((m) => m[1]);
   const plats = ['ios', 'android'], out = (columns, results) => json({ columns, results });
+  const stamp = (t) => new Date(t).toISOString().slice(0, 19).replace('T', ' ');
+  if (q.includes('active24')) {
+    return out(['platform', 'active24', 'new24', 'back24', 'bought24', 'active', 'fresh', 'back', 'everyone'], plats.map((p) => { const m = mockDay(game, p, today), n = Math.round(m.newUsers * 0.6), a = Math.round(m.dau * 0.7); return [p, m.dau, m.newUsers, m.dau - m.newUsers, m.transactions, a, n, a - n, m.dau * 30]; }));
+  }
+  if (q.includes('argMax(')) {
+    return out(['distinct_id', 'first', 'last', 'platform', 'version', 'country'], Array.from({ length: 9 }, (_, i) => { const p = i % 4 === 3 ? 'android' : 'ios', last = Date.now() - i * 47 * 60000; return [`u-${game}-${i}`, stamp(i % 3 ? last - 9 * DAYMS : last - 26 * 60000), stamp(last), p, '1.3.7', i % 2 ? 'US' : 'CA']; }));
+  }
+  if (q.includes('distinct_id, event, count()')) {
+    const rows = [];
+    for (let i = 0; i < 9; i++) {
+      const id = `u-${game}-${i}`, add = (event, n = 1, total = 0) => rows.push([id, event, n, total, total]);
+      add('Load:Ready', 1, 4 + i * 2.5); add(`Session:Open:${i % 3 ? 4 + i : 1}`); add('Device:Screen:390x844_3'); add('Area:House', 2, 300 + i * 40); add('Area:Sea', 3, 500 + i * 90);
+      if (i % 3 === 0) for (const s of FTUE.slice(0, 6 + i)) add(`FTUE:${s}`);
+      if (i % 2) { add('Quest:Offer:net', 2); add('Quest:Accept:net', 1); add('Quest:Done:net', 1); }
+      if (i === 1) { add('Shop:Open:hud'); add('Store:Tap:pearls.handful'); add('Store:Cancel:pearls.handful'); }
+      if (i === 2) { add('Runway:Open'); add('Runway:Rate', 6); add('Runway:Submit'); }
+      if (i === 4) { add('Load:ContextLost'); add('Gfx:Lite:1'); add('Session:UncleanExit:Playing'); }
+      if (i === 5) add('Store:Bought:pearls.pouch');
+    }
+    return out(['distinct_id', 'event', 'n', 'total', 'most'], rows);
+  }
+  if (q.includes('toStartOfHour(first)')) {
+    const rows = [], t0 = Math.floor(Date.now() / 3600000) * 3600000;
+    for (let h = 47; h >= 0; h--) for (const p of plats) { const t = new Date(t0 - h * 3600000).toISOString(); const n = Math.round(int(game + p + t + 'n', 0, 3) * (p === 'ios' ? 1 : 0.3)); if (n) rows.push([stamp(t), p, n]); }
+    return out(['hour', 'platform', 'n'], rows);
+  }
   if (q.includes('toStartOfHour')) {
     const rows = [], t0 = Math.floor(Date.now() / 3600000) * 3600000;
     for (let h = 47; h >= 0; h--) for (const p of plats) { const t = new Date(t0 - h * 3600000).toISOString(); const n = Math.round(int(game + p + t, 2, 14) * (p === 'ios' ? 1 : 0.3)); if (n) rows.push([t.slice(0, 19).replace('T', ' '), p, n, n * 23]); }
@@ -120,8 +217,8 @@ function posthog(u, body, today) {
     return out(['day', 'platform', 'event', 'n', 'users'], rows);
   }
   const rows = [];
-  for (const d of dates) for (const p of plats) { const m = mockDay(game, p, d); rows.push([d, p, m.dau, m.sessions, Math.round(m.sessions * 0.9), 0]); }
-  return out(['day', 'platform', 'users', 'sessions', 'loads', 'opens'], rows);
+  for (const d of dates) for (const p of plats) { const m = mockDay(game, p, d), loads = Math.round(m.sessions * 0.9); rows.push([d, p, m.dau, m.sessions, loads, 0, loads * (5 + rnd(d + p) * 4), int(d + p + 'x', 0, 2), int(d + p + 'g', 0, 1)]); }
+  return out(['day', 'platform', 'users', 'sessions', 'loads', 'opens', 'load_secs', 'lost', 'lite'], rows);
 }
 
 // ---- App Store Connect ----
@@ -131,6 +228,12 @@ function apple(u, today) {
   const p = u.pathname, q = u.searchParams;
   let m;
   if ((m = /^\/v1\/apps\/(\d+)$/.exec(p))) return json({ data: { id: m[1], attributes: { sku: 'SKU' + m[1] } } });
+  if ((m = /^\/v1\/apps\/(\d+)\/appStoreVersions$/.exec(p))) return json({ data: [
+    { attributes: { versionString: '1.3.8', appStoreState: 'WAITING_FOR_REVIEW', releaseType: 'MANUAL', createdDate: `${today}T12:00:00-08:00`, platform: 'IOS' } },
+    { attributes: { versionString: '1.3.7', appStoreState: 'READY_FOR_SALE', releaseType: 'AFTER_APPROVAL', createdDate: `${addDays(today, -3)}T12:00:00-08:00`, platform: 'IOS' } }] });
+  if ((m = /^\/v1\/apps\/(\d+)\/customerReviews$/.exec(p))) return json({ meta: { paging: { total: 2, limit: 20 } }, data: [
+    { attributes: { rating: 5, title: 'Lovely', body: 'A calm game with a lot to do.', reviewerNickname: 'made-up', createdDate: `${addDays(today, -4)}T09:00:00-08:00`, territory: 'USA' } },
+    { attributes: { rating: 3, title: 'Slow to load', body: 'Nice once it starts.', reviewerNickname: 'made-up-2', createdDate: `${addDays(today, -9)}T09:00:00-08:00`, territory: 'CAN' } }] });
   if (p === '/v1/salesReports') {
     const d = q.get('filter[reportDate]');
     if (d >= addDays(today, -1)) return json({ errors: [{ status: '404', code: 'NOT_FOUND', detail: 'Report is not available yet. Daily reports for the Americas are available by 5 am Pacific Time.' }] }, 404);

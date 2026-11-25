@@ -17,7 +17,7 @@ import { makeDb, serveDb, LOCAL_KEY } from './localdb.mjs';
 import { hashPassword } from '../server/auth.js';
 import { sync } from '../sync/run.mjs';
 import { loadGames } from '../sync/lib/config.mjs';
-import { mockFetch, mockEnv, mockGameDb } from '../sync/mock/fetch.mjs';
+import { mockFetch, mockEnv, mockGameDb, mockGames } from '../sync/mock/fetch.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), flag = (f) => args.includes(f);
@@ -29,7 +29,7 @@ await serveDb(pg, port);
 const url = `http://127.0.0.1:${port}`;
 
 if (!flag('--empty')) {
-  const games = loadGames(), fake = mockFetch();
+  const games = mockGames(loadGames()), fake = mockFetch();
   const env = { ...mockEnv(games), SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: LOCAL_KEY };
   const fetchImpl = (u, o) => (String(u).startsWith(url) ? fetch(u, o) : fake(u, o));
   const { runs } = await sync({ what: 'all', games, days: 130, force: flag('--force'), env, fetchImpl, queryGameDb: mockGameDb, pause: 0 });

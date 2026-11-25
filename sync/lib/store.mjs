@@ -5,7 +5,7 @@ import { request } from './util.mjs';
 export class Store {
   constructor({ url, key, dryRun = false, fetchImpl = fetch }) {
     this.url = String(url || '').replace(/\/+$/, ''); this.key = key; this.dryRun = dryRun; this.fetch = fetchImpl;
-    this.kept = { daily: [], hourly: [], runs: [], games: [] };
+    this.kept = { daily: [], hourly: [], runs: [], games: [], facts: [] };
     if (!dryRun && (!this.url || !this.key)) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (or pass --dry-run)');
   }
 
@@ -33,6 +33,13 @@ export class Store {
       n += await this.rpc('dashboard_upsert_metrics', { p_daily: daily.slice(i, i + 2000), p_hourly: hourly.slice(i, i + 2000) });
     }
     return n;
+  }
+
+  /** What is not a number a day: [{game_slug, key, value}], each replacing the value kept under its key. */
+  async writeFacts(facts) {
+    this.kept.facts.push(...facts);
+    if (this.dryRun || !facts.length) return facts.length;
+    return this.rpc('dashboard_upsert_facts', { p_facts: facts });
   }
 
   async logRuns(runs) {

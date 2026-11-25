@@ -1,17 +1,21 @@
 {
-  "_": "The games the dashboard shows, in tab order. Only public identifiers belong here: keys, tokens, and account numbers come from environment variables named <env_prefix>_* (see README.md). A platform's sync runs only while its status is live.",
+  "_": "The games the dashboard shows, in tab order. Only public identifiers belong here: keys, tokens, and account numbers come from environment variables named <env_prefix>_* (see README.md). A platform's sync runs only while its status is live. timezone is the one clock every live number's day is counted on: the stores' own reporting day (Apple's sales reports and Google Play both use Pacific time). launched is the day a platform went on sale: a customer first seen before it is a tester.",
+  "timezone": "America/Los_Angeles",
   "games": [
     {
       "slug": "pearl-tide",
       "display_name": "Pearl Tide",
       "env_prefix": "PEARL_TIDE",
       "status": "live",
+      "genre": "simulation",
       "ios_bundle_id": "com.pearltide.swim",
       "android_package_id": "com.pearltide.swim",
       "platforms": {
-        "ios": { "status": "live", "app_store_id": "6820164397" },
+        "ios": { "status": "live", "app_store_id": "6820164397", "launched": "2026-11-06" },
         "android": { "status": "in_review" }
       },
+      "storefronts": ["us", "ca", "gb", "au", "mx", "sa"],
+      "search_terms": ["cozy mermaid", "mermaid", "mermaid games", "mermaid runway"],
       "posthog": { "platform_property": "platform", "error_event": "App:Error" },
       "game_db": {
         "label": "Reef Runway",
@@ -27,12 +31,15 @@
       "display_name": "Chillwater Lake",
       "env_prefix": "CHILLWATER",
       "status": "in_review",
+      "genre": "simulation",
       "ios_bundle_id": "com.lakeangler.game",
       "android_package_id": "com.lakeangler.game",
       "platforms": {
         "ios": { "status": "in_review", "app_store_id": "6838396514" },
         "android": { "status": "in_review" }
       },
+      "storefronts": ["us", "ca", "gb", "au", "mx", "sa"],
+      "search_terms": ["cozy fishing", "fishing game", "lake fishing"],
       "posthog": { "platform_property": "platform", "error_event": "App:Error" },
       "game_db": {
         "label": "Leaderboards",

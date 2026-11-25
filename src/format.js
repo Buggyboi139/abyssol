@@ -19,6 +19,8 @@ export function fmt(v, format) {
     case 'num': return Math.abs(v) < 100 ? one.format(v) : whole.format(v);
     case 'pct': { const p = v * 100; return `${p === 0 || Math.abs(p) >= 10 ? one.format(p) : p.toFixed(2)}%`; }
     case 'rating': return `${v.toFixed(2)} / 5`;
+    case 'secs': return `${v < 10 ? v.toFixed(1) : whole.format(v)} s`;
+    case 'rank': return `#${whole.format(v)}`;
     default: return String(v);
   }
 }
@@ -35,6 +37,13 @@ export const fullDay = (d) => longDay.format(new Date(`${d}T00:00:00Z`));
 export const moment = (iso) => exact.format(new Date(iso));
 export const time = (iso) => clock.format(new Date(iso));
 export const hour = (iso) => hourFmt.format(new Date(iso));
+/** A clock time in the reporting zone, with the zone's short name: "12:00 AM PST". */
+export function clockIn(iso, zone) {
+  try { return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: zone, timeZoneName: 'short' }).format(new Date(iso)); }
+  catch { return clock.format(new Date(iso)); }
+}
+const dateFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+export const dateOf = (iso) => dateFmt.format(new Date(iso));
 
 export function ago(iso, now = Date.now()) {
   const s = Math.max(0, (now - Date.parse(iso)) / 1000);

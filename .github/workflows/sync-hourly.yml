@@ -1,4 +1,5 @@
-# Hourly pull: RevenueCat, PostHog, and each game's own database counts.
+# Hourly pull: the store listing (ratings, reviews, versions, search ranks),
+# RevenueCat, PostHog, and each game's own database counts.
 # A source with no secret set is skipped and says so; a platform that is not
 # live is skipped too. Results land in the central database (sync_runs) and in
 # this run's summary.
@@ -34,22 +35,30 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
       POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+      # The store listing reads versions and written reviews with the App Store Connect key (any role).
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
       PEARL_TIDE_REVENUECAT_API_KEY: ${{ secrets.PEARL_TIDE_REVENUECAT_API_KEY }}
+      PEARL_TIDE_REVENUECAT_EXCLUDE: ${{ secrets.PEARL_TIDE_REVENUECAT_EXCLUDE }}
       PEARL_TIDE_POSTHOG_PROJECT_ID: ${{ secrets.PEARL_TIDE_POSTHOG_PROJECT_ID }}
       PEARL_TIDE_POSTHOG_PERSONAL_API_KEY: ${{ secrets.PEARL_TIDE_POSTHOG_PERSONAL_API_KEY }}
       PEARL_TIDE_POSTHOG_HOST: ${{ secrets.PEARL_TIDE_POSTHOG_HOST }}
       PEARL_TIDE_GAME_DB_URL: ${{ secrets.PEARL_TIDE_GAME_DB_URL }}
       CHILLWATER_REVENUECAT_API_KEY: ${{ secrets.CHILLWATER_REVENUECAT_API_KEY }}
+      CHILLWATER_REVENUECAT_EXCLUDE: ${{ secrets.CHILLWATER_REVENUECAT_EXCLUDE }}
       CHILLWATER_POSTHOG_PROJECT_ID: ${{ secrets.CHILLWATER_POSTHOG_PROJECT_ID }}
       CHILLWATER_POSTHOG_PERSONAL_API_KEY: ${{ secrets.CHILLWATER_POSTHOG_PERSONAL_API_KEY }}
       CHILLWATER_POSTHOG_HOST: ${{ secrets.CHILLWATER_POSTHOG_HOST }}
       CHILLWATER_GAME_DB_URL: ${{ secrets.CHILLWATER_GAME_DB_URL }}
       GAME3_REVENUECAT_API_KEY: ${{ secrets.GAME3_REVENUECAT_API_KEY }}
+      GAME3_REVENUECAT_EXCLUDE: ${{ secrets.GAME3_REVENUECAT_EXCLUDE }}
       GAME3_POSTHOG_PROJECT_ID: ${{ secrets.GAME3_POSTHOG_PROJECT_ID }}
       GAME3_POSTHOG_PERSONAL_API_KEY: ${{ secrets.GAME3_POSTHOG_PERSONAL_API_KEY }}
       GAME3_POSTHOG_HOST: ${{ secrets.GAME3_POSTHOG_HOST }}
       GAME3_GAME_DB_URL: ${{ secrets.GAME3_GAME_DB_URL }}
       GAME4_REVENUECAT_API_KEY: ${{ secrets.GAME4_REVENUECAT_API_KEY }}
+      GAME4_REVENUECAT_EXCLUDE: ${{ secrets.GAME4_REVENUECAT_EXCLUDE }}
       GAME4_POSTHOG_PROJECT_ID: ${{ secrets.GAME4_POSTHOG_PROJECT_ID }}
       GAME4_POSTHOG_PERSONAL_API_KEY: ${{ secrets.GAME4_POSTHOG_PERSONAL_API_KEY }}
       GAME4_POSTHOG_HOST: ${{ secrets.GAME4_POSTHOG_HOST }}

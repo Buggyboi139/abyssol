@@ -9,6 +9,11 @@ Chart.register(BarController, LineController, BarElement, LineElement, PointElem
 export const INK = { surface: '#1a1a19', grid: '#2c2c2a', axis: '#383835', text: '#f0efec', text2: '#c3c2b7', muted: '#898781' };
 /** Series colors, given out in this order and never by rank (validated for the dark surface). */
 export const SERIES = ['#3987e5', '#d95926', '#199e70', '#c98500'];
+/** A measure keeps its color wherever it is drawn, whatever else is on the chart. */
+const BY_ID = { new: SERIES[0], active: SERIES[1], returning: SERIES[2], downloads: SERIES[3] };
+export const colorOf = (s, i) => s.color || BY_ID[s.id] || SERIES[i % SERIES.length];
+// A value with nothing drawn on either side of it gets a dot: a line needs two points.
+const lonely = (r) => (c) => { const d = c.dataset.data, i = c.dataIndex; return d[i] != null && d[i - 1] == null && d[i + 1] == null ? r : 0; };
 
 Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 Chart.defaults.font.size = 12;
@@ -103,7 +108,7 @@ export function stackedDayBars(canvas, { dates, series, format }) {
 export function dayLines(canvas, { dates, series, format = 'int' }) {
   return make(canvas, {
     type: 'line',
-    data: { labels: dates, datasets: series.map((s, i) => ({ label: s.label, data: s.values, borderColor: SERIES[i], backgroundColor: SERIES[i], borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12, pointHoverBorderColor: INK.surface, pointHoverBorderWidth: 2, tension: 0.25, spanGaps: false })) },
+    data: { labels: dates, datasets: series.map((s, i) => ({ label: s.short || s.label, data: s.values, borderColor: colorOf(s, i), backgroundColor: colorOf(s, i), borderWidth: 2, pointRadius: lonely(3), pointHoverRadius: 4, pointHitRadius: 12, pointHoverBorderColor: INK.surface, pointHoverBorderWidth: 2, tension: 0.25, spanGaps: false })) },
     options: {
       layout: { padding: { right: 96 } },
       interaction: { mode: 'index', intersect: false },
@@ -152,17 +157,49 @@ export function sideBars(canvas, { labels, values, text, tip, color = SERIES[0] 
   });
 }
 
-/** One count an hour over the last two days. */
-export function hourLine(canvas, { hours, values, label }) {
+/** Counts an hour over the last two days, a line a measure. */
+export function hourLines(canvas, { hours, series }) {
   return make(canvas, {
     type: 'line',
-    data: { labels: hours, datasets: [{ label, data: values, borderColor: SERIES[0], backgroundColor: 'rgba(57, 135, 229, 0.12)', fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 10, tension: 0.3 }] },
+    data: { labels: hours, datasets: series.map((s, i) => ({ label: s.label, data: s.values, borderColor: colorOf(s, i), backgroundColor: colorOf(s, i), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 10, pointHoverBorderColor: INK.surface, pointHoverBorderWidth: 2, tension: 0.3 })) },
     options: {
+      layout: { padding: { right: series.length > 1 ? 72 : 8 } },
       interaction: { mode: 'index', intersect: false },
       scales: { x: { grid: { display: false }, border: { color: INK.axis }, ticks: { maxRotation: 0, autoSkipPadding: 28, callback(v) { return hour(hours[v]); } } }, y: yCount('int', { whole: true }) },
-      plugins: { tooltip: tooltip({ displayColors: false, callbacks: { title: (it) => hour(hours[it[0].dataIndex]), label: (it) => `${label}: ${fmt(it.raw, 'int')}` } }) },
+      plugins: { tooltip: tooltip({ callbacks: { title: (it) => hour(hours[it[0].dataIndex]), label: (it) => ` ${it.dataset.label}: ${fmt(it.raw, 'int')}` } }) },
+    },
+    plugins: series.length > 1 ? [crosshair, endLabels] : [crosshair],
+  });
+}
+
+/** A running total since launch. The tooltip also says what that day added. */
+export function growthLine(canvas, { dates, cumulative, daily, label = 'Total' }) {
+  return make(canvas, {
+    type: 'line',
+    data: { labels: dates, datasets: [{ label, data: cumulative, borderColor: SERIES[0], backgroundColor: 'rgba(57, 135, 229, 0.12)', fill: true, borderWidth: 2, pointRadius: lonely(3), pointHoverRadius: 4, pointHitRadius: 12, pointHoverBorderColor: INK.surface, pointHoverBorderWidth: 2, tension: 0.15 }] },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: xDays(dates), y: yCount('int', { whole: true }) },
+      plugins: { tooltip: tooltip({ displayColors: false, callbacks: { title: (it) => fullDay(dates[it[0].dataIndex]), label: (it) => [`${fmt(it.raw, 'int')} in all`, `${fmt(daily[it.dataIndex], 'int')} that day`] } }) },
     },
     plugins: [crosshair],
+  });
+}
+
+/** Where the listing comes up for each search term. First place is at the top. */
+export function rankLines(canvas, { dates, series }) {
+  const known = series.flatMap((s) => s.values.filter((v) => v != null)), worst = Math.max(5, ...known);
+  const dots = series.every((s) => s.values.filter((v) => v != null).length <= 14) ? 4 : lonely(4);
+  return make(canvas, {
+    type: 'line',
+    data: { labels: dates, datasets: series.map((s, i) => ({ label: s.term, data: s.values, borderColor: SERIES[i % SERIES.length], backgroundColor: SERIES[i % SERIES.length], borderWidth: 2, pointRadius: dots, pointBorderColor: INK.surface, pointBorderWidth: 2, pointHoverRadius: 6, pointHitRadius: 12, tension: 0, spanGaps: true })) },
+    options: {
+      layout: { padding: { right: 124 } },
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { ...xDays(dates), offset: true }, y: { reverse: true, min: 1, suggestedMax: worst + 1, grid: { color: INK.grid, lineWidth: 1 }, border: { display: false }, ticks: { precision: 0, maxTicksLimit: 6, callback: (v) => `#${v}` } } },
+      plugins: { tooltip: tooltip({ callbacks: { title: (it) => fullDay(dates[it[0].dataIndex]), label: (it) => ` ${it.dataset.label}: #${it.raw}` } }) },
+    },
+    plugins: [crosshair, endLabels],
   });
 }
 

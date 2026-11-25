@@ -256,8 +256,8 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   for (const back of [0, 1, 5]) expect(cohort(addDays(to, -back))).toBe(0);
   for (const back of [9, 20]) expect(cohort(addDays(to, -back))).toBe(mockDay('pearl-tide', 'ios', addDays(to, -back)).newUsers);
   expect(pt.kpis.find((k) => k.id === 'conversion').sub[1].label).toBe('players at day 7');
-  // No unique count from Apple is stored: summed over rows and days it is device-days.
-  expect((await pg.query(`select count(*)::int as n from metrics_daily where metric_key like '%\\_unique'`)).rows[0].n).toBe(0);
+  // Apple's unique counts are stored so store conversion, page-to-download, and search clicks count unique devices.
+  expect((await pg.query(`select count(*)::int as n from metrics_daily where metric_key like '%\\_unique'`)).rows[0].n).toBeGreaterThan(0);
 
   // The store funnel starts at the shop opening (Shop:Open in Pearl Tide, Store:Open in Chillwater Lake).
   expect(pt.extras.store.steps.map((x) => x.key).slice(0, 2)).toEqual(['Open', 'Tap']);
@@ -346,22 +346,39 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   const an = buildGame(raw(), { range: '30d', now });
   expect(an.charts.players.series[0]).toMatchObject({ id: 'downloads', label: 'First downloads · App Store' });
   expect(an.charts.downloads).toMatchObject({ source: 'App Store', total: 3 * days.length, note: null });
-  // Each rate is a total over a total: downloads over impressions, downloads from the page over page views.
+  // Without unique counts on record, store rates fall back to total counts and note it.
   expect(row(an, 'page_to_download').value).toBeCloseTo(0.3, 9); expect(row(an, 'store_conversion').value).toBeCloseTo(3 / 200, 9);
-  expect(row(an, 'store_conversion').how).toContain('impressions'); expect(row(an, 'page_to_download').note).toBeNull();
+  expect(row(an, 'store_conversion').how).toContain('impressions'); expect(row(an, 'page_to_download').note).toContain('total page views');
   // Get tapped in the search results never opened the page: those downloads are left out of page to download, and said so.
   const direct = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50 }), { range: '30d', now });
   expect(row(direct, 'page_to_download').value).toBeCloseTo(2 / 10, 9); expect(row(direct, 'page_to_download').note).toContain('tapped Get in the search results');
   expect(row(direct, 'store_conversion').value).toBeCloseTo((3 + 1) / 200, 9);
   expect(row(direct, 'search_clicks').value).toBeCloseTo(4 / 50, 9); expect(row(direct, 'search_clicks').how).toContain('impressions in search');
-  // Apple's unique counts add up to device-days over a range, so they are never a denominator, whatever is on record.
-  const stale = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50, 'apple.impressions_unique': 150, 'apple.page_views_unique': 2, 'apple.impressions_search_unique': 10 }), { range: '30d', now });
-  for (const id of ['store_conversion', 'page_to_download', 'search_clicks']) expect(row(stale, id).value).toBe(row(direct, id).value);
+  // With Apple's unique counts present, all three store rates use unique counts (matched unique over unique on search clicks).
+  const uniq = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50, 'apple.impressions_unique': 150, 'apple.page_views_unique': 5, 'apple.page_views_search_unique': 3, 'apple.impressions_search_unique': 30 }), { range: '30d', now });
+  expect(row(uniq, 'store_conversion').value).toBeCloseTo((3 + 1) / 150, 9);
+  expect(row(uniq, 'page_to_download').value).toBeCloseTo(2 / 5, 9);
+  expect(row(uniq, 'search_clicks').value).toBeCloseTo(3 / 30, 9);
   // Every first download made from the search results: the page converted nobody, and the rate cannot pass 100%.
-  expect(row(buildGame(raw({ 'apple.an_downloads_direct': 3, 'apple.page_views': 1 }), { range: '30d', now }), 'page_to_download').value).toBe(0);
+  expect(row(buildGame(raw({ 'apple.an_downloads_direct': 3, 'apple.page_views_unique': 1 }), { range: '30d', now }), 'page_to_download').value).toBe(0);
   // The share of a day's players who had played before is not day 1 retention, and no longer stands in for it.
   expect(row(buildGame(raw({ 'revenuecat.returning_customers': 6, 'revenuecat.active_customers': 10 }), { range: '30d', now }), 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' });
-  expect(row(an, 'downloads_month')).toMatchObject({ value: 90, average: 50, low: 30, high: 120, verdict: '1.8× the average', short: '1.8×' });
+  // Total downloads in Against the average uses the real download total, never a 30-day pace projection.
+  const youngGame = { slug: 'g', display_name: 'G', status: 'live', config: { genre: 'simulation', platforms: { ios: { status: 'live', launched: addDays(to, -18) } } } };
+  const youngDays = dates(addDays(to, -18), addDays(to, -2)); // 17 official Apple days, 2 unposted tail days
+  const youngRaw = {
+    game: youngGame, platform: 'all', from, to, prev: {}, hourly: {}, cohorts: [], sync: [],
+    totals: { 'apple.downloads': { sum: 17 * 8, avg: 8, last: 8, n: 17 }, 'revenuecat.new_customers': { sum: 17 * 10 + 14 + 12, avg: 10, last: 12, n: 19 } },
+    series: { 'apple.downloads': youngDays.map((d) => [d, 8]), 'revenuecat.new_customers': [...youngDays.map((d) => [d, 10]), [addDays(to, -1), 14], [to, 12]] },
+    life: { 'apple.downloads': youngDays.map((d) => [d, 8]), 'revenuecat.new_customers': [...youngDays.map((d) => [d, 10]), [addDays(to, -1), 14], [to, 12]] },
+  };
+  const youngView = buildGame(youngRaw, { range: '30d', now });
+  // Official Apple (136) + real-time tail only for the 2 unposted days (14 + 12 = 26) = 162 — never 162/19*30 = 256.
+  expect(youngView.charts.downloads.total).toBe(162);
+  expect(youngView.charts.downloads.official_total).toBe(136);
+  expect(youngView.charts.downloads.realtime_tail).toBe(26);
+  expect(youngView.kpis.find((k) => k.id === 'installs').value).toBe(162);
+  expect(row(youngView, 'downloads_month').value).toBe(162);
   // Search clicks wait for the search-only counts; retention with no cohorts says what it needs.
   expect(row(an, 'search_clicks')).toMatchObject({ value: null, verdict: null, need: 'Comes with the next App Store sync', average: null });
   expect(row(an, 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' });
@@ -369,7 +386,7 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   // Numbers read by hand from GameAnalytics fill retention, session length, playtime and the first-session funnel until PostHog has cohorts.
   const hand = { source: 'GameAnalytics', read_at: '2026-01-02', retention: { d1: { back: 11, size: 50, cohorts: 'Jan 1' }, note: 'A note.' }, session: { secs: 600, sessions: 40, per_player_day_secs: 1200, player_days: 20 }, ftue: [{ key: '01_Loaded', players: 50 }, { key: '02_Wardrobe', players: 40 }] };
   const peers = { week: 'the week of January 1', group: 'Simulation', store_conversion: { p25: 0.01, p50: 0.03, p75: 0.05 }, proceeds_per_payer: { p25: 4, p50: 8, p75: 16 } };
-  const byHand = buildGame({ ...raw(), facts: { 'manual.gameanalytics': { value: hand, at: now }, 'manual.apple_peers': { value: peers, at: now } } }, { range: '30d', now });
+  const byHand = buildGame({ ...raw({ 'apple.impressions_unique': 150 }), facts: { 'manual.gameanalytics': { value: hand, at: now }, 'manual.apple_peers': { value: peers, at: now } } }, { range: '30d', now });
   expect(row(byHand, 'd1')).toMatchObject({ verdict: 'About average', short: 'Typical', tone: 'flat' }); expect(row(byHand, 'd1').value).toBeCloseTo(0.22);
   expect(row(byHand, 'd1').how).toContain('GameAnalytics, read 2026-01-02'); expect(row(byHand, 'd1').note).toContain('Fewer than 100 players');
   expect(row(byHand, 'd7').need).toBe('No players 7 days old yet');
@@ -379,7 +396,7 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   expect(row(an, 'store_conversion')).toMatchObject({ percentiles: false, average: 0.011 }); expect(row(an, 'proceeds_per_payer')).toBeUndefined();
   expect(row(byHand, 'store_conversion')).toMatchObject({ percentiles: true, average: 0.03, low: 0.01, high: 0.05, verdict: 'Between the 25th and 50th percentile', short: '25th–50th', source: 'App Store Connect peer benchmarks' });
   expect(row(byHand, 'store_conversion').where).toContain('the week of January 1'); expect(row(byHand, 'proceeds_per_payer')).toMatchObject({ average: 8, value: null });
-  expect(row(byHand, 'store_conversion').note).toContain('count each device once'); expect(row(an, 'store_conversion').note).toBeNull();
+  expect(row(byHand, 'store_conversion').note).toBeNull();
   expect(byHand.charts.ftue.steps.map((x) => x.key)).toEqual(['01_Loaded', '02_Wardrobe']);
 
   // With sales reports the count shown is theirs; the rates stay on the analytics count, which covers the same days as page views.

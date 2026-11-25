@@ -18,17 +18,16 @@ const API = 'https://api.appstoreconnect.apple.com';
 // Which analytics reports are read, and the columns each adds up.
 const REPORTS = [
   { name: /^App Store Discovery and Engagement Standard/i, read(r, add) {
-    const ev = col(r, /^event$/i) || '', page = col(r, /^page type$/i) || '', n = num(col(r, /^counts$/i));
-    // Only "Counts" is read. "Unique Counts" is unique within one row (a day, a page type, a source, a device), so
-    // adding it across rows or across days counts a device once for every row it is in: device-days, not devices.
-    // Every rate the dashboard works out is therefore a total over a total.
+    const ev = col(r, /^event$/i) || '', page = col(r, /^page type$/i) || '', n = num(col(r, /^counts$/i)), u = num(col(r, /^unique counts$/i));
+    // Read both total Counts and Unique Counts. Apple's App Store Connect conversion and product-page rates use
+    // Unique Counts (unique devices per day/slice) so repeated views by the same shopper do not drag rates down.
     // The same counts again for App Store search alone: a search result is a different shopper from a browse or a link.
     const search = /search/i.test(col(r, /^source type$/i) || '');
-    if (/^impression/i.test(ev)) { add('impressions', n); if (search) add('impressions_search', n); }
+    if (/^impression/i.test(ev)) { add('impressions', n); add('impressions_unique', u); if (search) { add('impressions_search', n); add('impressions_search_unique', u); } }
     // "Page view" is also every look at a screenshot or video (Media view), the developer page, and the version
     // history. Only the listing itself counts, on the App Store or as a sheet inside another app.
-    else if (/^page view/i.test(ev) && (!page || /^(product page|store sheet)$/i.test(page))) { add('page_views', n); if (search) add('page_views_search', n); }
-  }, zero: ['impressions', 'page_views', 'impressions_search', 'page_views_search'] },
+    else if (/^page view/i.test(ev) && (!page || /^(product page|store sheet)$/i.test(page))) { add('page_views', n); add('page_views_unique', u); if (search) { add('page_views_search', n); add('page_views_search_unique', u); } }
+  }, zero: ['impressions', 'impressions_unique', 'page_views', 'page_views_unique', 'impressions_search', 'impressions_search_unique', 'page_views_search', 'page_views_search_unique'] },
   { name: /^App Downloads Standard/i, read(r, add) {
     const t = col(r, /^download type$/i) || '', n = num(col(r, /^counts$/i));
     // A download with no page is Get tapped in the search results, the listing never opened.

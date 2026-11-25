@@ -121,7 +121,8 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   // sending yet, its zeros would hide what RevenueCat knows.
   const seen = (k) => { const t = T(k); return t && (t.sum > 0 || (P(k)?.sum ?? 0) > 0) ? t : null; };
 
-  // ---- Installs: the stores' own counts, else new customers (every install makes one), else new players ----
+  // ---- Installs: the stores' own counts plus real-time RevenueCat installs only for days the store has not posted yet ----
+  const rcNew = line('revenuecat.new_customers'), phNew = seen('posthog.new_users') ? line('posthog.new_users') : null;
   const storeKeys = [];
   // Apple's sales reports count first downloads; its analytics reports count them too, a day later, and stand in until a vendor number is set.
   const appleDl = T('apple.downloads') ? 'apple.downloads' : T('apple.an_downloads') ? 'apple.an_downloads' : null;
@@ -135,16 +136,30 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   })();
   const sumOf = (G, keys) => (keys.every((k) => G(k)) ? keys.reduce((a, k) => a + G(k).sum, 0) : null);
   const instLine = inst ? sumLines(inst.keys.map(line)) : null;
+  let instTail = 0;
+  if (storeKeys.length && instLine && rcNew) {
+    let lastStore = -1;
+    for (let i = 0; i < instLine.length; i++) if (instLine[i] != null) lastStore = i;
+    if (lastStore >= 0) {
+      for (let i = lastStore + 1; i < instLine.length; i++) {
+        if (rcNew[i] != null) { instLine[i] = rcNew[i]; instTail += rcNew[i]; }
+      }
+    }
+  }
+  const instTotal = inst ? sumOf(T, inst.keys) + instTail : null;
   kpis.push({
-    id: 'installs', label: 'Installs', format: 'int', value: inst ? sumOf(T, inst.keys) : null, prev: inst ? sumOf(P, inst.keys) : null,
-    delta: inst ? change(sumOf(T, inst.keys), sumOf(P, inst.keys), inst.keys.every(enough)) : null,
-    sub: [], source: inst?.source || null, rule: 'First-time downloads as the stores count them. Until a store count arrives: new customers in RevenueCat, then new players in PostHog.', spark: instLine, empty: inst ? null : why(['apple', 'posthog', 'revenuecat']),
+    id: 'installs', label: 'Installs', format: 'int', value: instTotal, prev: inst ? sumOf(P, inst.keys) : null,
+    delta: inst ? change(instTotal, sumOf(P, inst.keys), inst.keys.every(enough)) : null,
+    sub: [], source: inst?.source || null,
+    rule: instTail > 0
+      ? 'Official first-time downloads from the store, plus real-time installs from RevenueCat (testers excluded) for the recent day or two the store has not posted yet.'
+      : 'First-time downloads as the stores count them. Until a store count arrives: new customers in RevenueCat, then new players in PostHog.',
+    spark: instLine, empty: inst ? null : why(['apple', 'posthog', 'revenuecat']),
   });
 
   // ---- Who played each day. New: RevenueCat's customers (every install makes one), else PostHog's first sightings.
   // Active: the larger of PostHog's players and RevenueCat's customers last seen that day; where RevenueCat's own
   // count is all there is for a day (before this pull began), that, which is counted in UTC days.
-  const rcNew = line('revenuecat.new_customers'), phNew = seen('posthog.new_users') ? line('posthog.new_users') : null;
   const newLine = rcNew || phNew, newSource = rcNew ? 'RevenueCat' : phNew ? 'PostHog' : null;
   const phDau = seen('posthog.dau') ? line('posthog.dau') : null;
   const rcSeen = line('revenuecat.active_customers'), rcChart = line('revenuecat.active_customers_chart'), rcBack = line('revenuecat.returning_customers');
@@ -274,6 +289,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   // ---- Downloads since launch ----
   const lifeKeys = storeKeys.length ? storeKeys.map((k) => k[0]) : raw.life?.['revenuecat.new_customers'] ? ['revenuecat.new_customers'] : raw.life?.['posthog.new_users'] ? ['posthog.new_users'] : [];
   const lifeMaps = lifeKeys.map((k) => new Map(raw.life?.[k] || []));
+  const rcLifeMap = new Map(raw.life?.['revenuecat.new_customers'] || []);
   const livePlatforms = (platform === 'all' ? ['ios', 'android'] : [platform]).filter((p) => game.platforms[p].status === 'live');
   const launched = livePlatforms.map((p) => game.platforms[p].launched).filter(Boolean).sort()[0] || null;
   const firstLife = lifeMaps.flatMap((m) => [...m.keys()]).sort()[0] || null;
@@ -281,17 +297,37 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   let downloads = null;
   if (lifeKeys.length && firstLife) {
     const start = launched && launched <= to ? launched : firstLife, ds = dates(start, to);
-    let run = 0, lastKnown = -1;
-    const daily = ds.map((d, i) => { const vs = lifeMaps.map((m) => m.get(d)).filter((v) => v != null); if (!vs.length) return null; lastKnown = i; return vs.reduce((a, v) => a + v, 0); });
+    let run = 0, lastKnown = -1, officialTotal = 0, lastOfficial = -1, tailTotal = 0;
+    const daily = ds.map((d, i) => {
+      const vs = lifeMaps.map((m) => m.get(d)).filter((v) => v != null);
+      if (!vs.length) return null;
+      const sum = vs.reduce((a, v) => a + v, 0);
+      lastKnown = i; lastOfficial = i; officialTotal += sum;
+      return sum;
+    });
+    // When using official store downloads, add real-time RevenueCat installs (testers excluded) ONLY for unposted days
+    // strictly after the store's last posted day. Earlier days stay strictly on the official store count.
+    if (storeKeys.length && lastOfficial >= 0 && rcLifeMap.size) {
+      for (let i = lastOfficial + 1; i < ds.length; i++) {
+        if (rcLifeMap.has(ds[i])) {
+          const v = rcLifeMap.get(ds[i]);
+          daily[i] = v; lastKnown = i; tailTotal += v;
+        }
+      }
+    }
     const cumulative = daily.map((v, i) => { run += v || 0; return i <= lastKnown ? run : null; });
     const fromRc = lifeKeys[0] === 'revenuecat.new_customers';
     const total = fromRc && lifeFact?.customers != null ? Math.max(run, lifeFact.customers) : run;
+    const storeName = storeKeys.map((k) => k[1]).join(' + ');
     downloads = {
-      dates: ds, daily, cumulative, total, launched: start, days_live: ds.length,
+      dates: ds, daily, cumulative, total, official_total: storeKeys.length ? officialTotal : null, realtime_tail: storeKeys.length ? tailTotal : 0,
+      launched: start, days_live: ds.length,
       today: daily.at(-1), yesterday: ds.length > 1 ? daily.at(-2) : null,
       marks: [1, 7, 14, 30, 60, 90].filter((N) => N <= ds.length && cumulative[N - 1] != null).map((N) => ({ day: N, date: ds[N - 1], value: cumulative[N - 1] })),
-      source: storeKeys.length ? storeKeys.map((k) => k[1]).join(' + ') : fromRc ? 'New players · RevenueCat' : 'New players · PostHog',
-      note: storeKeys.length ? null : 'Until the store’s own count is connected, a download is a first launch.',
+      source: storeKeys.length ? storeName : fromRc ? 'New players · RevenueCat' : 'New players · PostHog',
+      note: storeKeys.length
+        ? (tailTotal > 0 ? `Official ${storeName} count through ${ds[lastOfficial]} (${Math.round(officialTotal).toLocaleString('en-US')}) plus ${Math.round(tailTotal).toLocaleString('en-US')} real-time installs since then from RevenueCat (testers excluded).` : null)
+        : 'Until the store’s own count is connected, a download is a first launch.',
     };
   }
   charts.downloads = downloads || { empty: why(['apple', 'revenuecat', 'posthog']) };
@@ -464,37 +500,47 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     const needApple = 'Needs App Store Connect analytics';
 
     if (platform !== 'android') {
-      // Total downloads: the pace since launch as a first month, until there is a first month to count.
+      // Total downloads: actual real downloads in the first 30 days (never extrapolated to a fictional pace).
       if (downloads) {
-        // The first 30 days when they are on record; otherwise the pace of the days that are.
-        const total = (xs) => xs.reduce((x, v) => x + v, 0), month = downloads.daily.slice(0, 30).filter((v) => v != null), whole = month.length >= 28;
-        const rec = downloads.daily.filter((v) => v != null), pace = rec.length ? total(rec) / rec.length : null;
+        const total = (xs) => xs.reduce((x, v) => x + v, 0), month = downloads.daily.slice(0, 30).filter((v) => v != null);
+        const pastMonth = downloads.days_live > 30;
+        const actual = pastMonth ? total(month) : downloads.total;
         add('Getting found', 'downloads_month', bench.downloads_month, {
-          format: 'int', value: whole ? total(month) : pace != null ? pace * 30 : null,
-          how: whole ? `${int(total(month))} in the first 30 days · ${downloads.source}` : `${pace?.toFixed(1)} a day × 30 (${int(total(rec))} in ${rec.length} ${rec.length === 1 ? 'day' : 'days'}) · ${downloads.source}`,
+          format: 'int', value: actual,
+          how: pastMonth
+            ? `${int(actual)} in the first 30 days · ${downloads.source}`
+            : `${int(actual)} in the first ${downloads.days_live} ${downloads.days_live === 1 ? 'day' : 'days'} · ${downloads.source}`,
+          note: downloads.note || null,
         });
       }
       // Downloads beside page views come from the same analytics reports, so both cover the same days; the sales count stands in without them.
-      // Every rate is a total over a total. Apple's unique counts are unique within a day and a slice of its report,
-      // so over a range they add up to device-days, and a total over them reads too high.
+      // Use Apple's Unique Counts (unique devices per day) when present so repeated views by the same shopper do not deflate conversion rates.
       const first = sums('apple.an_downloads') ?? sums('apple.downloads'), again = sums('apple.an_downloads') != null ? sums('apple.an_redownloads') || 0 : null;
-      const shown = sums('apple.impressions'), opened = sums('apple.page_views'), direct = sums('apple.an_downloads') != null ? sums('apple.an_downloads_direct') || 0 : null;
+      const direct = sums('apple.an_downloads') != null ? sums('apple.an_downloads_direct') || 0 : null;
+      const shownU = sums('apple.impressions_unique'), shown = shownU ?? sums('apple.impressions');
+      const openedU = sums('apple.page_views_unique'), opened = openedU ?? sums('apple.page_views');
       add('Getting found', 'store_conversion', bench.store_conversion, {
         value: again != null ? rate(first + again, shown) : null, need: needApple,
-        how: `${int((first || 0) + (again || 0))} downloads and redownloads ÷ ${int(shown || 0)} impressions, ${span}`,
-        note: peers?.store_conversion?.p50 != null ? 'Apple\'s peer percentiles count each device once. This counts every impression, so it reads a little lower than Apple\'s own figure.' : null,
+        how: `${int((first || 0) + (again || 0))} downloads and redownloads ÷ ${int(shown || 0)} ${shownU != null ? 'unique impressions (daily)' : 'impressions'}, ${span}`,
+        note: shownU == null && shown != null ? 'Using total impressions until the next App Store sync fills unique counts.' : null,
       });
       // A Get tapped in the search results never opened the page, so it is not the page's doing.
       const fromPage = first != null ? Math.max(0, first - (direct || 0)) : null;
       add('Getting found', 'page_to_download', bench.page_to_download, {
         value: rate(fromPage, opened), need: needApple,
-        how: `${int(fromPage || 0)} first downloads from the page ÷ ${int(opened || 0)} page views, ${span}`,
-        note: direct > 0 ? `${int(direct)} more tapped Get in the search results without opening the page. They are left out.` : direct == null && first != null ? 'Downloads from the sales report: any made from the search results without opening the page are counted too.' : null,
+        how: `${int(fromPage || 0)} first downloads from the page ÷ ${int(opened || 0)} ${openedU != null ? 'unique page views (daily)' : 'page views'}, ${span}`,
+        note: [
+          direct > 0 ? `${int(direct)} more tapped Get in the search results without opening the page. They are left out.` : direct == null && first != null ? 'Downloads from the sales report: any made from the search results without opening the page are counted too.' : null,
+          openedU == null && opened != null ? 'Using total page views until the next App Store sync fills unique counts.' : null,
+        ].filter(Boolean).join(' ') || null,
       });
-      const searchViews = sums('apple.page_views_search'), searchShown = sums('apple.impressions_search');
+      // Match units on search clicks: unique over unique when both exist, else total over total.
+      const sViewsU = sums('apple.page_views_search_unique'), sShownU = sums('apple.impressions_search_unique');
+      const useSearchU = sViewsU != null && sShownU != null;
+      const searchViews = useSearchU ? sViewsU : sums('apple.page_views_search'), searchShown = useSearchU ? sShownU : sums('apple.impressions_search');
       add('Getting found', 'search_clicks', bench.search_clicks, {
         value: rate(searchViews, searchShown), need: sums('apple.impressions') != null ? 'Comes with the next App Store sync' : needApple,
-        how: `${int(searchViews || 0)} page views from search ÷ ${int(searchShown || 0)} impressions in search, ${span}`,
+        how: `${int(searchViews || 0)} ${useSearchU ? 'unique page views' : 'page views'} from search ÷ ${int(searchShown || 0)} ${useSearchU ? 'unique impressions' : 'impressions'} in search, ${span}`,
       });
     }
 

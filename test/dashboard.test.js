@@ -145,7 +145,7 @@ test('the live game has every chart; games in review and before launch have clea
   const pt = await (await call('/api/game/pearl-tide?range=30d', { headers: { cookie } })).json();
   expect(pt.state).toBe('live');
   expect(pt.kpis.map((k) => k.id)).toEqual(['revenue', 'installs', 'dau', 'retention', 'stability', 'conversion']);
-  for (const k of pt.kpis) { expect(k.value).not.toBeNull(); expect(k.empty).toBeNull(); }
+  for (const k of pt.kpis) { expect(k.value).not.toBeNull(); expect(k.empty).toBeNull(); expect(k.rule.length).toBeGreaterThan(20); expect(k.source).toBeTruthy(); }
   expect(pt.kpis[0].delta).toBeTruthy();
   expect(pt.charts.revenue.dates.length).toBe(30);
   expect(pt.charts.revenue.revenue.length).toBe(30);
@@ -186,14 +186,18 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   expect(pt.clock).toEqual({ zone, name: 'Pacific time' });
   expect(pt.from).toBe(from);
 
-  // Today so far: the day is the reporting zone's, and the news says what was left out.
+  // Today so far: the day is the reporting zone's, in numbers and short labels, with no sentences to read.
   expect(pt.today.date).toBe(to);
   expect(pt.today.day_started).toBe(new Date(dayStart(to, zone)).toISOString());
   expect(pt.today.now.active).toBeGreaterThanOrEqual(pt.today.now.returning);
   expect(pt.today.last24h.active).toBeGreaterThanOrEqual(pt.today.last24h.new);
   expect(pt.today.all_time.value).toBeGreaterThan(0);
-  expect(pt.today.news.length).toBeGreaterThan(4);
-  expect(pt.today.news.some((l) => /testers? .* left out/.test(l))).toBe(true);
+  expect(pt.today.news).toBeUndefined();
+  expect(pt.today.testers_out).toBeGreaterThan(0);
+  expect(pt.today.countries.length).toBeGreaterThan(0); for (const c of pt.today.countries) { expect(c.cc).toMatch(/^[A-Z]{2}$/); expect(c.active).toBeGreaterThan(0); }
+  for (const v of pt.today.versions) { expect(v.version).toMatch(/^\d/); expect(v.active).toBeGreaterThan(0); }
+  expect(pt.today.store).toMatchObject({ name: 'App Store' }); expect(pt.today.store.version).toMatch(/^\d/); expect(Array.isArray(pt.today.store.pending)).toBe(true);
+  expect(pt.today.rating.count).toBeGreaterThan(0); expect(pt.today.rating.value).toBeGreaterThan(0);
 
   // New players a day are the customers the mock made for that day: its testers are not among them.
   const news = pt.charts.players.series.find((s) => s.id === 'new').values, at = pt.charts.players.dates.indexOf(addDays(to, -3));
@@ -225,7 +229,8 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   expect(pt.extras.hourly.hours.length).toBe(48);
   const told = pt.extras.stories.players;
   expect(told.length).toBeGreaterThan(3);
-  for (const p of told) { expect(p.tag).toMatch(/^[0-9A-F]{5}$/); expect(p.head).toMatch(/^(New|Returning) player/); expect(p.lines.length).toBeGreaterThan(0); }
+  for (const p of told) { expect(p.tag).toMatch(/^[0-9A-F]{5}$/); expect(p.head).toMatch(/^(New|Returning) player/); expect(p.lines.length).toBeGreaterThan(0); expect(Array.isArray(p.facts.marks)).toBe(true); expect(Array.isArray(p.facts.areas)).toBe(true); }
+  expect(pt.extras.stories.ftue_steps).toBeGreaterThan(1);
   expect(JSON.stringify(pt)).not.toMatch(/distinct_id|mock-player|app_user_id|\$RCAnonymousID/);
 
   // Against the average: every row has an average or a usual range, how ours is worked out, and where the average comes from.
@@ -234,7 +239,7 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   expect(pt.extras.benchmarks.groups).toEqual(['Getting found', 'Playing', 'Paying']);
   for (const r of rows) {
     expect(r.average != null || (r.low != null && r.high != null)).toBe(true); expect(r.where.length).toBeGreaterThan(20); expect(r.url).toMatch(/^https:\/\//);
-    if (r.value == null) { expect(r.need).toBeTruthy(); expect(r.verdict).toBeNull(); } else { expect(r.how).toBeTruthy(); expect(r.verdict).toBeTruthy(); expect(['good', 'flat', 'bad']).toContain(r.tone); }
+    if (r.value == null) { expect(r.need).toBeTruthy(); expect(r.verdict).toBeNull(); expect(r.short).toBeNull(); } else { expect(r.how).toBeTruthy(); expect(r.verdict).toBeTruthy(); expect(r.short.length).toBeLessThan(14); expect(['good', 'flat', 'bad']).toContain(r.tone); }
   }
 
   // The store funnel starts at the shop opening (Shop:Open in Pearl Tide, Store:Open in Chillwater Lake).
@@ -276,6 +281,10 @@ test('a player\'s events read as a short story, under a tag that is not their id
   expect(p.lines.some((l) => l.startsWith('Shop: opened 2 times, tapped a price (pearls.handful), cancelled'))).toBe(true);
   expect(p.lines).toContain('Also: Photo ×3.');
   expect(p.flags).toEqual(['Slow load', 'Lost the graphics context 2 times', 'Closed without a clean exit while loading']);
+  // The same story as tokens for the page: numbers and short labels, each flag with its tone.
+  expect(p.facts).toMatchObject({ load_secs: 21, ftue: { step: 7, name: 'Out' }, screen: '390 × 844', areas: [{ name: 'Sea', secs: 600 }, { name: 'House', secs: 240 }], quests: { accepted: 1, done: 1 }, runway: { opened: 1, rated: 6 }, shop: { opens: 2, taps: 1, cancels: 1, bought: [] } });
+  expect(p.facts.marks).toEqual([{ label: 'Slow load', tone: 'warn' }, { label: 'Context lost ×2', tone: 'bad' }, { label: 'Unclean exit, loading', tone: 'bad' }]);
+  expect(tell({ id, platform: 'ios', version: '1', country: '', first: since - 86400000, last: since + 1000, events: [e('Store:Bought:pearls.pouch'), e('App:Error', 2)] }, since).facts.marks).toEqual([{ label: 'Bought', tone: 'good' }, { label: 'App error ×2', tone: 'bad' }]);
   const back = tell({ id, platform: 'android', version: '1.3.7', country: 'CA', first: since - 86400000, last: since + 1000, events: [e('Session:Open:4')] }, since);
   expect(back.head).toBe('Returning player, launch 4 on Android, version 1.3.7, CA');
   expect(back.lines).toEqual(['Opened the game; nothing else recorded yet.']);
@@ -321,7 +330,7 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   expect(an.charts.players.series[0]).toMatchObject({ id: 'downloads', label: 'First downloads · App Store' });
   expect(an.charts.downloads).toMatchObject({ source: 'App Store', total: 3 * days.length, note: null });
   expect(row(an, 'page_to_download').value).toBeCloseTo(0.3); expect(row(an, 'store_conversion').value).toBeCloseTo(0.02);
-  expect(row(an, 'downloads_month')).toMatchObject({ value: 90, average: 50, low: 30, high: 120, verdict: '1.8× the average' });
+  expect(row(an, 'downloads_month')).toMatchObject({ value: 90, average: 50, low: 30, high: 120, verdict: '1.8× the average', short: '1.8×' });
   // Search clicks wait for the search-only counts; retention with no cohorts says what it needs.
   expect(row(an, 'search_clicks')).toMatchObject({ value: null, verdict: null, need: 'Comes with the next App Store sync', average: null });
   expect(row(an, 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' });
@@ -330,14 +339,14 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   const hand = { source: 'GameAnalytics', read_at: '2026-01-02', retention: { d1: { back: 11, size: 50, cohorts: 'Jan 1' }, note: 'A note.' }, session: { secs: 600, sessions: 40, per_player_day_secs: 1200, player_days: 20 }, ftue: [{ key: '01_Loaded', players: 50 }, { key: '02_Wardrobe', players: 40 }] };
   const peers = { week: 'the week of January 1', group: 'Simulation', store_conversion: { p25: 0.01, p50: 0.03, p75: 0.05 }, proceeds_per_payer: { p25: 4, p50: 8, p75: 16 } };
   const byHand = buildGame({ ...raw(), facts: { 'manual.gameanalytics': { value: hand, at: now }, 'manual.apple_peers': { value: peers, at: now } } }, { range: '30d', now });
-  expect(row(byHand, 'd1')).toMatchObject({ verdict: 'About average', tone: 'flat' }); expect(row(byHand, 'd1').value).toBeCloseTo(0.22);
+  expect(row(byHand, 'd1')).toMatchObject({ verdict: 'About average', short: 'Typical', tone: 'flat' }); expect(row(byHand, 'd1').value).toBeCloseTo(0.22);
   expect(row(byHand, 'd1').how).toContain('GameAnalytics, read 2026-01-02'); expect(row(byHand, 'd1').note).toContain('Fewer than 100 players');
   expect(row(byHand, 'd7').need).toBe('No players 7 days old yet');
   expect(row(byHand, 'session_length')).toMatchObject({ value: 600, format: 'mins' }); expect(row(byHand, 'playtime').value).toBe(1200);
   expect(byHand.charts.retention).toMatchObject({ source: 'GameAnalytics, read 2026-01-02' }); expect(byHand.charts.retention.points.map((p) => p.day)).toEqual([0, 1]);
   // Apple's peer percentiles, kept as a fact, take the place of the published average.
   expect(row(an, 'store_conversion')).toMatchObject({ percentiles: false, average: 0.011 }); expect(row(an, 'proceeds_per_payer')).toBeUndefined();
-  expect(row(byHand, 'store_conversion')).toMatchObject({ percentiles: true, average: 0.03, low: 0.01, high: 0.05, verdict: 'Between the 25th and 50th percentile', source: 'App Store Connect peer benchmarks' });
+  expect(row(byHand, 'store_conversion')).toMatchObject({ percentiles: true, average: 0.03, low: 0.01, high: 0.05, verdict: 'Between the 25th and 50th percentile', short: '25th–50th', source: 'App Store Connect peer benchmarks' });
   expect(row(byHand, 'store_conversion').where).toContain('the week of January 1'); expect(row(byHand, 'proceeds_per_payer')).toMatchObject({ average: 8, value: null });
   expect(byHand.charts.ftue.steps.map((x) => x.key)).toEqual(['01_Loaded', '02_Wardrobe']);
 

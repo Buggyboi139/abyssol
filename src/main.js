@@ -40,6 +40,7 @@ const ICONS = {
   up: [['path', { d: 'M8 3.500l4.500 8h-9z', fill: 'currentColor' }]],
   down: [['path', { d: 'M8 12.500l4.500-8h-9z', fill: 'currentColor' }]],
   flat: [['path', { d: 'M3.500 8h9', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }]],
+  info: [['circle', { cx: 8, cy: 8, r: 6.2, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4 }], ['path', { d: 'M8 7.300v4', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round' }], ['circle', { cx: 8, cy: 4.800, r: 0.95, fill: 'currentColor' }]],
   wave: [['path', { d: 'M1.500 10.500c2 0 2-2 4.300-2s2.300 2 4.400 2 2.200-2 4.300-2M1.500 6c2 0 2-2 4.300-2s2.300 2 4.400 2 2.200-2 4.300-2', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.7, 'stroke-linecap': 'round' }]],
 };
 function icon(name, cls = '') {
@@ -55,27 +56,78 @@ const pill = (status, label, extra = '') => h('span', { class: `pill pill-${stat
 const CHIP_ICON = { live: 'dot', in_review: 'half', prelaunch: 'ring', error: 'cross', off: 'ring', none: 'flat' };
 const chip = (empty) => h('span', { class: `chip chip-${empty.kind}` }, icon(CHIP_ICON[empty.kind] || 'ring'), empty.badge);
 
+/** A small label in a pill. A tone (good, bad, warn) tints it and always comes with an icon. */
+const TONE_ICON = { good: 'up', bad: 'down', warn: 'alert', flat: 'flat' };
+const tag = (label, tone = '', mark = TONE_ICON[tone]) => h('span', { class: `tag${tone ? ` tag-${tone}` : ''}` }, mark && icon(mark), label);
+
 /** What a chart's place shows when there is nothing to chart: a badge and a few words. */
 const emptyState = (empty) => h('div', { class: 'empty' }, chip(empty), empty.text && h('span', { class: 'empty-text' }, empty.text));
 
+// ---- The info button: sources, rules and caveats live behind it, never on the panel ----
+// One popover at a time, on the page's top layer, so no panel clips it. It opens on a click or a tap,
+// and closes on a second one, a click anywhere else, or Escape.
+let openInfo = null, infoSeq = 0;
+function closeInfo(refocus = false) {
+  if (!openInfo) return;
+  const { btn, pop } = openInfo; openInfo = null;
+  pop.remove(); btn.setAttribute('aria-expanded', 'false'); btn.removeAttribute('aria-controls');
+  if (refocus && btn.isConnected) btn.focus();
+}
+function placeInfo() {
+  if (!openInfo) return;
+  const { btn, pop } = openInfo;
+  if (!btn.isConnected) return closeInfo();
+  const r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, w = pop.offsetWidth, ht = pop.offsetHeight;
+  if (r.bottom < 0 || r.top > vh) return closeInfo();
+  const below = r.bottom + 6 + ht <= vh - 8 || r.top - 6 - ht < 8;
+  pop.style.left = `${Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2))}px`;
+  pop.style.top = `${Math.max(8, below ? r.bottom + 6 : r.top - 6 - ht)}px`;
+}
+function info(label, ...content) {
+  const kids = content.flat(Infinity).filter((k) => k != null && k !== false && k !== '');
+  if (!kids.length) return null;
+  const id = `info-${++infoSeq}`;
+  const btn = h('button', { class: 'info', type: 'button', 'aria-label': `About ${label}`, 'aria-expanded': 'false', onclick: (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const mine = openInfo?.btn === btn;
+    closeInfo();
+    if (mine) return;
+    const pop = h('div', { class: 'pop', id, role: 'dialog', 'aria-label': `About ${label}` }, h('div', { class: 'pop-title' }, label), kids);
+    document.body.append(pop);
+    openInfo = { btn, pop }; btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-controls', id);
+    placeInfo();
+  } }, icon('info'));
+  return btn;
+}
+document.addEventListener('click', (e) => { if (openInfo && !openInfo.pop.contains(e.target)) closeInfo(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openInfo) { e.preventDefault(); closeInfo(true); } });
+window.addEventListener('scroll', placeInfo, { passive: true, capture: true });
+window.addEventListener('resize', placeInfo);
+/** A sentence in a popover. */
+const say = (text) => (text ? h('p', null, text) : null);
+/** A name and its value in a popover. */
+const fact = (k, v) => (v == null || v === '' || v === false ? null : h('div', { class: 'pop-row' }, h('span', { class: 'pop-k' }, k), h('span', { class: 'pop-v' }, v)));
+
+/** A change against the period before, as a tinted chip: "+14%", "−2.1 pp". Nothing when there is no period to compare. */
 function delta(d, days) {
-  if (!d) return h('div', { class: 'delta delta-none' }, 'No earlier period to compare');
-  const tone = d.good == null ? 'flat' : d.good ? 'good' : 'bad';
-  const words = d.unit === 'new' ? 'Up from zero' : d.dir === 0 ? 'No change' : deltaText(d);
-  return h('div', { class: `delta delta-${tone}`, title: `Against the ${days} days before` },
-    icon(d.dir > 0 ? 'up' : d.dir < 0 ? 'down' : 'flat'), h('span', { class: 'delta-value' }, words), h('span', { class: 'delta-vs' }, `vs prior ${days}D`));
+  if (!d) return null;
+  const tone = d.good == null ? 'flat' : d.good ? 'good' : 'bad', sign = d.dir > 0 ? '+' : '−';
+  const text = d.unit === 'new' ? 'New' : d.dir === 0 ? 'No change' : d.unit === 'pp' ? `${sign}${Math.abs(d.value).toFixed(1)} pp` : `${sign}${deltaText(d)}`;
+  return h('span', { class: `tag tag-${tone}`, title: `Against the ${days} days before` }, icon(d.dir > 0 ? 'up' : d.dir < 0 ? 'down' : 'flat'), text);
 }
 
 const kpiValue = (k) => (k.pair ? `${fmt(k.value, 'pct')} / ${fmt(k.value2, 'pct')}` : k.of != null ? `${fmt(k.value, 'int')} of ${k.of}` : fmt(k.value, k.format));
 
+/** A KPI card: the number, its change, a line of detail and a sparkline. Its source and rule are behind the info button. */
 function kpiCard(k, days) {
-  const card = h('article', { class: `kpi${k.value == null ? ' kpi-empty' : ''}` }, h('h3', { class: 'kpi-label' }, k.label));
+  const about = info(k.label, say(k.rule), k.pair && fact('Shown', 'Day 1 / day 7'), fact('Source', k.source),
+    k.id !== 'live' && k.value != null && fact('Change', k.delta ? `Against the ${days} days before` : 'No earlier period to compare'));
+  const card = h('article', { class: `kpi${k.value == null ? ' kpi-empty' : ''}` }, h('div', { class: 'kpi-head' }, h('h3', { class: 'kpi-label' }, k.label), about));
   if (k.value == null) { card.append(h('div', { class: 'kpi-value' }, '—'), h('div', { class: 'kpi-why' }, chip(k.empty), k.empty.text && k.empty.kind !== 'none' && h('span', { class: 'empty-text' }, k.empty.text))); return card; }
   card.append(h('div', { class: 'kpi-value' }, kpiValue(k)));
-  if (k.id !== 'live') card.append(delta(k.delta, days));
-  if (k.sub?.length) card.append(h('div', { class: 'kpi-sub' }, k.sub.map((s) => `${fmt(s.value, s.format)} ${s.label}`).join(' · ')));
+  const change = k.id !== 'live' ? delta(k.delta, days) : null;
+  if (change || k.sub?.length) card.append(h('div', { class: 'kpi-meta' }, change, k.sub?.length ? h('span', { class: 'kpi-sub' }, k.sub.map((s) => `${fmt(s.value, s.format)} ${s.label}`).join(' · ')) : null));
   if (k.spark) card.append(sparkline(k.spark));
-  if (k.source) card.append(h('div', { class: 'kpi-src' }, k.source));
   return card;
 }
 
@@ -96,10 +148,13 @@ function dataTable({ columns, rows }) {
 
 const legend = (items) => h('ul', { class: 'legend' }, items.map((it) => { const sw = h('span', { class: 'swatch' }); sw.style.background = it.color; return h('li', null, sw, it.label); }));
 
-/** A titled box holding a chart, with a table of the same numbers behind a button. */
-function panel({ title, source, wide, items, empty, table, body }) {
+/** A panel's heading: its title, a legend if it has one, and the info button on the right. */
+const panelHead = (title, about, ...kids) => h('header', { class: 'panel-head' }, h('h2', null, title), kids, h('span', { class: 'spacer' }), about);
+
+/** A titled box holding a chart, with a table of the same numbers behind a button. `source` and `about` go behind the info button. */
+function panel({ title, source, about, wide, items, empty, table, body }) {
   const content = h('div', { class: 'panel-body' });
-  const head = h('header', { class: 'panel-head' }, h('h2', null, title), items && !empty && legend(items), h('span', { class: 'spacer' }), source && !empty && h('span', { class: 'src' }, source));
+  const head = panelHead(title, !empty && info(title, fact('Source', source), about), items && !empty && legend(items));
   const section = h('section', { class: `panel${wide ? ' wide' : ''}` }, head, content);
   if (empty) { content.append(emptyState(empty)); return section; }
   const chartView = h('div', { class: 'chart-view' }, body());
@@ -118,7 +173,10 @@ function panel({ title, source, wide, items, empty, table, body }) {
 }
 
 const caption = (text) => h('div', { class: 'cap' }, text);
-const tiles = (list) => h('div', { class: 'tiles' }, list.map((t) => h('div', { class: 'tile' }, h('div', { class: 'tile-label' }, t.label), h('div', { class: 'tile-value' }, fmt(t.value, t.format)), t.source && h('div', { class: 'kpi-src' }, t.source))));
+const tiles = (list) => h('div', { class: 'tiles' }, list.map((t) => h('div', { class: 'tile' }, h('div', { class: 'tile-label' }, t.label), h('div', { class: 'tile-value' }, fmt(t.value, t.format)))));
+const stat = (label, value, sub) => h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), h('div', { class: 'stat-value' }, value), sub && h('div', { class: 'stat-sub' }, sub));
+/** A small heading and the pills that belong to it. */
+const pills = (label, list) => { list = list.filter(Boolean); return list.length ? h('div', { class: 'pgroup' }, h('span', { class: 'pgroup-k' }, label), list) : null; };
 
 // ---------------------------------------------------------------------------
 // Panels
@@ -137,41 +195,46 @@ function revenuePanel(c) {
   });
 }
 
-const notes = (list) => (list?.length ? h('ul', { class: 'notes' }, list.map((t) => h('li', null, t))) : null);
-const stat = (label, value, sub) => h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), h('div', { class: 'stat-value' }, value), sub && h('div', { class: 'stat-sub' }, sub));
-
-/** Today so far and the last 24 hours, in numbers and in words. */
+/** Today so far: who played, where, on which versions, and how the listing stands. */
 function todayPanel(t, clock) {
-  const n = (v) => fmt(v, 'int');
+  const n = (v) => fmt(v, 'int'), d24 = t.last24h;
+  const tile = (label, value, sub) => h('div', { class: 'tstat' }, h('div', { class: 'stat-label' }, label), h('div', { class: 'stat-value' }, value), sub && h('div', { class: 'stat-sub' }, sub));
+  const about = info('Today so far',
+    fact('Day started', clockIn(t.day_started, clock.zone)), fact('As of', time(t.as_of)), fact('Source', t.source), t.all_time && fact('All time', t.all_time.source),
+    t.testers_out > 0 && fact('Left out', `${n(t.testers_out)} ${t.testers_out === 1 ? 'tester' : 'testers and test accounts'}`),
+    say('New is every first launch. Active and Returning come from whichever source saw more players. The 24h figures are the last 24 hours, not the calendar day.'));
   return h('section', { class: 'panel wide today' },
-    h('header', { class: 'panel-head' }, h('h2', null, 'Today so far'), h('span', { class: 'src' }, `The day started ${clockIn(t.day_started, clock.zone)}`), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `${t.source} · as of ${time(t.as_of)}`)),
-    h('div', { class: 'today-body' },
-      h('div', { class: 'stats' },
-        stat('New today', n(t.now.new)), stat('Active today', n(t.now.active)), stat('Returning today', n(t.now.returning)),
-        t.all_time && stat('All time', n(t.all_time.value), t.all_time.source),
-        stat('Last 24 hours', `${n(t.last24h.new)} / ${n(t.last24h.active)} / ${n(t.last24h.returning)}`, 'new / active / returning'),
-        stat('Purchases, 24 hours', n(t.last24h.purchases), t.last24h.revenue ? fmt(t.last24h.revenue, 'usd') : null)),
-      h('ul', { class: 'news' }, t.news.map((line) => h('li', null, line)))));
+    panelHead('Today so far', about),
+    h('div', { class: 'tstats' },
+      tile('New', n(t.now.new), `24h · ${n(d24.new)}`), tile('Active', n(t.now.active), `24h · ${n(d24.active)}`), tile('Returning', n(t.now.returning), `24h · ${n(d24.returning)}`),
+      t.all_time && tile('All time', n(t.all_time.value)),
+      tile('24h purchases', n(d24.purchases), d24.revenue != null ? fmt(d24.revenue, 'usd') : null)),
+    h('div', { class: 'pgroups' },
+      pills('Countries', (t.countries || []).slice(0, 8).map((c) => h('span', { class: 'tag', title: c.new ? `${c.new} new` : null }, h('b', null, c.cc), ` ${n(c.active)}`))),
+      pills('Versions', (t.versions || []).map((v) => h('span', { class: 'tag' }, h('b', null, v.version), ` ×${n(v.active)}`))),
+      t.store && pills('Store', [t.store.version && tag(`${t.store.version} live`, 'good', 'dot'), ...t.store.pending.map((p) => tag(`${p.version} ${p.label.toLowerCase()}`, 'warn', 'half'))]),
+      t.rating?.count > 0 && pills('Rating', [h('span', { class: 'tag' }, h('b', null, t.rating.value == null ? '—' : t.rating.value.toFixed(1)), ` ★ (${n(t.rating.count)})`), t.rating.change > 0 && tag(`+${t.rating.change} new`, 'good')])));
 }
 
 /** New, active, and returning players a day, beside the store's own first downloads. */
 function playersPanel(c) {
   const cell = (s, i, last) => (s.values[i] == null ? (s.late && i >= last - 1 ? 'not posted yet' : '—') : fmt(s.values[i], 'int'));
   return panel({
-    title: 'Players by day', wide: true, empty: c.empty, source: c.sources?.join(' · '), items: c.series?.map((s, i) => ({ label: s.label, color: colorOf(s, i) })),
+    title: 'Players by day', wide: true, empty: c.empty, items: c.series?.map((s, i) => ({ label: s.short || s.label, color: colorOf(s, i) })),
+    about: [c.sources?.map((x) => { const [k, ...v] = x.split(' · '); return fact(k, v.join(' · ')); }), c.notes?.map(say), c.series?.some((s) => s.late) && say('The stores post a day’s downloads a day or two later. Until then that day has no point.')],
     table: () => ({ columns: ['Day', ...c.series.map((s) => s.label)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => cell(s, i, c.dates.length - 1))]).reverse() }),
-    body: () => [chartBox(300, c.series.map((s) => s.label).join(', ') + ' each day', (cv) => dayLines(cv, c)), notes(c.notes)],
+    body: () => chartBox(300, c.series.map((s) => s.label).join(', ') + ' each day', (cv) => dayLines(cv, c)),
   });
 }
 
 function downloadsPanel(c) {
   return panel({
-    title: 'Downloads since launch', empty: c.empty, source: c.source,
+    title: 'Downloads since launch', empty: c.empty, source: c.source, about: [c.launched && fact('Launched', day(c.launched)), say(c.note)],
     table: () => ({ columns: ['Day', 'That day', 'In all'], rows: c.dates.map((d, i) => [day(d), fmt(c.daily[i], 'int'), fmt(c.cumulative[i], 'int')]).reverse() }),
     body: () => [
-      h('div', { class: 'stats tight' }, stat('All time', fmt(c.total, 'int'), `${c.days_live} days since ${day(c.launched)}`), stat('Today so far', fmt(c.today, 'int')), stat('Yesterday', fmt(c.yesterday, 'int')),
-        c.marks.filter((m) => m.day > 1).slice(-3).map((m) => stat(`After ${m.day} days`, fmt(m.value, 'int'), day(m.date)))),
-      chartBox(210, 'Downloads in all, day by day since launch', (cv) => growthLine(cv, c)), notes(c.note ? [c.note] : null),
+      h('div', { class: 'stats tight' }, stat('All time', fmt(c.total, 'int'), `${c.days_live} days`), stat('Today', fmt(c.today, 'int')), stat('Yesterday', fmt(c.yesterday, 'int')),
+        c.marks.filter((m) => m.day > 1).slice(-3).map((m) => stat(`Day ${m.day}`, fmt(m.value, 'int')))),
+      chartBox(210, 'Downloads in all, day by day since launch', (cv) => growthLine(cv, c)),
     ],
   });
 }
@@ -180,83 +243,122 @@ const stars = (n) => h('span', { class: 'stars', role: 'img', 'aria-label': `${n
 
 /** The listing as the store shows it: rating, the versions on sale and waiting, and what reviewers wrote. */
 function listingPanel(l) {
-  const waiting = l.pending.map((p) => h('li', null, h('strong', null, p.version), ` ${p.label.toLowerCase()}${p.release === 'manual' ? ', manual release' : p.release === 'scheduled' ? ', scheduled release' : ''}`));
+  const about = info('Store listing', fact('Source', l.store), fact('Checked', ago(l.checked_at)), fact('Storefronts', l.storefronts.join(', ')),
+    say('Ratings are added up over these storefronts.'), !l.connected && say('Written reviews need App Store Connect.'));
   return h('section', { class: 'panel' },
-    h('header', { class: 'panel-head' }, h('h2', null, 'Store listing'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `${l.store} · checked ${ago(l.checked_at)}`)),
+    panelHead('Store listing', about),
     h('div', { class: 'stats tight' },
-      stat('Rating', l.rating == null ? '—' : l.rating.toFixed(2), l.rating == null ? 'No ratings yet' : stars(l.rating)),
-      stat('Ratings', fmt(l.rating_count, 'int'), l.by_storefront.map((s) => `${s.cc} ${s.count} × ${s.rating.toFixed(1)}`).join(' · ') || null),
-      stat('Written reviews', l.reviews_total == null ? '—' : fmt(l.reviews_total, 'int'), l.connected ? null : 'Needs App Store Connect'),
-      stat('On sale', l.version || '—', l.version_released ? `since ${dateOf(l.version_released)}` : null)),
-    waiting.length ? h('ul', { class: 'versions' }, waiting) : null,
+      stat('Rating', l.rating == null ? '—' : l.rating.toFixed(2), l.rating == null ? null : stars(l.rating)),
+      stat('Ratings', fmt(l.rating_count, 'int')),
+      stat('Reviews', l.reviews_total == null ? '—' : fmt(l.reviews_total, 'int')),
+      stat('On sale', l.version || '—', l.version_released ? dateOf(l.version_released) : null)),
+    h('div', { class: 'pgroups tight' },
+      pills('By country', l.by_storefront.map((s) => h('span', { class: 'tag' }, h('b', null, s.cc), ` ${s.rating.toFixed(1)} ★ (${s.count})`))),
+      pills('Waiting', l.pending.map((p) => tag(`${p.version} ${p.label.toLowerCase()}${p.release === 'manual' ? ' · manual' : p.release === 'scheduled' ? ' · scheduled' : ''}`, 'warn', 'half')))),
     l.reviews?.length ? h('ul', { class: 'reviews' }, l.reviews.slice(0, 6).map((r) => h('li', null,
       h('div', { class: 'review-top' }, stars(r.rating), h('strong', null, r.title), h('span', { class: 'src' }, `${r.territory} · ${dateOf(r.at)}`)),
-      h('p', null, r.body)))) : null,
-    h('div', { class: 'cap' }, `Ratings are added up over the ${l.storefronts.join(', ')} storefronts.`));
+      h('p', null, r.body)))) : null);
 }
 
 function ranksPanel(c) {
   const shown = (c.series || []).slice(0, SERIES.length);
-  // A line needs two days. Until there are two, the ranks are tiles.
+  const about = c.empty ? null : [fact('Storefront', c.storefront), fact('Checked', ago(c.checked_at)), say(`Lower is better. A term with no rank is outside the top ${c.depth}. The history starts the day the dashboard first looked.`)];
+  // A line needs two days. Until there are two, the ranks are badges.
   const days = c.empty ? 0 : c.dates.filter((_, i) => c.series.some((s) => s.values[i] != null)).length;
   if (!c.empty && days < 2) {
     return h('section', { class: 'panel' },
-      h('header', { class: 'panel-head' }, h('h2', null, 'Search rank'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `${c.store} search · ${c.storefront} · checked ${ago(c.checked_at)}`)),
-      h('div', { class: 'stats tight' }, c.series.map((s) => stat(s.term, s.now ? `#${s.now}` : '—', s.now ? null : `Outside the top ${c.depth}`))),
-      notes(['Lower is better. The chart of each term starts once a second day is recorded.']));
+      panelHead('Search rank', info('Search rank', fact('Source', `${c.store} search`), about)),
+      h('div', { class: 'ranks' }, c.series.map((s) => h('div', { class: `rank${s.now ? '' : ' rank-none'}` }, h('div', { class: 'rank-n' }, s.now ? `#${s.now}` : '—'), h('div', { class: 'rank-term' }, s.term)))));
   }
   return panel({
-    title: 'Search rank', empty: c.empty, source: c.empty ? null : `${c.store} search · ${c.storefront}`, items: shown.map((s, i) => ({ label: `${s.term} ${s.now ? `#${s.now}` : '—'}`, color: SERIES[i] })),
+    title: 'Search rank', empty: c.empty, source: c.empty ? null : `${c.store} search`, about, items: shown.map((s, i) => ({ label: `${s.term} ${s.now ? `#${s.now}` : '—'}`, color: SERIES[i] })),
     table: () => ({ columns: ['Day', ...c.series.map((s) => s.term)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => (s.values[i] == null ? '—' : `#${s.values[i]}`))]).reverse() }),
-    body: () => [chartBox(240, 'Search rank for each term, day by day', (cv) => rankLines(cv, { dates: c.dates, series: shown })), notes([`A term with no rank is outside the top ${c.depth}. The history starts the day the dashboard first looked.`])],
+    body: () => chartBox(240, 'Search rank for each term, day by day', (cv) => rankLines(cv, { dates: c.dates, series: shown })),
   });
 }
 
-/** A game's own numbers beside the average: what it is, our number and how it is worked out, the average, and where the average comes from. */
+/** A game's own numbers beside the average: the number, a bar for it on a track with a tick at the average and a band for the usual range, and a short verdict. The reasoning is behind each row's info button. */
 function benchPanel(b) {
   const f = (v, r) => fmt(v, r.format);
-  const average = (r) => {
-    if (r.percentiles) return [h('div', { class: 'bench-avg' }, f(r.average, r)), h('div', { class: 'src' }, `Median · 25th ${f(r.low, r)} · 75th ${f(r.high, r)}`)];
-    if (r.average == null) return [h('div', { class: 'bench-avg' }, `${f(r.low, r)} to ${f(r.high, r)}`)];
-    const more = [r.low != null && r.high != null ? `Usual range ${f(r.low, r)} to ${f(r.high, r)}` : r.high != null ? `Top quarter ${f(r.high, r)}` : null, r.top != null ? `top games ${f(r.top, r)}` : null].filter(Boolean).join(' · ');
-    return [h('div', { class: 'bench-avg' }, f(r.average, r)), more && h('div', { class: 'src' }, more)];
-  };
   const row = (r) => {
-    const tone = r.tone === 'good' ? 'up' : r.tone === 'bad' ? 'down' : 'flat';
-    return h('tr', null,
-      h('th', { scope: 'row', 'data-label': 'Benchmark' }, h('strong', null, r.label), h('span', { class: 'src' }, r.what)),
-      h('td', { 'data-label': 'Our number' },
-        h('div', { class: 'bench-you' }, r.value == null ? '—' : f(r.value, r)),
-        r.how && h('div', { class: 'src' }, r.how),
-        r.verdict ? h('span', { class: `delta delta-${r.tone || 'flat'}` }, icon(tone), h('span', { class: 'delta-value' }, r.verdict)) : chip({ kind: 'off', badge: r.need || 'No figure yet' }),
-        r.note && h('div', { class: 'src' }, r.note)),
-      h('td', { 'data-label': 'The average' }, average(r)),
-      h('td', { 'data-label': 'Where the average comes from' }, h('span', null, r.where), ' ', h('a', { class: 'link', href: r.url, target: '_blank', rel: 'noopener noreferrer' }, r.source)));
+    const top = Math.max(r.value || 0, r.average || 0, r.high || 0, r.top || 0) * 1.12 || 1, pct = (v) => Math.max(0, Math.min(100, (v / top) * 100)), at = (v) => `${pct(v).toFixed(2)}%`;
+    const range = r.low != null && r.high != null ? `${f(r.low, r)} to ${f(r.high, r)}` : null;
+    const words = [`${r.label}: ${r.value == null ? 'no figure yet' : f(r.value, r)}`, r.average != null && `average ${f(r.average, r)}`, range && `${r.percentiles ? '25th to 75th percentile' : 'usual range'} ${range}`].filter(Boolean).join(', ');
+    const track = h('div', { class: 'bullet', role: 'img', 'aria-label': words, title: words });
+    if (range) { const band = h('span', { class: 'bullet-band' }); band.style.left = at(r.low); band.style.width = `calc(${at(r.high)} - ${at(r.low)})`; track.append(band); }
+    if (r.value != null) { const bar = h('span', { class: 'bullet-bar' }); bar.style.width = at(r.value); track.append(bar); }
+    if (r.average != null) { const tick = h('span', { class: 'bullet-tick' }); tick.style.left = at(r.average); track.append(tick); }
+    // One small figure under the track says what the tick (or, with no average, the band) stands for.
+    const mark = r.average ?? (range ? (r.low + r.high) / 2 : null);
+    const under = mark == null ? null : h('span', { class: `bullet-at${pct(mark) < 12 ? ' l' : pct(mark) > 88 ? ' r' : ''}`, 'aria-hidden': 'true' }, r.average != null ? f(r.average, r) : `${f(r.low, r)}–${f(r.high, r)}`);
+    if (under) under.style.left = at(mark);
+    const about = info(r.label, say(r.what),
+      fact('Ours', r.value == null ? r.need || 'No figure yet' : f(r.value, r)), r.how && h('p', { class: 'pop-sub' }, r.how),
+      r.average != null && fact(r.percentiles ? 'Median' : 'Average', f(r.average, r)),
+      range && fact(r.percentiles ? '25th to 75th percentile' : 'Usual range', range),
+      !range && r.high != null && fact('Top quarter', f(r.high, r)),
+      r.top != null && fact('Top games', f(r.top, r)), fact('Compared with', r.peer_group), fact('Verdict', r.verdict), say(r.note), say(r.where),
+      h('p', null, h('a', { class: 'link', href: r.url, target: '_blank', rel: 'noopener noreferrer' }, r.source)));
+    return h('li', { class: `bench${r.value == null ? ' bench-none' : ''}` },
+      h('div', { class: 'bench-name' }, r.label),
+      h('div', { class: 'bench-you' }, r.value == null ? '—' : f(r.value, r)),
+      h('div', { class: 'bench-bar' }, track, under),
+      h('div', { class: 'bench-pill' }, r.short ? tag(r.short, r.tone || 'flat') : h('span', { class: 'bench-need' }, r.need || 'No figure yet')),
+      about);
   };
   const groups = b.groups?.length ? b.groups : [null];
+  const key = h('ul', { class: 'legend' }, [['bullet-bar', 'Ours'], ['bullet-tick', 'Average'], ['bullet-band', 'Usual range']].map(([c, label]) => h('li', null, h('span', { class: `key ${c}` }), label)));
   return h('section', { class: 'panel wide' },
-    h('header', { class: 'panel-head' }, h('h2', null, 'Against the average'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, 'Beside a launch with no marketing where a figure for one exists')),
-    h('div', { class: 'bench-wrap' }, h('table', { class: 'bench-table' },
-      h('colgroup', null, ['c-name', 'c-you', 'c-avg', 'c-from'].map((c) => h('col', { class: c }))),
-      h('thead', null, h('tr', null, ['Benchmark', 'Our number', 'The average', 'Where the average comes from'].map((c) => h('th', { scope: 'col' }, c)))),
-      groups.map((g) => h('tbody', null,
-        g && h('tr', { class: 'bench-group' }, h('th', { colspan: 4, scope: 'colgroup' }, g)),
-        b.rows.filter((r) => !g || r.group === g).map(row))))));
+    panelHead('Against the average', info('Against the average',
+      say('Each row sets the game’s own number beside the average for a launch like it: a game released with no marketing wherever a figure for one exists.'),
+      say('The bar is ours, the tick is the average, and the band is the usual range. Each row’s button says how ours is worked out and where the average comes from.')), key),
+    groups.map((g) => [g && h('h3', { class: 'bench-group' }, g), h('ul', { class: 'benches' }, b.rows.filter((r) => !g || r.group === g).map(row))]));
+}
+
+/** Seconds as a short token: 4.2s, 12m, 1.5h. */
+const brief = (s) => (s < 90 ? `${s < 10 ? Math.round(s * 10) / 10 : Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`);
+const PLAT = { ios: 'iOS', android: 'Android' };
+const tok = (value, label, title) => h('span', { class: 'tok', title: title || null }, h('b', null, value), label ? ` ${label}` : null);
+
+/** One player's last day as a row of tokens. */
+function storyRow(p, steps) {
+  const x = p.facts, kids = [
+    tag(p.new ? 'New' : 'Returning', p.new ? 'good' : '', p.new ? 'dot' : 'ring'),
+    h('span', { class: 'tag' }, h('b', null, PLAT[p.platform] || p.platform || '?'), p.version ? ` ${p.version}` : null, p.country ? ` · ${p.country}` : null),
+  ];
+  if (!x) kids.push(h('span', { class: 'tok wrap' }, p.lines.join(' ')), (p.flags || []).map((f) => tag(f, 'warn')));
+  else {
+    if (!p.new && p.launches > 1) kids.push(tok(`${p.launches}${p.launches >= 5 ? '+' : ''}`, 'launches'));
+    if (x.load_secs != null) kids.push(tok(brief(x.load_secs), 'load'));
+    if (p.played_secs) kids.push(tok(brief(p.played_secs), 'played'));
+    if (x.ftue) {
+      const fill = h('i'); fill.style.width = `${steps ? Math.min(100, (x.ftue.step / steps) * 100) : 100}%`;
+      kids.push(h('span', { class: 'tok ftue', title: `First-time steps: reached ${x.ftue.step}, ${x.ftue.name}` }, steps ? h('span', { class: 'meter' }, fill) : null, h('b', null, steps ? `${x.ftue.step}/${steps}` : `Step ${x.ftue.step}`)));
+    }
+    kids.push(x.areas.map((a) => h('span', { class: 'tag' }, h('b', null, a.name), ` ${brief(a.secs)}`)));
+    if (x.gfx) kids.push(tok(`L${x.gfx}`, 'gfx', `Graphics settled at level ${x.gfx}`));
+    if (x.quests) kids.push(tok(`${x.quests.done}/${x.quests.accepted}`, 'quests', `Quests: ${x.quests.offered} offered, ${x.quests.accepted} accepted, ${x.quests.done} finished, ${x.quests.left} given up`));
+    if (x.chapters) kids.push(tok(x.chapters.finished.length ? `Ch ${x.chapters.finished.join(', ')}` : `Ch ${x.chapters.begun.join(', ')}`, x.chapters.finished.length ? 'done' : 'started'));
+    if (x.runway) kids.push(tok(x.runway.rated || (x.runway.entered || x.runway.sent ? 'in' : 'open'), 'runway', `Runway: opened ${x.runway.opened}, rated ${x.runway.rated}, submitted ${x.runway.sent}, entered ${x.runway.entered}`));
+    if (x.shop && !x.shop.bought.length) kids.push(tok(x.shop.taps ? `${x.shop.taps} tap${x.shop.taps === 1 ? '' : 's'}` : `×${x.shop.opens}`, 'shop', `Shop: opened ${x.shop.opens}, tapped a price ${x.shop.taps}, cancelled ${x.shop.cancels}`));
+    kids.push(x.other.map((o) => tok(`×${o.n}`, o.name.toLowerCase())));
+    kids.push(x.marks.map((m) => tag(m.label, m.tone, m.tone === 'good' ? 'check' : m.tone === 'bad' ? 'cross' : 'alert')));
+  }
+  return h('li', { class: 'story' }, kids, h('span', { class: 'story-when' }, `${ago(p.last_seen)} · #${p.tag}`));
 }
 
 /** What each of the last day's players did, the most recent first. */
 function storiesPanel(s) {
+  const about = info('What players did', fact('Source', 'PostHog'), fact('Players', `${s.players.length}${s.players.length >= s.limit ? ' most recent' : ''}`), fact('As of', time(s.as_of)),
+    say('One row a player, the most recent first. The bar is how far through the first-time steps they got. The tag at the right is a one-way hash of the analytics id.'));
   return h('section', { class: 'panel wide' },
-    h('header', { class: 'panel-head' }, h('h2', null, 'What players did, last 24 hours'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `PostHog · ${s.players.length}${s.players.length >= s.limit ? ' most recent' : ''} ${s.players.length === 1 ? 'player' : 'players'} · as of ${time(s.as_of)}`)),
-    h('ul', { class: 'stories' }, s.players.map((p) => h('li', { class: 'story' },
-      h('div', { class: 'story-top' }, h('strong', null, p.head), h('span', { class: 'src' }, `${ago(p.last_seen)} · player ${p.tag}`)),
-      h('p', null, p.lines.join(' ')),
-      p.flags.length ? h('div', { class: 'flags' }, p.flags.map((f) => h('span', { class: 'chip chip-warn' }, icon('alert'), f))) : null))));
+    panelHead('What players did, last 24 hours', about),
+    h('ul', { class: 'stories' }, s.players.map((p) => storyRow(p, s.ftue_steps))));
 }
 
 function retentionPanel(c) {
   return panel({
-    title: 'Retention curve', source: c.source || 'PostHog', empty: c.empty,
+    title: 'Retention curve', source: c.source || 'PostHog', empty: c.empty, about: [say('Of the players who first played on a day, the share who played again that many days later.')],
     table: () => ({ columns: ['Day', 'Came back', 'Players', 'Rate'], rows: c.points.map((p) => [`Day ${p.day}`, fmt(p.back, 'int'), fmt(p.size, 'int'), fmt(p.rate, 'pct')]) }),
     body: () => chartBox(280, 'Share of new players who came back, by day', (cv) => retentionCurve(cv, c)),
   });
@@ -294,10 +396,12 @@ const SYNC_ICON = { ok: 'check', stale: 'alert', error: 'cross', off: 'ring', wa
 function syncBadge(s) {
   return h('li', { class: `sync sync-${s.state}`, title: s.message || null },
     h('div', { class: 'sync-top' }, icon(SYNC_ICON[s.state]), h('span', { class: 'sync-name' }, s.label), h('span', { class: 'sync-word' }, s.word)),
-    h('div', { class: 'sync-when' }, s.last_ok ? ['Last pull ', h('time', { datetime: s.last_ok }, moment(s.last_ok)), ` · ${ago(s.last_ok)}`] : 'No successful pull yet'),
+    h('div', { class: 'sync-when' }, s.last_ok ? h('time', { datetime: s.last_ok, title: moment(s.last_ok) }, ago(s.last_ok)) : '—'),
     s.state === 'error' && s.message && h('div', { class: 'sync-msg' }, s.message));
 }
-const syncPanel = (sync) => h('section', { class: 'panel wide' }, h('header', { class: 'panel-head' }, h('h2', null, 'Source sync health')), h('ul', { class: 'syncs' }, sync.map(syncBadge)));
+const syncPanel = (sync) => h('section', { class: 'panel wide' },
+  panelHead('Source sync health', info('Source sync health', say('Each source and when its last pull finished. Hover a badge for the exact time.'), say('RevenueCat, PostHog and the listing are pulled hourly; the stores twice a day.'))),
+  h('ul', { class: 'syncs' }, sync.map(syncBadge)));
 
 // ---------------------------------------------------------------------------
 // Views
@@ -316,11 +420,11 @@ function gameView(v) {
       x.stories && storiesPanel(x.stories), syncPanel(v.sync)),
   ].filter(Boolean);
   const more = [];
-  if (x.hourly) more.push(panel({ title: x.hourly.series.length > 1 ? 'New and active players, last 48 hours' : `${x.hourly.series[0].label} players, last 48 hours`, source: x.hourly.source, wide: true, items: x.hourly.series.length > 1 ? x.hourly.series.map((s, i) => ({ label: s.label, color: colorOf(s, i) })) : null, table: () => ({ columns: ['Hour', ...x.hourly.series.map((s) => s.label)], rows: x.hourly.hours.map((t, i) => [moment(t), ...x.hourly.series.map((s) => fmt(s.values[i], 'int'))]).reverse() }), body: () => [chartBox(200, 'Players each hour', (cv) => hourLines(cv, x.hourly)), notes(x.hourly.note ? [x.hourly.note] : null)] }));
+  if (x.hourly) more.push(panel({ title: x.hourly.series.length > 1 ? 'New and active players, last 48 hours' : `${x.hourly.series[0].label} players, last 48 hours`, about: [x.hourly.source.split(' · ').reduce((rows, part, i, all) => (i % 2 ? rows : [...rows, fact(part, all[i + 1])]), []), say(x.hourly.note)], wide: true, items: x.hourly.series.length > 1 ? x.hourly.series.map((s, i) => ({ label: s.label, color: colorOf(s, i) })) : null, table: () => ({ columns: ['Hour', ...x.hourly.series.map((s) => s.label)], rows: x.hourly.hours.map((t, i) => [moment(t), ...x.hourly.series.map((s) => fmt(s.values[i], 'int'))]).reverse() }), body: () => chartBox(200, 'Players each hour', (cv) => hourLines(cv, x.hourly)) }));
   if (x.store) { const rows = x.store.steps.map((s) => ({ ...s, v: s.count })); more.push(barsPanel({ title: 'Store funnel', source: 'PostHog', rows, label: (r) => r.label, valueText: (r) => fmt(r.count, 'int'), tip: (r) => [`${fmt(r.count, 'int')} times`], columns: ['Step', 'Times'], cells: (r) => [r.label, fmt(r.count, 'int')] })); }
   if (x.gfx) { const rows = x.gfx.levels.map((s) => ({ ...s, v: s.players })); more.push(barsPanel({ title: 'Graphics level', source: 'PostHog', rows, label: (r) => `Level ${r.level}`, valueText: (r) => `${fmt(r.players, 'int')} · ${fmt(r.share, 'pct')}`, tip: (r) => [`${fmt(r.players, 'int')} players`, `${fmt(r.share, 'pct')} of them`], columns: ['Level', 'Players', 'Share'], cells: (r) => [`Level ${r.level}`, fmt(r.players, 'int'), fmt(r.share, 'pct')] })); }
-  if (x.community) more.push(h('section', { class: 'panel' }, h('header', { class: 'panel-head' }, h('h2', null, x.community.label), h('span', { class: 'spacer' }), h('span', { class: 'src' }, 'Game database')), tiles(x.community.tiles)));
-  if (x.more) more.push(h('section', { class: 'panel' }, h('header', { class: 'panel-head' }, h('h2', null, 'More numbers')), tiles(x.more)));
+  if (x.community) more.push(h('section', { class: 'panel' }, panelHead(x.community.label, info(x.community.label, fact('Source', 'Game database'))), tiles(x.community.tiles)));
+  if (x.more) more.push(h('section', { class: 'panel' }, panelHead('More numbers', info('More numbers', x.more.map((t) => fact(t.label, t.source)))), tiles(x.more)));
   if (more.length) out.push(h('div', { class: 'grid' }, more));
   return out;
 }
@@ -389,13 +493,17 @@ function paintChrome() {
     seg('Range', RANGES, state.range, (id) => hrefFor(state.view, state.platform, id)),
     state.view !== 'overview' && seg('Platform', PLATFORMS, state.platform, (id) => hrefFor(state.view, id)),
     game && h('div', { class: 'plats' }, ['ios', 'android'].map((p) => h('span', { class: 'plat' }, p === 'ios' ? 'iOS' : 'Android', pill(game.platforms[p].status, game.platforms[p].label, 'quiet')))),
-    h('span', { class: 'spacer' }),
-    h('span', { class: 'updated', 'aria-live': 'polite' }, state.loading ? 'Loading…' : shown ? `Days are ${shown.clock?.name || 'UTC'} · Updated ${time(shown.generated_at)}` : ''),
-    h('button', { class: 'ghost', type: 'button', onclick: () => load(), disabled: state.loading }, 'Refresh'),
+    h('div', { class: 'toolbar-end' },
+      h('span', { class: 'updated', 'aria-live': 'polite' }, state.loading ? 'Loading…' : shown ? `Updated ${time(shown.generated_at)}` : ''),
+      shown && !state.loading && info('These numbers', fact('Days are', shown.clock?.name || 'UTC'), fact('Read at', moment(shown.generated_at)),
+        say('The page reads again every ten minutes while it is in front. The sources are pulled hourly, the stores twice a day.')),
+      h('button', { class: 'ghost', type: 'button', onclick: () => load(), disabled: state.loading }, 'Refresh')),
   ].filter(Boolean));
+  if (openInfo && !openInfo.btn.isConnected) closeInfo();
 }
 
 function paintMain() {
+  closeInfo();
   destroyCharts(); afterAttach = [];
   const kids = [];
   if (state.error) kids.push(h('div', { class: 'banner', role: 'alert' }, icon('alert'), h('span', null, explain(state.error)), h('button', { class: 'ghost small', type: 'button', onclick: () => load() }, 'Try again')));

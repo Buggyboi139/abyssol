@@ -75,9 +75,8 @@ const gameInfo = (g) => ({
   community_label: g.config?.community_label || null, genre: g.config?.genre || null,
 });
 
-const count = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-const few = (n) => (n === 0 ? 'no' : String(n));
 const PLATFORM_WORD = { ios: 'iOS', android: 'Android' };
+const STABILITY_RULE = 'Unclean exits over sessions, from PostHog. The crash rate is App Store crashes over sessions, or Google Play\'s user-perceived crash rate. Lower is better.';
 
 /** The view of one game on one platform over one range. */
 export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
@@ -114,8 +113,8 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   kpis.push({
     id: 'revenue', label: 'Revenue', format: 'usd', value: rev ? rev.sum : null, prev: P('revenuecat.revenue')?.sum ?? null,
     delta: rev ? change(rev.sum, P('revenuecat.revenue')?.sum, enough('revenuecat.revenue')) : null,
-    sub: rev ? [{ label: 'transactions', value: T('revenuecat.transactions')?.sum ?? 0, format: 'int' }, ...(T('revenuecat.proceeds') ? [{ label: 'proceeds', value: T('revenuecat.proceeds').sum, format: 'usd' }] : [])] : [],
-    source: 'RevenueCat', spark: line('revenuecat.revenue'), empty: rev ? null : why(['revenuecat']),
+    sub: rev ? [{ label: 'tx', value: T('revenuecat.transactions')?.sum ?? 0, format: 'int' }, ...(T('revenuecat.proceeds') ? [{ label: 'proceeds', value: T('revenuecat.proceeds').sum, format: 'usd' }] : [])] : [],
+    source: 'RevenueCat', rule: 'What players paid in the range. Proceeds are what is left after the store takes its cut.', spark: line('revenuecat.revenue'), empty: rev ? null : why(['revenuecat']),
   });
 
   // PostHog counts only once it has seen a player in this range or the one before: connected with no build
@@ -139,7 +138,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   kpis.push({
     id: 'installs', label: 'Installs', format: 'int', value: inst ? sumOf(T, inst.keys) : null, prev: inst ? sumOf(P, inst.keys) : null,
     delta: inst ? change(sumOf(T, inst.keys), sumOf(P, inst.keys), inst.keys.every(enough)) : null,
-    sub: [], source: inst?.source || null, spark: instLine, empty: inst ? null : why(['apple', 'posthog', 'revenuecat']),
+    sub: [], source: inst?.source || null, rule: 'First-time downloads as the stores count them. Until a store count arrives: new customers in RevenueCat, then new players in PostHog.', spark: instLine, empty: inst ? null : why(['apple', 'posthog', 'revenuecat']),
   });
 
   // ---- Who played each day. New: RevenueCat's customers (every install makes one), else PostHog's first sightings.
@@ -172,6 +171,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     delta: dau != null && prevDau ? change(dau, prevDau.avg, prevLive && prevDau.n >= Math.ceil(n / 2)) : null,
     sub: phDau && T('posthog.wau') ? [{ label: 'WAU', value: T('posthog.wau').last, format: 'int' }] : [],
     source: activeSource ? `Active players · ${activeSource}` : null,
+    rule: 'The average over whole days of each day\'s active players: the larger of PostHog\'s count and RevenueCat\'s customers seen that day. Today is left out until it ends.',
     spark: activeLine, empty: activeLine ? null : why(['posthog', 'revenuecat']),
   });
 
@@ -190,7 +190,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     id: 'retention', label: 'D1 / D7 retention', format: 'pct', value: d1?.rate ?? null, value2: d7?.rate ?? null, pair: true,
     delta: d1 && d1Prev ? change(d1.rate, d1Prev.rate, true, { pp: true }) : null,
     sub: d1 ? [{ label: 'new players', value: d1.size, format: 'int' }] : [],
-    source: 'PostHog', spark: null, empty: d1 || d7 ? null : why(['posthog']),
+    source: 'PostHog', rule: 'Of the players who first played N days before each day in the range, the share who played again on day N.', spark: null, empty: d1 || d7 ? null : why(['posthog']),
   });
 
   // ---- Unclean exits and crashes (lower is better) ----
@@ -207,13 +207,13 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       id: 'stability', label: 'Unclean exit rate', format: 'pct', value: unclean, upGood: false,
       delta: change(unclean, rateOf(P, 'posthog.unclean_exits', 'posthog.sessions'), enough('posthog.sessions'), { pp: true, upGood: false }),
       sub: crash ? [{ label: `crash rate · ${crash.source}`, value: crash.rate, format: 'pct' }] : [{ label: 'unclean exits', value: T('posthog.unclean_exits').sum, format: 'int' }],
-      source: 'PostHog', spark: null, empty: null,
+      source: 'PostHog', rule: STABILITY_RULE, spark: null, empty: null,
     });
   } else {
     kpis.push({
       id: 'stability', label: crash ? 'Crash rate' : 'Unclean exit / crash rate', format: 'pct', value: crash?.rate ?? null, upGood: false,
       delta: crash && crashPrev ? change(crash.rate, crashPrev.rate, true, { pp: true, upGood: false }) : null,
-      sub: [], source: crash?.source || null, spark: null, empty: crash ? null : why(['posthog', platform === 'android' ? 'google' : 'apple']),
+      sub: [], source: crash?.source || null, rule: STABILITY_RULE, spark: null, empty: crash ? null : why(['posthog', platform === 'android' ? 'google' : 'apple']),
     });
   }
 
@@ -223,7 +223,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     id: 'conversion', label: 'Conversion rate', format: 'pct', value: conv,
     delta: change(conv, rateOf(P, 'revenuecat.new_paying_customers', 'revenuecat.conv_cohort_size'), enough('revenuecat.conv_cohort_size'), { pp: true }),
     sub: conv != null ? [{ label: 'paying', value: T('revenuecat.new_paying_customers').sum, format: 'int' }, { label: 'new customers', value: T('revenuecat.conv_cohort_size').sum, format: 'int' }] : [],
-    source: 'RevenueCat', spark: null, empty: conv != null ? null : why(['revenuecat']),
+    source: 'RevenueCat', rule: 'New paying customers over new customers in the range.', spark: null, empty: conv != null ? null : why(['revenuecat']),
   });
 
   // ---- Charts ----
@@ -377,7 +377,8 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   // ---- What the last day's players did ----
   const told = state === 'live' ? fact('posthog.stories') : null;
   const tales = (told?.players || []).filter((p) => platform === 'all' || p.platform === platform);
-  extras.stories = tales.length ? { as_of: told.as_of, since: told.since, limit: told.limit, players: tales } : null;
+  const lastStep = Math.max(0, ...(charts.ftue.steps || []).map((x) => parseInt(x.key, 10) || 0));
+  extras.stories = tales.length ? { as_of: told.as_of, since: told.since, limit: told.limit, ftue_steps: lastStep || null, players: tales } : null;
 
   // ---- Today so far, and the last 24 hours ----
   const rc = state === 'live' ? fact('revenuecat.live') : null, ph = state === 'live' ? fact('posthog.live') : null;
@@ -388,28 +389,19 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     const lead = phNow && (!rcNow || phNow.today.active > rcNow.today.active) ? phNow : rcNow;
     const pick = (span) => ({ new: (rcNow || phNow)[span].new, active: lead[span].active, returning: lead[span].returning });
     const day24 = { ...pick('last24h'), purchases: Math.max(rcNow?.last24h.purchases ?? 0, phNow?.last24h.purchases ?? 0), revenue: rcNow?.last24h.revenue ?? null };
-    const now0 = pick('today'), news = [];
-    news.push(`${few(now0.new)[0].toUpperCase()}${few(now0.new).slice(1)} new ${now0.new === 1 ? 'player' : 'players'} and ${few(now0.active)} active so far today${now0.returning ? `; ${now0.returning} of them ${now0.returning === 1 ? 'is' : 'are'} returning` : ''}.`);
+    const now0 = pick('today');
     const where = (rcNow?.countries || []).filter((c) => c.cc && c.cc !== '??');
-    if (where.length) news.push(`By country today: ${where.map((c) => `${c.cc} ${c.active}${c.new ? ` (${c.new} new)` : ''}`).join(', ')}.`);
     const builds = (rcNow?.versions || []).filter((v) => v.version && v.version !== '??');
-    if (builds.length > 1) news.push(`Versions in play today: ${builds.map((v) => `${v.version} × ${v.active}`).join(', ')}.`);
-    news.push(`Last 24 hours: ${day24.new} new, ${day24.active} active, ${day24.returning} returning, ${day24.purchases ? `${count(day24.purchases, 'purchase')}${day24.revenue ? ` ($${day24.revenue.toFixed(2)})` : ''}` : 'no purchases'}.`);
-    if (listing) {
-      const waiting = (listing.pending || [])[0];
-      news.push(`${listing.store}: ${waiting ? `${waiting.version} is ${waiting.label.toLowerCase()}${waiting.release === 'manual' ? ', with manual release' : ''}. ` : ''}${listing.version} is on sale.`);
-      const counts = line('listing.rating_count'), before = counts ? counts.slice(0, -1).filter((v) => v != null).at(-1) : null;
-      const moved = before != null && listing.rating_count !== before ? `${listing.rating_count > before ? count(listing.rating_count - before, 'new rating') : count(before - listing.rating_count, 'rating') + ' fewer'} since yesterday: ` : before != null ? 'Still ' : '';
-      news.push(`${moved}${count(listing.rating_count, 'rating')}${listing.rating != null ? ` averaging ${listing.rating.toFixed(2)}` : ''}${listing.reviews_total != null ? ` and ${count(listing.reviews_total, 'written review')}` : ''}.`);
-    }
-    if (ranked.some((r) => r.now)) news.push(`${search.store} search, ${String(search.storefront || '').toUpperCase()}: ${ranked.map((r) => `“${r.term}” ${r.now ? `#${r.now}` : `not in the top ${search.depth}`}`).join(', ')}.`);
-    news.push(rev?.sum > 0 ? `Money: $${rev.sum.toFixed(2)} from ${count(T('revenuecat.transactions')?.sum ?? 0, 'purchase')} in the last ${n} days.` : `Money: $0 from players in the last ${n} days.`);
-    const out = rc?.testers?.total || 0;
-    if (out) news.push(`${count(out, 'tester')} and test ${out === 1 ? 'account is' : 'accounts are'} left out of every RevenueCat number here.`);
+    const counts = listing ? line('listing.rating_count') : null, before = counts ? counts.slice(0, -1).filter((v) => v != null).at(-1) : null;
     today = {
       date: to, as_of: (lead === phNow ? ph : rc).as_of, day_started: (rc || ph).day_started,
       now: now0, last24h: day24, source: [rcNow && 'RevenueCat', phNow && 'PostHog'].filter(Boolean).join(' + '),
-      all_time: downloads ? { value: downloads.total, source: downloads.source } : null, news,
+      all_time: downloads ? { value: downloads.total, source: downloads.source } : null,
+      countries: where.map((c) => ({ cc: c.cc, active: c.active, new: c.new || 0 })),
+      versions: builds.map((v) => ({ version: v.version, active: v.active })),
+      store: listing ? { name: listing.store, version: listing.version, pending: (listing.pending || []).map((p) => ({ version: p.version, label: p.label, release: p.release || null })) } : null,
+      rating: listing ? { value: listing.rating, count: listing.rating_count, reviews: listing.reviews_total ?? null, change: before != null ? listing.rating_count - before : null } : null,
+      testers_out: rc?.testers?.total || 0,
     };
   }
 
@@ -422,18 +414,18 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     const genre = game.genre || 'games';
     const sums = (k) => T(k)?.sum ?? null, rate = (a, b) => (a != null && b > 0 ? a / b : null);
     const int = (v) => Math.round(v).toLocaleString('en-US'), span = `last ${n} days`;
-    const none = { ratio: null, verdict: null, tone: null };
+    const none = { ratio: null, short: null, verdict: null, tone: null };
     // Beside an average, with the usual range when the source gives one; beside a range alone; or beside percentiles.
     const beside = (v, b) => {
       if (v == null) return none;
       const { mid = null, low = null, high = null } = b;
-      if (mid == null) return { ratio: null, verdict: v < low ? 'Under the usual range' : v > high ? 'Above the usual range' : 'Inside the usual range', tone: v < low ? 'bad' : v > high ? 'good' : 'flat' };
+      if (mid == null) return { ratio: null, short: v < low ? 'Below range' : v > high ? 'Above range' : 'In range', verdict: v < low ? 'Under the usual range' : v > high ? 'Above the usual range' : 'Inside the usual range', tone: v < low ? 'bad' : v > high ? 'good' : 'flat' };
       const r = mid > 0 ? v / mid : null; if (r == null) return none;
       const times = r >= 1.15 ? `${r >= 10 ? Math.round(r) : r.toFixed(1)}× the average` : r > 0.87 ? 'About average' : `${Math.round(r * 100)}% of the average`;
       const tail = low != null && v < low ? ', under the usual range' : high != null && v > high ? ', above the usual range' : '';
-      return { ratio: r, verdict: times + tail, tone: r >= 1.15 ? 'good' : (low != null ? v < low : r <= 0.87) ? 'bad' : 'flat' };
+      return { ratio: r, short: r >= 1.15 ? `${r >= 10 ? Math.round(r) : r.toFixed(1)}×` : r > 0.87 ? 'Typical' : `${Math.round(r * 100)}%`, verdict: times + tail, tone: r >= 1.15 ? 'good' : (low != null ? v < low : r <= 0.87) ? 'bad' : 'flat' };
     };
-    const placed = (v, q) => (v == null ? none : { ratio: v / q.p50, verdict: v < q.p25 ? 'Below the 25th percentile' : v < q.p50 ? 'Between the 25th and 50th percentile' : v < q.p75 ? 'Between the 50th and 75th percentile' : 'Above the 75th percentile', tone: v < q.p25 ? 'bad' : v < q.p50 ? 'flat' : 'good' });
+    const placed = (v, q) => (v == null ? none : { ratio: v / q.p50, short: v < q.p25 ? 'Bottom 25%' : v < q.p50 ? '25th–50th' : v < q.p75 ? '50th–75th' : 'Top 25%', verdict: v < q.p25 ? 'Below the 25th percentile' : v < q.p50 ? 'Between the 25th and 50th percentile' : v < q.p75 ? 'Between the 50th and 75th percentile' : 'Above the 75th percentile', tone: v < q.p25 ? 'bad' : v < q.p50 ? 'flat' : 'good' });
     const rows = [];
     // Apple's peer percentiles are read from its console by hand and kept as a fact: { week, group, <row id>: { p25, p50, p75 } }.
     const peers = raw.facts?.['manual.apple_peers']?.value || null;

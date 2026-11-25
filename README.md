@@ -303,12 +303,18 @@ only when at least half of those days have data and fall after launch.
 platform is not live, it was first seen before the platform's `launched` date,
 its app version is not a plain release number or is newer than the version on
 sale, it has a sandbox purchase, or it is named in
-`<PREFIX>_REVENUECAT_EXCLUDE`. The Today panel says how many were left out.
+`<PREFIX>_REVENUECAT_EXCLUDE`. The Today panel's `ⓘ` says how many were left out.
 
-**Against the average.** A table of the game's own numbers beside the average
-for a launch like it, in four columns: the benchmark, our number and how it is
-worked out, the average, and where the average comes from.
-`config/benchmarks.json` holds every average with its source. Where a
+**Info buttons.** The page shows numbers, bars, and pills. Sources, rules,
+time zone and data-lag notes, tester counts, and benchmark links sit behind the
+`ⓘ` button on each card, panel, and benchmark row. A click or a tap opens it;
+a second one, a click elsewhere, or `Escape` closes it.
+
+**Against the average.** A row for each of the game's own numbers beside the
+average for a launch like it: the number, a bar for it on a track with a tick
+at the average and a band for the usual range, and a short verdict. The row's
+`ⓘ` says how the number is worked out and where the average comes from, with a
+link. `config/benchmarks.json` holds every average with its source. Where a
 figure exists for a game launched with no marketing, that is the average used;
 where none does, the row says whose average it is.
 

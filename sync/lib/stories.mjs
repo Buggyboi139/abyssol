@@ -44,20 +44,25 @@ export function tell(p, since) {
 
   // How the launch went.
   const ready = by.get('Load:Ready');
+  let loadSecs = null;
+  // What the page draws as tokens: the same facts as the lines, a number or a short label each.
+  const marks = [], mark = (label, tone = 'warn') => marks.push({ label, tone });
   if (ready?.n) {
     const secs = ready.sum / ready.n;
+    if (secs > 0) loadSecs = Math.round(secs * 10) / 10;
     if (secs > 0) lines.push(`Loaded in ${secs.toFixed(1)} s${ready.n > 1 ? ` on average over ${ready.n} launches` : ''}.`);
-    if (secs >= 15) flags.push('Slow load');
+    if (secs >= 15) { flags.push('Slow load'); mark('Slow load'); }
   }
   const lost = by.get('Load:ContextLost')?.n || 0, stopped = by.get('Load:Stopped')?.n || 0;
-  if (lost) flags.push(`Lost the graphics context${lost > 1 ? ` ${lost} times` : ''}`);
-  if (stopped) flags.push(`Load stopped${stopped > 1 ? ` ${stopped} times` : ''}`);
-  if (starts('Gfx:Lite:').length) flags.push('Fell back to lite graphics');
+  if (lost) { flags.push(`Lost the graphics context${lost > 1 ? ` ${lost} times` : ''}`); mark(`Context lost${lost > 1 ? ` ×${lost}` : ''}`, 'bad'); }
+  if (stopped) { flags.push(`Load stopped${stopped > 1 ? ` ${stopped} times` : ''}`); mark(`Load stopped${stopped > 1 ? ` ×${stopped}` : ''}`, 'bad'); }
+  if (starts('Gfx:Lite:').length) { flags.push('Fell back to lite graphics'); mark('Lite graphics'); }
   const level = starts('Gfx:Level:').map((e) => e.event.split(':')[2]).filter(Boolean).at(-1);
 
   // How far through the first-time steps.
   const steps = starts('FTUE:').map((e) => e.event.split(':')[1]).filter((s) => /^\d/.test(s || '')).sort();
-  if (steps.length) { const last = steps.at(-1); lines.push(`First-time steps: reached ${parseInt(last, 10)}, ${words(last.replace(/^\d+[a-z]?_/, ''))}.`); }
+  let ftue = null;
+  if (steps.length) { const last = steps.at(-1); ftue = { step: parseInt(last, 10), name: words(last.replace(/^\d+[a-z]?_/, '')) }; lines.push(`First-time steps: reached ${ftue.step}, ${ftue.name}.`); }
 
   // Where the time went.
   const areas = starts('Area:').map((e) => ({ name: e.event.split(':')[1], secs: e.sum })).filter((a) => a.name && a.secs > 0).sort((a, b) => b.secs - a.secs);
@@ -91,13 +96,14 @@ export function tell(p, since) {
   const bought = product('Store:Bought'), cancels = count('Store:Cancel'), errors = count('Store:Error') + count('Store:Fail');
   if (bought.length) lines.push(`Bought ${list(bought)}.`);
   else if (shop || taps) lines.push(`Shop: ${[shop && `opened ${plural(shop, 'time')}`, taps && `tapped a price${tapped.length ? ` (${list(tapped.slice(0, 3))})` : ''}`, cancels && 'cancelled'].filter(Boolean).join(', ')}.`);
-  if (errors) flags.push(`Store error${errors > 1 ? ` ×${errors}` : ''}`);
+  if (bought.length) mark(`Bought${bought.length > 1 ? ` ×${bought.length}` : ''}`, 'good');
+  if (errors) { flags.push(`Store error${errors > 1 ? ` ×${errors}` : ''}`); mark(`Store error${errors > 1 ? ` ×${errors}` : ''}`, 'bad'); }
 
   // Trouble.
   const unclean = starts('Session:UncleanExit');
-  if (unclean.length) flags.push(`Closed without a clean exit${unclean.some((e) => /Loading/.test(e.event)) ? ' while loading' : ''}`);
+  if (unclean.length) { const loading = unclean.some((e) => /Loading/.test(e.event)); flags.push(`Closed without a clean exit${loading ? ' while loading' : ''}`); mark(loading ? 'Unclean exit, loading' : 'Unclean exit', loading ? 'bad' : 'warn'); }
   const appErrors = by.get('App:Error')?.n || 0;
-  if (appErrors) flags.push(plural(appErrors, 'app error'));
+  if (appErrors) { flags.push(plural(appErrors, 'app error')); mark(`App error${appErrors > 1 ? ` ×${appErrors}` : ''}`, 'bad'); }
 
   // Whatever else the game sends, by category.
   const KNOWN = /^(Session|Device|Load|Gfx|FTUE|Area|Quest|Chapter|Runway|Shop|Store|App)$/;
@@ -112,5 +118,15 @@ export function tell(p, since) {
     tag: tagOf(p.id), new: isNew, platform: p.platform, version: p.version || null, country: p.country || null, launches: launches || null,
     first_seen: new Date(p.first).toISOString(), last_seen: new Date(p.last).toISOString(), played_secs: Math.round(played) || null,
     head, lines, flags,
+    facts: {
+      load_secs: loadSecs, ftue, gfx: level || null, screen: screen ? `${screen[1]} × ${screen[2]}` : null,
+      areas: areas.slice(0, 4).map((x) => ({ name: words(x.name), secs: Math.round(x.secs) })),
+      quests: quest.offered || quest.accepted || quest.done ? quest : null,
+      chapters: finished.length || begun.length ? { finished, begun } : null,
+      runway: runway.opened || runway.rated || runway.sent || runway.entered ? runway : null,
+      shop: shop || taps || bought.length ? { opens: shop, taps, cancels, bought } : null,
+      other: rest.map(([c, n]) => ({ name: words(c), n })),
+      marks,
+    },
   };
 }

@@ -31,7 +31,7 @@
       "android_package_id": "com.lakeangler.game",
       "platforms": {
         "ios": { "status": "in_review", "app_store_id": "6838396514" },
-        "android": { "status": "prelaunch" }
+        "android": { "status": "in_review" }
       },
       "posthog": { "platform_property": "platform", "error_event": "App:Error" },
       "game_db": {

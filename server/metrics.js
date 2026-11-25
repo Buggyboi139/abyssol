@@ -124,7 +124,9 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 
   // ---- Installs: the stores' own counts, else new customers (every install makes one), else new players ----
   const storeKeys = [];
-  if (platform !== 'android' && T('apple.downloads')) storeKeys.push(['apple.downloads', 'App Store']);
+  // Apple's sales reports count first downloads; its analytics reports count them too, a day later, and stand in until a vendor number is set.
+  const appleDl = T('apple.downloads') ? 'apple.downloads' : T('apple.an_downloads') ? 'apple.an_downloads' : null;
+  if (platform !== 'android' && appleDl) storeKeys.push([appleDl, 'App Store']);
   if (platform !== 'ios' && T('google.installs')) storeKeys.push(['google.installs', 'Google Play']);
   const inst = (() => {
     if (storeKeys.length) return { keys: storeKeys.map((s) => s[0]), source: storeKeys.map((s) => s[1]).join(' + '), label: 'Installs' };
@@ -301,7 +303,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 
   // ---- Extras, shown only when there is something to show ----
   const extras = {};
-  const STORE = [['Tap', 'Tapped a price'], ['Sheet', 'Purchase sheet'], ['Bought', 'Bought'], ['Cancel', 'Cancelled'], ['Pending', 'Pending'], ['Error', 'Error'], ['NotReady', 'Store not ready']];
+  const STORE = [['Open', 'Opened the store'], ['Tap', 'Tapped a price'], ['Sheet', 'Purchase sheet'], ['Bought', 'Bought'], ['Cancel', 'Cancelled'], ['Pending', 'Pending'], ['Error', 'Error'], ['NotReady', 'Store not ready']];
   const store = Object.fromEntries(byPrefix('posthog.store:').map((s) => [s.key, s.value]));
   extras.store = STORE.some(([k]) => store[k] > 0) ? { steps: STORE.filter(([k]) => store[k] != null).map(([k, label]) => ({ key: k, label, count: store[k] })) } : null;
 
@@ -416,13 +418,14 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       return { ratio: r, text: low != null && value < low ? `${text}, under the usual low end` : text, tone: r >= 1.15 ? 'good' : r > 0.87 ? 'flat' : 'bad' };
     };
     const sums = (k) => T(k)?.sum ?? null, rate = (a, b) => (a != null && b > 0 ? a / b : null);
-    const dl = sums('apple.downloads'), views = sums('apple.page_views'), shown = sums('apple.impressions');
+    // Downloads beside page views come from the same analytics reports, so both cover the same days; the sales count stands in without them.
+    const dl = sums('apple.an_downloads') ?? sums('apple.downloads'), views = sums('apple.page_views'), shown = sums('apple.impressions'), direct = sums('apple.an_downloads') != null ? sums('apple.an_downloads_direct') : null;
     const needApple = 'Needs App Store Connect analytics';
     const row = (id, b, value, typical, extra = {}) => ({ id, label: b.label, what: b.what, format: 'pct', value, typical, ...verdictOf(value, typical, extra.low), source: b.source, url: b.url, ...extra });
     const verdictOf = (value, typical, low) => { const v = verdict(value, typical, low); return v ? { ratio: v.ratio, verdict: v.text, tone: v.tone } : { ratio: null, verdict: null, tone: null }; };
     const rows = [];
     if (platform !== 'android') {
-      rows.push(row('page_to_download', bench.page_to_download, rate(dl, views), of(bench.page_to_download), { need: rate(dl, views) == null ? needApple : null, basis: rate(dl, views) != null ? `${Math.round(dl)} downloads from ${Math.round(views)} page views` : null, group: genre }));
+      rows.push(row('page_to_download', bench.page_to_download, rate(dl, views), of(bench.page_to_download), { need: rate(dl, views) == null ? needApple : null, basis: rate(dl, views) != null ? `${Math.round(dl)} downloads from ${Math.round(views)} page views${direct > 0 ? `; ${Math.round(direct)} of them came straight from the search results, the page never opened` : ''}` : null, group: genre }));
       const typical = of(bench.impression_to_download) && of(bench.page_to_download) ? of(bench.impression_to_download) / of(bench.page_to_download) : null;
       rows.push(row('impression_to_page', bench.impression_to_page, rate(views, shown), typical, { need: rate(views, shown) == null ? needApple : null, basis: rate(views, shown) != null ? `${Math.round(views)} page views from ${Math.round(shown)} impressions` : null, note: bench.impression_to_page.derived, group: genre }));
       rows.push(row('impression_to_download', bench.impression_to_download, rate(dl, shown), of(bench.impression_to_download), { need: rate(dl, shown) == null ? needApple : null, basis: rate(dl, shown) != null ? `${Math.round(dl)} downloads from ${Math.round(shown)} impressions` : null, group: genre }));

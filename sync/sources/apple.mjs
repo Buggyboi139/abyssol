@@ -5,7 +5,8 @@
 //   Analytics reports: impressions, product page views, downloads, sessions,
 //     active devices, crashes, and proceeds in USD. Needs an ONGOING report
 //     request for the app, which only an Admin key can create
-//     (run once with --create-report-request).
+//     (run once with --create-report-request); a Sales and Reports key
+//     reads it from then on. Their days are UTC days.
 // Apple delivers both a day at a time, a day or two late.
 import zlib from 'node:zlib';
 import { Rows, request, getJson, signJwt, pem, parseTable, col, num, addDays, dateRange, HttpError } from '../lib/util.mjs';
@@ -17,14 +18,18 @@ const API = 'https://api.appstoreconnect.apple.com';
 // Which analytics reports are read, and the columns each adds up.
 const REPORTS = [
   { name: /^App Store Discovery and Engagement Standard/i, read(r, add) {
-    const ev = col(r, /^event$/i) || '', n = num(col(r, /^counts$/i)), u = num(col(r, /^unique counts$/i));
+    const ev = col(r, /^event$/i) || '', page = col(r, /^page type$/i) || '', n = num(col(r, /^counts$/i)), u = num(col(r, /^unique counts$/i));
     if (/^impression/i.test(ev)) { add('impressions', n); add('impressions_unique', u); }
-    else if (/^page view/i.test(ev)) { add('page_views', n); add('page_views_unique', u); }
+    // "Page view" is also every look at a screenshot or video (Media view), the developer page, and the version
+    // history. Only the listing itself counts, on the App Store or as a sheet inside another app.
+    else if (/^page view/i.test(ev) && (!page || /^(product page|store sheet)$/i.test(page))) { add('page_views', n); add('page_views_unique', u); }
   }, zero: ['impressions', 'impressions_unique', 'page_views', 'page_views_unique'] },
   { name: /^App Downloads Standard/i, read(r, add) {
     const t = col(r, /^download type$/i) || '', n = num(col(r, /^counts$/i));
-    if (/first.?time/i.test(t)) add('an_downloads', n); else if (/^redownload/i.test(t)) add('an_redownloads', n);
-  }, zero: ['an_downloads', 'an_redownloads'] },
+    // A download with no page is Get tapped in the search results, the listing never opened.
+    if (/first.?time/i.test(t)) { add('an_downloads', n); if (/^no page$/i.test(col(r, /^page type$/i) || '')) add('an_downloads_direct', n); }
+    else if (/^redownload/i.test(t)) add('an_redownloads', n);
+  }, zero: ['an_downloads', 'an_downloads_direct', 'an_redownloads'] },
   { name: /^App Sessions Standard/i, read(r, add) {
     add('sessions', num(col(r, /^sessions$/i))); add('active_devices', num(col(r, /^unique devices$/i))); add('session_seconds', num(col(r, /^total session duration$/i)));
   }, zero: ['sessions', 'active_devices'] },
@@ -104,10 +109,13 @@ export async function run(ctx) {
         const rep = list.data?.find((d) => want.name.test(d.attributes?.name || '')) || (want.alt && list.data?.find((d) => want.alt.test(d.attributes?.name || '')));
         if (!rep) continue;
         const inst = await api(`/v1/analyticsReports/${rep.id}/instances?filter[granularity]=DAILY&limit=200`);
-        for (const i of inst.data || []) {
-          const pd = i.attributes?.processingDate;
-          if (!pd || pd < since) continue;
-          for (const k of want.zero) rows.add('ios', pd, k, 0);
+        // A daily file is stamped with the day Apple processed it and restates the two or three days before
+        // it, each in its Date column. So a day is read whole from the newest file that has it (oldest file
+        // first, a later one replacing it), never added up across files, and a day counts as zero only when
+        // a file has rows for it: the processing day itself has none yet.
+        const fresh = (inst.data || []).filter((i) => i.attributes?.processingDate >= since).sort((a, b) => a.attributes.processingDate.localeCompare(b.attributes.processingDate));
+        for (const i of fresh) {
+          const pd = i.attributes.processingDate, byDay = new Map();
           const segs = await api(`/v1/analyticsReportInstances/${i.id}/segments`);
           for (const s of segs.data || []) {
             const url = s.attributes?.url; if (!url) continue;
@@ -115,10 +123,13 @@ export async function run(ctx) {
             for (const row of parseTable(gunzip(Buffer.from(await r.arrayBuffer())))) {
               if (col(row, /^app apple identifier$/i) && col(row, /^app apple identifier$/i) !== String(appId)) continue;
               const d = (col(row, /^date$/i) || pd).slice(0, 10);
-              want.read(row, (k, v) => rows.add('ios', d, k, v));
+              if (!byDay.has(d)) byDay.set(d, Object.fromEntries(want.zero.map((k) => [k, 0])));
+              const day = byDay.get(d);
+              want.read(row, (k, v) => { if (Number.isFinite(v)) day[k] = (day[k] || 0) + v; });
             }
             files++;
           }
+          for (const [d, sums] of byDay) for (const [k, v] of Object.entries(sums)) rows.set('ios', d, k, v);
         }
       }
       parts++;

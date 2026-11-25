@@ -39,7 +39,7 @@
         "android": { "status": "in_review" }
       },
       "storefronts": ["us", "ca", "gb", "au", "mx", "sa"],
-      "search_terms": ["cozy fishing", "fishing game", "lake fishing"],
+      "search_terms": ["fishing simulator", "realistic fishing", "bass fishing games", "fly fishing simulator", "boat fishing simulator", "carp fishing"],
       "posthog": { "platform_property": "platform", "error_event": "App:Error" },
       "game_db": {
         "label": "Leaderboards",

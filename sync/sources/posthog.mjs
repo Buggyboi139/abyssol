@@ -19,7 +19,8 @@ import { tell } from '../lib/stories.mjs';
 export const source = 'posthog';
 const RETENTION_DAYS = [1, 3, 7, 14, 30];
 const STORY_PLAYERS = 40, HOUR = 3600000;
-// One name a step across the games: Chillwater Lake says Store:Buy and Store:Fail where Pearl Tide says Store:Tap and Store:Error.
+// One name a step across the games: Chillwater Lake says Store:Open, Store:Buy and Store:Fail where Pearl Tide says
+// Shop:Open, Store:Tap and Store:Error.
 const STORE_STEP = { Buy: 'Tap', Fail: 'Error' };
 const platformOf = (raw) => { const s = String(raw || '').toLowerCase(); return /^(ios|iphone|ipad)/.test(s) ? 'ios' : /^android/.test(s) ? 'android' : 'other'; };
 const ms = (v) => Date.parse(String(v).replace(' ', 'T').replace(/(Z|[+-]\d\d:?\d\d)?$/, 'Z'));
@@ -89,12 +90,13 @@ export async function run(ctx) {
 
   // The funnels and the trouble counters, from the game's own event ids.
   await step('events', async () => {
-    const r = await hogql(`select ${D} as day, ${P} as platform, event, count() as n, uniq(distinct_id) as users from events where ${span(from, end)} and (event like 'FTUE:%' or event like 'Store:%' or event like 'Session:UncleanExit%' or event = '${errorEvent}' or event like 'Gfx:Level:%') group by day, platform, event limit 50000`);
+    const r = await hogql(`select ${D} as day, ${P} as platform, event, count() as n, uniq(distinct_id) as users from events where ${span(from, end)} and (event like 'FTUE:%' or event like 'Store:%' or event like 'Shop:Open%' or event like 'Session:UncleanExit%' or event = '${errorEvent}' or event like 'Gfx:Level:%') group by day, platform, event limit 50000`);
     zero(['unclean_exits', 'app_errors']);
     for (const x of r) {
       const d = day(x.day), parts = String(x.event).split(':');
       if (parts[0] === 'FTUE') { if (parts[1] && parts[1] !== 'Start') put(x.platform, d, `ftue:${keyPart(parts[1])}`, x.users); }
       else if (parts[0] === 'Store') { if (parts[1]) put(x.platform, d, `store:${keyPart(STORE_STEP[parts[1]] || parts[1])}`, x.n); }
+      else if (parts[0] === 'Shop') put(x.platform, d, 'store:Open', x.n);
       else if (parts[0] === 'Session') { put(x.platform, d, 'unclean_exits', x.n); if (parts[2]) put(x.platform, d, `unclean_exit:${keyPart(parts[2])}`, x.n); }
       else if (parts[0] === 'Gfx') { if (parts[2]) put(x.platform, d, `gfx_level:${keyPart(parts[2])}`, x.users); }
       else if (x.event === errorEvent) put(x.platform, d, 'app_errors', x.n);
@@ -137,9 +139,9 @@ export async function run(ctx) {
   await step('stories', async () => {
     const A = at(dayAgo), who = `select distinct_id from events where timestamp >= ${A} group by distinct_id order by max(timestamp) desc limit ${STORY_PLAYERS}`;
     const seen = await hogql(`select distinct_id, min(timestamp) as first, max(timestamp) as last, any(${P}) as platform, argMax(toString(properties.app_version), timestamp) as version, argMax(toString(properties.$geoip_country_code), timestamp) as country from events where distinct_id in (${who}) group by distinct_id limit ${STORY_PLAYERS * 2}`);
-    const ev = seen.length ? await hogql(`select distinct_id, event, count() as n, sum(toFloat(properties.value)) as total, max(toFloat(properties.value)) as most from events where timestamp >= ${A} and distinct_id in (${who}) group by distinct_id, event limit 20000`) : [];
+    const ev = seen.length ? await hogql(`select distinct_id, event, count() as n, sum(toFloat(properties.value)) as total, max(toFloat(properties.value)) as most, groupUniqArray(toString(properties.chapter)) as chapters from events where timestamp >= ${A} and distinct_id in (${who}) group by distinct_id, event limit 20000`) : [];
     const events = new Map();
-    for (const e of ev) { if (!events.has(e.distinct_id)) events.set(e.distinct_id, []); events.get(e.distinct_id).push({ event: String(e.event), n: +e.n || 0, sum: +e.total || 0, max: +e.most || 0 }); }
+    for (const e of ev) { if (!events.has(e.distinct_id)) events.set(e.distinct_id, []); events.get(e.distinct_id).push({ event: String(e.event), n: +e.n || 0, sum: +e.total || 0, max: +e.most || 0, chapters: (Array.isArray(e.chapters) ? e.chapters : []).map(String).filter((c) => c && c !== 'null') }); }
     const players = seen.map((s) => ({ id: s.distinct_id, platform: platformOf(s.platform), version: s.version && s.version !== 'null' ? s.version : '', country: s.country && s.country !== 'null' ? s.country : '', first: ms(s.first), last: ms(s.last), events: events.get(s.distinct_id) || [] }))
       .filter((p) => live.has(p.platform) && p.last >= dayAgo).sort((a, b) => b.last - a.last).slice(0, STORY_PLAYERS);
     facts.push({ key: 'posthog.stories', value: { as_of: new Date(now).toISOString(), since: new Date(dayAgo).toISOString(), limit: STORY_PLAYERS, players: players.map((p) => tell(p, dayAgo)) } });

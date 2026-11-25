@@ -119,7 +119,7 @@ A source with no secret set is skipped, not failed, and its badge reads
 | `POSTHOG_HOST` | Hourly | Optional. `https://us.posthog.com` (the default) or `https://eu.posthog.com`. `<PREFIX>_POSTHOG_HOST` sets it for one game. |
 | `PEARL_TIDE_GAME_DB_URL` | Hourly | Optional. A read-only Postgres connection string for Pearl Tide's own Supabase project. See [A read-only role](#a-read-only-role-for-a-game-database). |
 | `CHILLWATER_GAME_DB_URL` | Hourly | Optional. The same for Chillwater Lake. |
-| `ASC_KEY_ID` | Both | The App Store Connect API key's id. The hourly store listing pull reads versions and written reviews with it (any role). |
+| `ASC_KEY_ID` | Both | The App Store Connect API key's id. A key with the Sales and Reports role is enough for both workflows. |
 | `ASC_ISSUER_ID` | Both | The App Store Connect issuer id. |
 | `ASC_PRIVATE_KEY` | Both | The whole text of the key's `.p8` file. |
 | `ASC_VENDOR_NUMBER` | Daily | Your vendor number (App Store Connect, Payments and Financial Reports). Needed for sales reports. |
@@ -160,10 +160,27 @@ history stays under the old one.
 | Google Play | Twice daily | Crash and ANR rates, active devices, installs, uninstalls, ratings, reviews | Android is live |
 
 Apple's analytics reports (impressions, page views, sessions, crashes) need an
-ongoing report request for the app, which only a key with the **Admin** role
-can create. Run **Sync daily** once with **create_report_request** ticked.
-Apple fills the first report a day or two later. Sales reports work with a
-Sales, Finance, or Admin key.
+ongoing report request for the app. Only an Admin key can create one: run the
+daily workflow once with **create_report_request** and an Admin key, or create
+it from any Admin session. After that a key with the **Sales and Reports** role
+reads everything the sync needs: sales reports (with `ASC_VENDOR_NUMBER`),
+analytics reports, versions, and written reviews.
+
+How the analytics files are read:
+
+- A daily file is stamped with the day Apple processed it and restates the two
+  or three days before it. Each day is read from the newest file that has it,
+  never added up across files, and the processing day itself gets no row.
+- A page view is a view of the listing (page type `Product page` or
+  `Store sheet`). The report also logs every look at a screenshot or video as
+  a page view (`Media view`); those are left out.
+- `an_downloads_direct` is first downloads with no page: **Get** tapped in the
+  search results.
+- Analytics days are UTC days. Sales report days are Pacific days. First
+  downloads on the charts come from sales reports, and from analytics reports
+  when no vendor number is set. The store rates (page to download, impression
+  to download) use the analytics count, which covers the same days as the page
+  views beside it.
 
 ### PostHog events
 

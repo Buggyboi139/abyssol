@@ -69,6 +69,10 @@ export async function run(ctx) {
     if (why) testers[why]++;
     else customers.push({ id: c.id, p, first, last, version, cc: String(c.last_seen_country || '').toUpperCase().slice(0, 2), firstDay: dayIn(first, zone), lastDay: dayIn(last, zone), buys: [] });
   }
+  // Every customer is read every run, which keeps the tester rule exact. That stops being possible somewhere past
+  // 15,000 customers (RevenueCat's rate limit, the workflow's 15 minutes): say so well before then.
+  const readWhole = customers.length + Object.values(testers).reduce((a, n) => a + n, 0);
+  if (readWhole > 8000) notes.push(`${readWhole} customers are read whole every run: move to an incremental pull before about 15,000`);
 
   // ---- Purchases: read for whoever was around on a day RevenueCat's chart shows a sale, and for today's players ----
   const windowStart = dayStart(from, zone), limit = Math.max(800, days * 150);

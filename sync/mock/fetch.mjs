@@ -164,16 +164,17 @@ function posthog(u, body, today) {
   if (q.includes('distinct_id, event, count()')) {
     const rows = [];
     for (let i = 0; i < 9; i++) {
-      const id = `u-${game}-${i}`, add = (event, n = 1, total = 0) => rows.push([id, event, n, total, total]);
-      add('Load:Ready', 1, 4 + i * 2.5); add(`Session:Open:${i % 3 ? 4 + i : 1}`); add('Device:Screen:390x844_3'); add('Area:House', 2, 300 + i * 40); add('Area:Sea', 3, 500 + i * 90);
+      const id = `u-${game}-${i}`, add = (event, n = 1, total = 0, chapters = []) => rows.push([id, event, n, total, total, chapters]);
+      add('Load:Ready', 1, 4 + i * 2.5); if (i % 3) add(4 + i >= 5 ? 'Session:Open:5plus' : `Session:Open:${4 + i}`, 1, 4 + i >= 5 ? 4 + i : 0); else add('Session:Open:1'); add('Device:Screen:390x844_3'); add('Area:House', 2, 300 + i * 40); add('Area:Sea', 3, 500 + i * 90);
       if (i % 3 === 0) for (const s of FTUE.slice(0, 6 + i)) add(`FTUE:${s}`);
       if (i % 2) { add('Quest:Offer:net', 2); add('Quest:Accept:net', 1); add('Quest:Done:net', 1); }
       if (i === 1) { add('Shop:Open:hud'); add('Store:Tap:pearls.handful'); add('Store:Cancel:pearls.handful'); }
       if (i === 2) { add('Runway:Open'); add('Runway:Rate', 6); add('Runway:Submit'); }
       if (i === 4) { add('Load:ContextLost'); add('Gfx:Lite:1'); add('Session:UncleanExit:Playing'); }
       if (i === 5) add('Store:Bought:pearls.pouch');
+      if (i === 7) { add('Chapter:Start', 2, 0, ['1', '2']); add('Chapter:Complete', 1, 0, ['1']); add('Store:Open', 1, 40); add('Store:Buy:coins.small'); }
     }
-    return out(['distinct_id', 'event', 'n', 'total', 'most'], rows);
+    return out(['distinct_id', 'event', 'n', 'total', 'most', 'chapters'], rows);
   }
   if (q.includes('toStartOfHour(first)')) {
     const rows = [], t0 = Math.floor(Date.now() / 3600000) * 3600000;
@@ -207,7 +208,7 @@ function posthog(u, body, today) {
       FTUE.forEach((s, i) => { const n = Math.round(m.newUsers * KEEP[i]); if (n) rows.push([d, p, `FTUE:${s}`, n, n]); });
       rows.push([d, p, 'FTUE:Start:Sea', m.newUsers, m.newUsers]);
       const taps = Math.round(m.dau * 0.12);
-      for (const [e, n] of [['Store:State:open', Math.round(m.dau * 0.3)], ['Store:Tap:pearls.handful', taps], ['Store:Sheet:pearls.handful', Math.round(taps * 0.8)], ['Store:Cancel:pearls.handful', Math.round(taps * 0.6)], ['Store:Bought:pearls.handful', m.transactions]]) if (n) rows.push([d, p, e, n, n]);
+      for (const [e, n] of [['Store:State:open', Math.round(m.dau * 0.3)], ['Shop:Open:hud:browse:open', Math.round(m.dau * 0.2)], ['Shop:Open:wardrobe:short:open', Math.round(m.dau * 0.05)], ['Store:Tap:pearls.handful', taps], ['Store:Sheet:pearls.handful', Math.round(taps * 0.8)], ['Store:Cancel:pearls.handful', Math.round(taps * 0.6)], ['Store:Bought:pearls.handful', m.transactions]]) if (n) rows.push([d, p, e, n, n]);
       const bad = int(game + p + d + 'u', 0, 3);
       if (bad) rows.push([d, p, 'Session:UncleanExit:Playing', bad, bad]);
       if (rnd(game + p + d + 'l') < 0.3) rows.push([d, p, 'Session:UncleanExit:Loading', 1, 1]);
@@ -249,18 +250,27 @@ function apple(u, today) {
   }
   if ((m = /^\/v1\/apps\/(\d+)\/analyticsReportRequests$/.exec(p))) return json({ data: [{ id: 'req-' + m[1], attributes: { accessType: 'ONGOING', stoppedDueToInactivity: false } }] });
   if ((m = /^\/v1\/analyticsReportRequests\/req-(\d+)\/reports$/.exec(p))) return json({ data: APPLE_REPORTS.map((name, i) => ({ id: `rep-${m[1]}-${i}`, attributes: { name } })) });
-  if ((m = /^\/v1\/analyticsReports\/(rep-\d+-\d+)\/instances$/.exec(p))) return json({ data: dateRange(addDays(today, -40), addDays(today, -2)).map((d) => ({ id: `${m[1]}_${d}`, attributes: { granularity: 'DAILY', processingDate: d } })) });
+  if ((m = /^\/v1\/analyticsReports\/(rep-\d+-\d+)\/instances$/.exec(p))) return json({ data: dateRange(addDays(today, -40), addDays(today, -1)).map((d) => ({ id: `${m[1]}_${d}`, attributes: { granularity: 'DAILY', processingDate: d } })) });
   if ((m = /^\/v1\/analyticsReportInstances\/(.+)\/segments$/.exec(p))) return json({ data: [{ id: 's1', attributes: { url: `https://mock-apple-files.test/${m[1]}?sig=secret` } }] });
   if (u.host === 'mock-apple-files.test') {
-    const [, app, idx, d] = /rep-(\d+)-(\d+)_(.+)$/.exec(p), x = mockDay('pearl-tide', 'ios', d), base = `${d}\tGame\t${app}`;
-    const files = {
-      0: `Date\tApp Name\tApp Apple Identifier\tEvent\tPage Type\tSource Type\tCounts\tUnique Counts\n${base}\tImpression\tStore sheet\tApp Store search\t${x.newUsers * 31}\t${x.newUsers * 24}\n${base}\tImpression\tProduct page\tApp Store browse\t${x.newUsers * 9}\t${x.newUsers * 7}\n${base}\tPage view\tProduct page\tApp Store search\t${x.newUsers * 4}\t${x.newUsers * 3}\n${base}\tTap\tProduct page\tApp Store search\t5\t4`,
-      2: `Date\tApp Name\tApp Apple Identifier\tDownload Type\tApp Version\tDevice\tCounts\n${base}\tFirst-time download\t1.3.7\tiPhone\t${x.newUsers}\n${base}\tRedownload\t1.3.7\tiPhone\t${Math.round(x.newUsers * 0.2)}\n${base}\tAuto-update\t1.3.7\tiPhone\t9`,
-      3: `Date\tApp Name\tApp Apple Identifier\tApp Version\tDevice\tSessions\tTotal Session Duration\tUnique Devices\n${base}\t1.3.7\tiPhone\t${Math.round(x.sessions * 0.4)}\t${x.sessions * 240}\t${Math.round(x.dau * 0.4)}`,
-      4: `Date\tApp Name\tApp Apple Identifier\tApp Version\tDevice\tCrashes\tUnique Devices\n${base}\t1.3.7\tiPhone\t${int(d + 'c', 0, 2)}\t1`,
-      5: `Date\tApp Name\tApp Apple Identifier\tPurchase Type\tContent Name\tPurchases\tProceeds in USD\tSales in USD\tPaying Users\n${base}\tIn-App Purchase\tPearls\t${x.transactions}\t${(x.revenue * 0.7).toFixed(2)}\t${x.revenue.toFixed(2)}\t${x.payers}`,
+    // Like Apple's: a file is stamped with its processing day and restates the two days before it.
+    const [, app, idx, pd] = /rep-(\d+)-(\d+)_(.+)$/.exec(p);
+    const HEAD = {
+      0: `Date\tApp Name\tApp Apple Identifier\tEvent\tPage Type\tSource Type\tCounts\tUnique Counts`,
+      2: `Date\tApp Name\tApp Apple Identifier\tDownload Type\tApp Version\tDevice\tPage Type\tCounts`,
+      3: `Date\tApp Name\tApp Apple Identifier\tApp Version\tDevice\tSessions\tTotal Session Duration\tUnique Devices`,
+      4: `Date\tApp Name\tApp Apple Identifier\tApp Version\tDevice\tCrashes\tUnique Devices`,
+      5: `Date\tApp Name\tApp Apple Identifier\tPurchase Type\tContent Name\tPurchases\tProceeds in USD\tSales in USD\tPaying Users`,
     };
-    return gz(files[idx] || 'Date\n');
+    const day = (d) => { const x = mockDay('pearl-tide', 'ios', d), base = `${d}\tGame\t${app}`; return {
+      0: `${base}\tImpression\tStore sheet\tApp Store search\t${x.newUsers * 31}\t${x.newUsers * 24}\n${base}\tImpression\tProduct page\tApp Store browse\t${x.newUsers * 9}\t${x.newUsers * 7}\n${base}\tPage view\tProduct page\tApp Store search\t${x.newUsers * 4}\t${x.newUsers * 3}\n${base}\tTap\tProduct page\tApp Store search\t5\t4\n${base}\tPage view\tMedia view\tUnavailable\t${x.newUsers * 17}\t${x.newUsers * 2}\n${base}\tPage view\tDeveloper page\tApp Store browse\t2\t1`,
+      2: `${base}\tFirst-time download\t1.3.7\tiPhone\tProduct page\t${x.newUsers - Math.floor(x.newUsers * 0.4)}\n${base}\tFirst-time download\t1.3.7\tiPhone\tNo page\t${Math.floor(x.newUsers * 0.4)}\n${base}\tRedownload\t1.3.7\tiPhone\tNo page\t${Math.round(x.newUsers * 0.2)}\n${base}\tAuto-update\t1.3.7\tiPhone\tNo page\t9`,
+      3: `${base}\t1.3.7\tiPhone\t${Math.round(x.sessions * 0.4)}\t${x.sessions * 240}\t${Math.round(x.dau * 0.4)}`,
+      4: `${base}\t1.3.7\tiPhone\t${int(d + 'c', 0, 2)}\t1`,
+      5: `${base}\tIn-App Purchase\tPearls\t${x.transactions}\t${(x.revenue * 0.7).toFixed(2)}\t${x.revenue.toFixed(2)}\t${x.payers}`,
+    }[idx]; };
+    if (!HEAD[idx]) return gz('Date\n');
+    return gz([HEAD[idx], day(addDays(pd, -2)), day(addDays(pd, -1))].join('\n'));
   }
   return json({ errors: [{ status: '404' }] }, 404);
 }

@@ -29,10 +29,12 @@ export function tell(p, since) {
   const lines = [], flags = [];
   const isNew = p.first >= since;
 
-  const launches = Math.max(0, ...starts('Session:Open:').map((e) => +e.event.split(':')[2] || 0));
+  // Session:Open:<2|3|4|5plus>, with the real count as its value from the fifth launch on.
+  const launches = Math.max(0, ...starts('Session:Open:').map((e) => Math.max(parseInt(e.event.split(':')[2], 10) || 0, Math.round(e.max) || 0)));
+  const orMore = launches === 5 && starts('Session:Open:').some((e) => /plus$/.test(e.event) && !(e.max >= 5));
   const screen = /^Device:Screen:(\d+)x(\d+)(?:_([\d.]+))?/.exec(starts('Device:Screen:')[0]?.event || '');
   const who = [
-    isNew ? 'New player' : `Returning player${launches > 1 ? `, launch ${launches}` : ''}`,
+    isNew ? 'New player' : `Returning player${launches > 1 ? `, launch ${launches}${orMore ? ' or later' : ''}` : ''}`,
     `on ${PLATFORM[p.platform] || p.platform || 'an unknown device'}`,
     p.version ? `version ${p.version}` : null,
     p.country || null,
@@ -68,8 +70,12 @@ export function tell(p, since) {
   if (quest.offered || quest.accepted || quest.done) {
     lines.push(`Quests: ${[quest.accepted && `${quest.accepted} accepted`, quest.done && `${quest.done} finished`, quest.left && `${quest.left} given up`, !quest.accepted && !quest.done && quest.offered && `${quest.offered} offered, none taken`].filter(Boolean).join(', ')}.`);
   }
-  const chapters = starts('Chapter:Complete').map((e) => e.event.split(':')[2]).filter(Boolean).sort();
-  if (chapters.length) lines.push(`Finished chapter ${list(chapters)}.`);
+  // The chapter is a property of the event (Chapter:Complete { chapter: 2 }), or its third part (Chapter:Complete:2).
+  const chaptersOf = (prefix) => [...new Set(starts(prefix).flatMap((e) => [e.event.split(':')[2], ...(e.chapters || [])]).filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  const finished = chaptersOf('Chapter:Complete'), begun = chaptersOf('Chapter:Start').filter((c) => !finished.includes(c));
+  if (finished.length) lines.push(`Finished chapter${finished.length > 1 ? 's' : ''} ${list(finished)}${begun.length ? `, started ${list(begun)}` : ''}.`);
+  else if (count('Chapter:Complete')) lines.push(`Finished ${plural(count('Chapter:Complete'), 'chapter')}.`);
+  else if (begun.length) lines.push(`Started chapter ${list(begun)}.`);
   else if (count('Chapter:Start')) lines.push('Started a chapter.');
 
   // The Runway, or whatever the game's contest sends under its own name.
@@ -80,9 +86,11 @@ export function tell(p, since) {
 
   // The shop.
   const product = (prefix) => [...new Set(starts(prefix).map((e) => e.event.split(':').slice(2).join(':')).filter(Boolean))];
-  const shop = count('Shop:Open'), taps = count('Store:Tap') + count('Store:Buy'), bought = product('Store:Bought'), cancels = count('Store:Cancel'), errors = count('Store:Error') + count('Store:Fail');
+  // Pearl Tide: Shop:Open, Store:Tap:<product>, Store:Error. Chillwater Lake: Store:Open, Store:Buy:<product>, Store:Fail.
+  const shop = count('Shop:Open') + count('Store:Open'), taps = count('Store:Tap:') + count('Store:Buy:'), tapped = [...new Set([...product('Store:Tap:'), ...product('Store:Buy:')])];
+  const bought = product('Store:Bought'), cancels = count('Store:Cancel'), errors = count('Store:Error') + count('Store:Fail');
   if (bought.length) lines.push(`Bought ${list(bought)}.`);
-  else if (shop || taps) lines.push(`Shop: ${[shop && `opened ${plural(shop, 'time')}`, taps && `tapped a price${product('Store:Tap').length ? ` (${list(product('Store:Tap').slice(0, 3))})` : ''}`, cancels && 'cancelled'].filter(Boolean).join(', ')}.`);
+  else if (shop || taps) lines.push(`Shop: ${[shop && `opened ${plural(shop, 'time')}`, taps && `tapped a price${tapped.length ? ` (${list(tapped.slice(0, 3))})` : ''}`, cancels && 'cancelled'].filter(Boolean).join(', ')}.`);
   if (errors) flags.push(`Store error${errors > 1 ? ` ×${errors}` : ''}`);
 
   // Trouble.

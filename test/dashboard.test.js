@@ -3,7 +3,7 @@
 import { test, expect, beforeAll } from 'bun:test';
 import { makeDb, dbFetch, rpc, LOCAL_KEY } from '../scripts/localdb.mjs';
 import { hashPassword, verifyPassword, verifyUsername, makeSession, readSession, signingKey, COOKIE } from '../server/auth.js';
-import { buildGame, change, rangeDates, addDays } from '../server/metrics.js';
+import { buildGame, dates, change, rangeDates, addDays } from '../server/metrics.js';
 import { saleOf } from '../functions/api/webhooks/revenuecat.js';
 import { sync } from '../sync/run.mjs';
 import { loadGames } from '../sync/lib/config.mjs';
@@ -124,6 +124,23 @@ test('a sync fills the live platform only, and records why the rest were skipped
   expect(platforms.rows.map((r) => `${r.game_slug}/${r.platform}`)).toEqual(['pearl-tide/all', 'pearl-tide/ios']);
 });
 
+test('an App Store analytics day is read once from its newest file, and the processing day is not filled with zeros', async () => {
+  const today = dayIn(Date.now(), 'America/Los_Angeles');
+  const got = await pg.query(`select date::text as date, metric_key, metric_value::float8 as v from metrics_daily where game_slug = 'pearl-tide' and source = 'apple' and platform = 'ios' and metric_key in ('an_downloads', 'an_downloads_direct', 'impressions', 'page_views', 'downloads') order by date`);
+  const at = (k, d) => got.rows.find((r) => r.metric_key === k && r.date === d)?.v ?? null;
+  // Every file restates two days, so each day arrives in two files: it is one day's count, not their sum.
+  for (const back of [3, 4, 10]) {
+    const d = addDays(today, -back), x = mockDay('pearl-tide', 'ios', d);
+    expect(at('an_downloads', d)).toBe(x.newUsers);
+    expect(at('impressions', d)).toBe(x.newUsers * 40);
+    expect(at('page_views', d)).toBe(x.newUsers * 4); // the listing's own views: not the looks at its screenshots, nor the developer page
+    expect(at('an_downloads_direct', d)).toBe(Math.floor(x.newUsers * 0.4));
+  }
+  // The newest file is stamped yesterday and carries the two days before it: yesterday has no analytics row yet.
+  expect(at('an_downloads', addDays(today, -2))).not.toBeNull();
+  for (const k of ['an_downloads', 'impressions', 'page_views']) expect(at(k, addDays(today, -1))).toBeNull();
+});
+
 test('the live game has every chart; games in review and before launch have clean empty states', async () => {
   const pt = await (await call('/api/game/pearl-tide?range=30d', { headers: { cookie } })).json();
   expect(pt.state).toBe('live');
@@ -216,6 +233,10 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   expect(rows.map((r) => r.id)).toEqual(['page_to_download', 'impression_to_page', 'impression_to_download', 'd1', 'd7', 'd30', 'first_month']);
   for (const r of rows) { expect(r.typical).toBeGreaterThan(0); expect(r.url).toMatch(/^https:\/\//); expect(r.value).not.toBeNull(); expect(r.verdict).toBeTruthy(); expect(['good', 'flat', 'bad']).toContain(r.tone); }
 
+  // The store funnel starts at the shop opening (Shop:Open in Pearl Tide, Store:Open in Chillwater Lake).
+  expect(pt.extras.store.steps.map((x) => x.key).slice(0, 2)).toEqual(['Open', 'Tap']);
+  expect(pt.extras.store.steps[0].count).toBeGreaterThan(pt.extras.store.steps[1].count);
+
   // On Android, which is not live, none of it shows.
   const android = await (await call('/api/game/pearl-tide?platform=android', { headers: { cookie } })).json();
   expect(android.today).toBeNull();
@@ -254,6 +275,23 @@ test('a player\'s events read as a short story, under a tag that is not their id
   const back = tell({ id, platform: 'android', version: '1.3.7', country: 'CA', first: since - 86400000, last: since + 1000, events: [e('Session:Open:4')] }, since);
   expect(back.head).toBe('Returning player, launch 4 on Android, version 1.3.7, CA');
   expect(back.lines).toEqual(['Opened the game; nothing else recorded yet.']);
+
+  // The fifth launch and later come as Session:Open:5plus, with the real count as the value when the game sends one.
+  const fifth = (max) => tell({ id, platform: 'ios', version: '1.3.8', country: 'US', first: since - 86400000, last: since + 1000, events: [{ event: 'Session:Open:5plus', n: 1, sum: max, max }] }, since).head;
+  expect(fifth(12)).toBe('Returning player, launch 12 on iPhone or iPad, version 1.3.8, US');
+  expect(fifth(0)).toBe('Returning player, launch 5 or later on iPhone or iPad, version 1.3.8, US');
+
+  // Pearl Tide sends the chapter as a property of Chapter:Complete; either game may put it in the name.
+  const story = (events) => tell({ id, platform: 'ios', version: '1', country: '', first: since - 86400000, last: since + 1000, events }, since).lines;
+  expect(story([{ ...e('Chapter:Start', 2), chapters: ['1', '2'] }, { ...e('Chapter:Complete'), chapters: ['1'] }])).toContain('Finished chapter 1, started 2.');
+  expect(story([e('Chapter:Complete:3'), e('Chapter:Complete:10')])).toContain('Finished chapters 3 and 10.');
+  expect(story([{ ...e('Chapter:Start'), chapters: ['2'] }])).toContain('Started chapter 2.');
+  expect(story([e('Chapter:Complete', 2)])).toContain('Finished 2 chapters.');
+
+  // Chillwater Lake's store: Store:Open as the sheet opens, Store:Buy:<product> at a buy button.
+  const lake = story([e('Store:Open', 2, 80), e('Store:Buy:coins.small'), e('Store:Buy:rod.carbon'), e('Store:Cancel:coins.small')]);
+  expect(lake).toContain('Shop: opened 2 times, tapped a price (coins.small and rod.carbon), cancelled.');
+  expect(story([e('Store:Open'), e('Store:Buy:coins.small'), e('Store:Bought:coins.small')])).toContain('Bought coins.small.');
 });
 
 test('no change is shown against a period that is mostly before launch', () => {
@@ -263,6 +301,27 @@ test('no change is shown against a period that is mostly before launch', () => {
   expect(buildGame(raw(addDays(from, -5)), { range: '30d', now }).kpis[0].delta).toBeNull();
   expect(buildGame(raw(addDays(from, -29)), { range: '30d', now }).kpis[0].delta).toMatchObject({ value: 200, dir: 1 });
   expect(buildGame(raw(null), { range: '30d', now }).kpis[0].delta).toMatchObject({ value: 200 });
+});
+
+test('without sales reports the App Store\'s analytics downloads stand in, and the store rates use them beside page views', () => {
+  const now = Date.parse('2026-11-25T20:00:00Z'), { from, to } = rangeDates('30d', now);
+  const game = { slug: 'g', display_name: 'G', status: 'live', config: { genre: 'simulation', platforms: { ios: { status: 'live', launched: addDays(from, -3) } } } };
+  const days = dates(from, addDays(to, -2)), pts = (v) => days.map((d) => [d, v]), tot = (v) => ({ sum: v * days.length, avg: v, last: v, n: days.length });
+  const raw = (more = {}) => ({ game, platform: 'all', from, to, prev: {}, hourly: {}, cohorts: [], sync: [],
+    totals: { 'apple.an_downloads': tot(3), 'apple.page_views': tot(10), 'apple.impressions': tot(200), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, tot(v)])) },
+    series: { 'apple.an_downloads': pts(3), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, pts(v)])) },
+    life: { 'apple.an_downloads': pts(3), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, pts(v)])) } });
+  const row = (g, id) => g.extras.benchmarks.rows.find((r) => r.id === id);
+
+  const an = buildGame(raw(), { range: '30d', now });
+  expect(an.charts.players.series[0]).toMatchObject({ id: 'downloads', label: 'First downloads · App Store' });
+  expect(an.charts.downloads).toMatchObject({ source: 'App Store', total: 3 * days.length, note: null });
+  expect(row(an, 'page_to_download').value).toBeCloseTo(0.3); expect(row(an, 'impression_to_download').value).toBeCloseTo(0.015);
+
+  // With sales reports the count shown is theirs; the rates stay on the analytics count, which covers the same days as page views.
+  const both = buildGame(raw({ 'apple.downloads': 4 }), { range: '30d', now });
+  expect(both.charts.downloads.total).toBe(4 * days.length);
+  expect(row(both, 'page_to_download').value).toBeCloseTo(0.3);
 });
 
 test('the overview adds the games up and takes bad parameters as the defaults', async () => {

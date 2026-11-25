@@ -212,27 +212,36 @@ function ranksPanel(c) {
   });
 }
 
-/** A game's own rates beside what is typical: a bar for the game, a tick for the typical figure, a band for the usual range. */
+/** A game's own numbers beside the average: what it is, our number and how it is worked out, the average, and where the average comes from. */
 function benchPanel(b) {
-  const row = (r) => {
-    const top = Math.max(r.value || 0, r.typical || 0, r.high || 0, r.top || 0) * 1.12 || 1, at = (v) => `${Math.min(100, (v / top) * 100).toFixed(2)}%`;
-    const track = h('div', { class: 'bullet', role: 'img', 'aria-label': `${r.label}: ${r.value == null ? 'no figure yet' : fmt(r.value, r.format)}, typical ${fmt(r.typical, r.format)}` });
-    if (r.low != null && r.high != null) { const band = h('span', { class: 'bullet-band' }); band.style.left = at(r.low); band.style.width = `calc(${at(r.high)} - ${at(r.low)})`; track.append(band); }
-    if (r.value != null) { const bar = h('span', { class: 'bullet-bar' }); bar.style.width = at(r.value); track.append(bar); }
-    if (r.typical != null) { const tick = h('span', { class: 'bullet-tick' }); tick.style.left = at(r.typical); track.append(tick); }
-    const tone = r.tone === 'good' ? 'up' : r.tone === 'bad' ? 'down' : 'flat';
-    return h('li', { class: 'bench', title: r.what },
-      h('div', { class: 'bench-name' }, h('strong', null, r.label), r.basis && h('span', { class: 'src' }, r.basis)),
-      h('div', { class: 'bench-you' }, r.value == null ? '—' : fmt(r.value, r.format)),
-      h('div', { class: 'bench-bar' }, track, h('div', { class: 'bench-scale' }, `${r.milestone ? 'Milestone' : 'Typical'} ${fmt(r.typical, r.format)}${r.low != null && r.high != null ? ` · usual range ${fmt(r.low, r.format)} to ${fmt(r.high, r.format)}` : ''}${r.top != null ? ` · top games ${fmt(r.top, r.format)}` : ''}`)),
-      h('div', { class: 'bench-say' },
-        r.verdict ? h('span', { class: `delta delta-${r.tone || 'flat'}` }, icon(tone), h('span', { class: 'delta-value' }, r.verdict)) : chip({ kind: 'off', badge: r.need || 'No figure yet' }),
-        r.note && h('span', { class: 'src' }, r.note),
-        h('a', { class: 'src link', href: r.url, target: '_blank', rel: 'noopener noreferrer' }, r.source)));
+  const f = (v, r) => fmt(v, r.format);
+  const average = (r) => {
+    if (r.percentiles) return [h('div', { class: 'bench-avg' }, f(r.average, r)), h('div', { class: 'src' }, `Median · 25th ${f(r.low, r)} · 75th ${f(r.high, r)}`)];
+    if (r.average == null) return [h('div', { class: 'bench-avg' }, `${f(r.low, r)} to ${f(r.high, r)}`)];
+    const more = [r.low != null && r.high != null ? `Usual range ${f(r.low, r)} to ${f(r.high, r)}` : r.high != null ? `Top quarter ${f(r.high, r)}` : null, r.top != null ? `top games ${f(r.top, r)}` : null].filter(Boolean).join(' · ');
+    return [h('div', { class: 'bench-avg' }, f(r.average, r)), more && h('div', { class: 'src' }, more)];
   };
+  const row = (r) => {
+    const tone = r.tone === 'good' ? 'up' : r.tone === 'bad' ? 'down' : 'flat';
+    return h('tr', null,
+      h('th', { scope: 'row', 'data-label': 'Benchmark' }, h('strong', null, r.label), h('span', { class: 'src' }, r.what)),
+      h('td', { 'data-label': 'Our number' },
+        h('div', { class: 'bench-you' }, r.value == null ? '—' : f(r.value, r)),
+        r.how && h('div', { class: 'src' }, r.how),
+        r.verdict ? h('span', { class: `delta delta-${r.tone || 'flat'}` }, icon(tone), h('span', { class: 'delta-value' }, r.verdict)) : chip({ kind: 'off', badge: r.need || 'No figure yet' }),
+        r.note && h('div', { class: 'src' }, r.note)),
+      h('td', { 'data-label': 'The average' }, average(r)),
+      h('td', { 'data-label': 'Where the average comes from' }, h('span', null, r.where), ' ', h('a', { class: 'link', href: r.url, target: '_blank', rel: 'noopener noreferrer' }, r.source)));
+  };
+  const groups = b.groups?.length ? b.groups : [null];
   return h('section', { class: 'panel wide' },
-    h('header', { class: 'panel-head' }, h('h2', null, 'Against the average'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, `Store rates are for ${b.genre === 'games' ? 'games' : `${b.genre} games`}`)),
-    h('ul', { class: 'benches' }, b.rows.map(row)));
+    h('header', { class: 'panel-head' }, h('h2', null, 'Against the average'), h('span', { class: 'spacer' }), h('span', { class: 'src' }, 'Beside a launch with no marketing where a figure for one exists')),
+    h('div', { class: 'bench-wrap' }, h('table', { class: 'bench-table' },
+      h('colgroup', null, ['c-name', 'c-you', 'c-avg', 'c-from'].map((c) => h('col', { class: c }))),
+      h('thead', null, h('tr', null, ['Benchmark', 'Our number', 'The average', 'Where the average comes from'].map((c) => h('th', { scope: 'col' }, c)))),
+      groups.map((g) => h('tbody', null,
+        g && h('tr', { class: 'bench-group' }, h('th', { colspan: 4, scope: 'colgroup' }, g)),
+        b.rows.filter((r) => !g || r.group === g).map(row))))));
 }
 
 /** What each of the last day's players did, the most recent first. */
@@ -247,7 +256,7 @@ function storiesPanel(s) {
 
 function retentionPanel(c) {
   return panel({
-    title: 'Retention curve', source: 'PostHog', empty: c.empty,
+    title: 'Retention curve', source: c.source || 'PostHog', empty: c.empty,
     table: () => ({ columns: ['Day', 'Came back', 'Players', 'Rate'], rows: c.points.map((p) => [`Day ${p.day}`, fmt(p.back, 'int'), fmt(p.size, 'int'), fmt(p.rate, 'pct')]) }),
     body: () => chartBox(280, 'Share of new players who came back, by day', (cv) => retentionCurve(cv, c)),
   });
@@ -264,7 +273,7 @@ function barsPanel({ title, source, empty, rows, label, valueText, tip, columns,
 function ftuePanel(c) {
   const rows = (c.steps || []).map((s) => ({ ...s, v: s.users }));
   return barsPanel({
-    title: 'First-time funnel', source: 'PostHog', empty: c.empty, rows, label: (r) => r.label,
+    title: 'First-time funnel', source: c.source || 'PostHog', empty: c.empty, rows, label: (r) => r.label,
     valueText: (r) => `${fmt(r.users, 'int')} · ${fmt(r.share, 'pct')}`,
     tip: (r, i) => [`${fmt(r.users, 'int')} players`, `${fmt(r.share, 'pct')} of the first step`, ...(i && rows[i - 1].users ? [`${fmt(r.users / rows[i - 1].users, 'pct')} of the step before`] : [])],
     columns: ['Step', 'Players', 'Of first step'], cells: (r) => [r.label, fmt(r.users, 'int'), fmt(r.share, 'pct')],

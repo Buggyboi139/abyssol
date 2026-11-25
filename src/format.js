@@ -19,6 +19,7 @@ export function fmt(v, format) {
     case 'num': return Math.abs(v) < 100 ? one.format(v) : whole.format(v);
     case 'pct': { const p = v * 100; return `${p === 0 || Math.abs(p) >= 10 ? one.format(p) : p.toFixed(2)}%`; }
     case 'rating': return `${v.toFixed(2)} / 5`;
+    case 'mins': return `${(v / 60).toFixed(v < 600 ? 1 : 0)} min`;
     case 'secs': return `${v < 10 ? v.toFixed(1) : whole.format(v)} s`;
     case 'rank': return `#${whole.format(v)}`;
     default: return String(v);

@@ -156,7 +156,7 @@ history stays under the old one.
 | RevenueCat | Hourly | Revenue, proceeds, transactions, new, active, and returning players (testers left out), conversion to paying, revenue by product, today so far and the last 24 hours | Any platform is live |
 | PostHog | Hourly | DAU, WAU, sessions, new users, day 1 to day 30 retention, the first-steps funnel, the store funnel, unclean exits, errors, load time, graphics level, and a readable note on what each of the last day's players did | Any platform is live |
 | Game database | Hourly | Player counts from the game's own Supabase project | Any platform is live |
-| App Store Connect | Twice daily | Downloads, redownloads, updates, proceeds, impressions, page views, sessions, crashes | iOS is live |
+| App Store Connect | Twice daily | Downloads, redownloads, updates, proceeds, impressions, page views (each also for App Store search alone), sessions, crashes | iOS is live |
 | Google Play | Twice daily | Crash and ANR rates, active devices, installs, uninstalls, ratings, reviews | Android is live |
 
 Apple's analytics reports (impressions, page views, sessions, crashes) need an
@@ -305,11 +305,49 @@ its app version is not a plain release number or is newer than the version on
 sale, it has a sandbox purchase, or it is named in
 `<PREFIX>_REVENUECAT_EXCLUDE`. The Today panel says how many were left out.
 
-**Against the average.** `config/benchmarks.json` holds the typical figures
-and where each comes from: store conversion rates by genre (AppTweak),
-retention (GameAnalytics), and first-month downloads (AppBrain). Each row
-shows the game's own number, the typical one, and the usual range when the
-source gives one. A row with no number yet says what it is waiting for.
+**Against the average.** A table of the game's own numbers beside the average
+for a launch like it, in four columns: the benchmark, our number and how it is
+worked out, the average, and where the average comes from.
+`config/benchmarks.json` holds every average with its source. Where a
+figure exists for a game launched with no marketing, that is the average used;
+where none does, the row says whose average it is.
+
+| Row | Our number | The average |
+|---|---|---|
+| Downloads, first month | The first 30 days on record; before that, the daily pace × 30 | Nine unmarketed solo launches of 2026 |
+| Store conversion | First downloads and redownloads ÷ unique devices shown the listing | Apple's peer percentiles when they are on record, else AppTweak's Games average |
+| Page to download | First downloads ÷ unique devices that opened the page | AppTweak, by genre |
+| Search clicks | Page views from search ÷ unique devices shown the game in search | AppFollow's category medians |
+| Returning players, day 1, 7, 30 | The share of new players who came back N days later | GameAnalytics' yearly report |
+| Session length, playtime | Seconds a session and seconds a player a day | GameAnalytics' yearly report |
+| Paying players | New payers ÷ new players (RevenueCat) | Published indie figures |
+| Proceeds per payer | Proceeds ÷ payers (RevenueCat); shown once Apple's peer percentiles are on record | Apple's peer percentiles |
+| Revenue, first month | RevenueCat revenue in the first 30 days | Six unmarketed launches of 2026 |
+
+A row with no number yet says what it is waiting for.
+
+**Numbers read by hand.** A tool with no sync of its own can still fill a row.
+GameAnalytics has no key in this project, so its figures are read in the browser
+and kept as one private row in `game_facts` (key `manual.gameanalytics`), never
+in this repository. Retention, session length, playtime and the first-session
+funnel use it until PostHog has cohorts of its own, and say when it was read.
+To refresh it, upsert the row with the same shape:
+
+```json
+{ "source": "GameAnalytics", "read_at": "YYYY-MM-DD",
+  "retention": { "d1": { "back": 0, "size": 0, "cohorts": "the cohort days" }, "note": "optional" },
+  "session": { "secs": 0, "sessions": 0, "per_player_day_secs": 0, "player_days": 0, "note": "optional" },
+  "ftue": [{ "key": "01_Step", "players": 0 }] }
+```
+
+Apple's peer percentiles (App Store Connect, Analytics, Benchmarks) come from a
+signed-in console too, so they are kept the same way, as `manual.apple_peers`:
+
+```json
+{ "week": "the week of ...", "group": "the peer group",
+  "store_conversion": { "p25": 0, "p50": 0, "p75": 0 },
+  "proceeds_per_payer": { "p25": 0, "p50": 0, "p75": 0 } }
+```
 
 | KPI | Rule |
 |---|---|

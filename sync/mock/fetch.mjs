@@ -257,14 +257,14 @@ function apple(u, today) {
     const [, app, idx, pd] = /rep-(\d+)-(\d+)_(.+)$/.exec(p);
     const HEAD = {
       0: `Date\tApp Name\tApp Apple Identifier\tEvent\tPage Type\tSource Type\tCounts\tUnique Counts`,
-      2: `Date\tApp Name\tApp Apple Identifier\tDownload Type\tApp Version\tDevice\tPage Type\tCounts`,
+      2: `Date\tApp Name\tApp Apple Identifier\tDownload Type\tApp Version\tDevice\tPage Type\tSource Type\tCounts`,
       3: `Date\tApp Name\tApp Apple Identifier\tApp Version\tDevice\tSessions\tTotal Session Duration\tUnique Devices`,
       4: `Date\tApp Name\tApp Apple Identifier\tApp Version\tDevice\tCrashes\tUnique Devices`,
       5: `Date\tApp Name\tApp Apple Identifier\tPurchase Type\tContent Name\tPurchases\tProceeds in USD\tSales in USD\tPaying Users`,
     };
     const day = (d) => { const x = mockDay('pearl-tide', 'ios', d), base = `${d}\tGame\t${app}`; return {
       0: `${base}\tImpression\tStore sheet\tApp Store search\t${x.newUsers * 31}\t${x.newUsers * 24}\n${base}\tImpression\tProduct page\tApp Store browse\t${x.newUsers * 9}\t${x.newUsers * 7}\n${base}\tPage view\tProduct page\tApp Store search\t${x.newUsers * 4}\t${x.newUsers * 3}\n${base}\tTap\tProduct page\tApp Store search\t5\t4\n${base}\tPage view\tMedia view\tUnavailable\t${x.newUsers * 17}\t${x.newUsers * 2}\n${base}\tPage view\tDeveloper page\tApp Store browse\t2\t1`,
-      2: `${base}\tFirst-time download\t1.3.7\tiPhone\tProduct page\t${x.newUsers - Math.floor(x.newUsers * 0.4)}\n${base}\tFirst-time download\t1.3.7\tiPhone\tNo page\t${Math.floor(x.newUsers * 0.4)}\n${base}\tRedownload\t1.3.7\tiPhone\tNo page\t${Math.round(x.newUsers * 0.2)}\n${base}\tAuto-update\t1.3.7\tiPhone\tNo page\t9`,
+      2: `${base}\tFirst-time download\t1.3.7\tiPhone\tProduct page\tApp Store search\t${x.newUsers - Math.floor(x.newUsers * 0.4) - 1}\n${base}\tFirst-time download\t1.3.7\tiPhone\tProduct page\tApp referrer\t1\n${base}\tFirst-time download\t1.3.7\tiPhone\tNo page\tApp Store search\t${Math.floor(x.newUsers * 0.4)}\n${base}\tRedownload\t1.3.7\tiPhone\tNo page\tApp Store search\t${Math.round(x.newUsers * 0.2)}\n${base}\tAuto-update\t1.3.7\tiPhone\tNo page\tApp Store search\t9`,
       3: `${base}\t1.3.7\tiPhone\t${Math.round(x.sessions * 0.4)}\t${x.sessions * 240}\t${Math.round(x.dau * 0.4)}`,
       4: `${base}\t1.3.7\tiPhone\t${int(d + 'c', 0, 2)}\t1`,
       5: `${base}\tIn-App Purchase\tPearls\t${x.transactions}\t${(x.revenue * 0.7).toFixed(2)}\t${x.revenue.toFixed(2)}\t${x.payers}`,

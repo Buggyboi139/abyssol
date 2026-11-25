@@ -1,42 +1,87 @@
 {
-  "_": "Typical numbers the dashboard sets a game's own beside, each with where it comes from. A game's genre (config/games.json) picks its row; games is the fallback. Rates are shares (0.334 is 33.4%). Update a number only with its source.",
+  "_": "The averages the dashboard sets a game's own numbers beside, each with where it comes from. The comparison is a game launched with no marketing wherever a figure for one exists; where none does, the row says whose average it is. Rates are shares (0.267 is 26.7%), times are seconds. Update a number only with its source. Apple's peer percentiles come from a signed-in console, so they are kept in the database (the manual.apple_peers fact), not here.",
+  "downloads_month": {
+    "label": "Total downloads",
+    "what": "First downloads in a game's first month on one store",
+    "mid": 50, "low": 30, "high": 120,
+    "where": "The median of nine games launched in 2026 with no marketing, as their makers reported them; the middle of the nine ran 30 to 120, and two passed 500. One solo developer's zero-marketing app got 97 (habitdoom.com).",
+    "source": "mobilegamer.biz, November 2026",
+    "url": "https://mobilegamer.biz/are-the-new-wave-of-solo-ai-game-makers-making-any-money-no-not-really/"
+  },
+  "store_conversion": {
+    "label": "Store conversion",
+    "what": "Downloads and redownloads for every device the listing was shown on: Apple's conversion rate",
+    "mid": 0.011, "high": 0.027,
+    "where": "AppTweak's 2025 US App Store average for Games, downloads for every impression, from apps whose publishers use its tool; Simulation games average 2.7%. Apple's own peer percentiles replace it once they are read into the database.",
+    "source": "AppTweak, US App Store, 2025",
+    "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category",
+    "peers_where": "Apple's own figures for free apps with in-app purchases in the same category, marketed or not: the 25th, 50th and 75th percentile.",
+    "peers_source": "App Store Connect peer benchmarks",
+    "peers_url": "https://developer.apple.com/help/app-store-connect/view-app-analytics/view-peer-group-benchmarks/"
+  },
   "page_to_download": {
-    "label": "Product page to download",
-    "what": "Downloads for every product page view",
+    "label": "Page to download",
+    "what": "First downloads for every device that opened the product page",
+    "mid": 0.267, "low": 0.14, "high": 0.334,
     "by_genre": { "games": 0.267, "simulation": 0.334, "casual": 0.341, "rpg": 0.299, "family": 0.284, "adventure": 0.086 },
+    "where": "AppTweak's 2025 US App Store average for Games, from apps whose publishers use its tool. Simulation games average 33.4% and Adventure games 8.6%; the 8.6% the article leads with is all categories, and it says 25% a few lines on. Four launches with no marketing reported 14% to 30%.",
     "source": "AppTweak, US App Store, 2025",
     "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category"
   },
-  "impression_to_download": {
-    "label": "Impression to download",
-    "what": "Downloads for every time the listing is shown in search or browse",
-    "by_genre": { "games": 0.011, "simulation": 0.027, "casual": 0.011, "rpg": 0.019, "adventure": 0.007 },
-    "source": "AppTweak, US App Store, 2025",
-    "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category"
-  },
-  "impression_to_page": {
-    "label": "Clicks to the listing",
-    "what": "Product page views for every time the listing is shown",
-    "derived": "No published benchmark for unpaid listings. This is AppTweak's impression-to-download rate divided by its page-to-download rate.",
-    "source": "Derived from AppTweak, US App Store, 2025",
-    "url": "https://www.apptweak.com/en/aso-blog/average-app-conversion-rate-per-category"
+  "search_clicks": {
+    "label": "Search clicks",
+    "what": "Product page views for every device the listing was shown to in App Store search",
+    "low": 0.033, "high": 0.108,
+    "where": "AppFollow, US App Store search, August 2026: the lowest and highest category median. It names no category for either end, and Games has the lowest search install rate (2.6%), so expect the low end. On the App Store a shopper can tap Get in the results without opening the page.",
+    "source": "AppFollow, US App Store, August 2026",
+    "url": "https://appfollow.io/blog/aso-benchmarks"
   },
   "retention": {
-    "d1": { "label": "Day 1 retention", "low": 0.13, "mid": 0.22, "high": 0.30, "top": 0.40 },
-    "d7": { "label": "Day 7 retention", "mid": 0.04, "high": 0.065, "top": 0.115 },
-    "d30": { "label": "Day 30 retention", "mid": 0.007, "high": 0.017 },
-    "what": "New players who play again that many days later. Low is the bottom quarter of games, typical the median, high the top quarter.",
+    "d1": { "label": "Returning players, day 1", "low": 0.13, "mid": 0.22, "high": 0.30, "top": 0.40 },
+    "d7": { "label": "Returning players, day 7", "low": 0.015, "mid": 0.04, "high": 0.065, "top": 0.115 },
+    "d30": { "label": "Returning players, day 30", "mid": 0.007, "high": 0.017 },
+    "what": "New players who play again that many days later",
+    "where": "GameAnalytics' median for 16,000 mobile games with 1,000 or more monthly players in 2025, with the bottom and top quarter of games as the range. No figure exists for small or unmarketed games alone.",
     "source": "GameAnalytics, 2026 benchmarks",
     "url": "https://www.gameanalytics.com/reports/2026-mobile-pc-gaming-benchmarks"
   },
-  "first_month": {
-    "label": "Downloads in the first month",
-    "what": "The share of new apps that have passed a download count by a given week",
-    "milestones": [
-      { "downloads": 500, "share_by_week": { "0": 0.11, "1": 0.18, "2": 0.22, "3": 0.25, "4": 0.28, "12": 0.40 } },
-      { "downloads": 5000, "share_by_week": { "2": 0.06, "4": 0.10 } }
-    ],
-    "source": "AppBrain, new Android apps",
-    "url": "https://www.appbrain.com/stats/android-app-downloads"
+  "session_length": {
+    "label": "Session length",
+    "what": "The average length of one play session",
+    "mid": 198, "high": 312,
+    "where": "GameAnalytics' median for mobile games in 2025, about 3.3 minutes; the top quarter of games reach about 5.2.",
+    "source": "GameAnalytics, 2026 benchmarks",
+    "url": "https://www.gameanalytics.com/reports/2026-mobile-pc-gaming-benchmarks"
+  },
+  "playtime": {
+    "label": "Play time a day",
+    "what": "How long a player plays on a day they play",
+    "mid": 720, "high": 1380,
+    "where": "GameAnalytics' median for mobile games in 2025, about 12 minutes; the top quarter of games reach 22 to 24.",
+    "source": "GameAnalytics, 2026 benchmarks",
+    "url": "https://www.gameanalytics.com/reports/2026-mobile-pc-gaming-benchmarks"
+  },
+  "paying_players": {
+    "label": "Players who pay",
+    "what": "New players who have bought anything",
+    "mid": 0.01, "low": 0.007, "high": 0.019,
+    "where": "Two small iOS games with no marketing had 0.7% and 1.1% of downloads pay (their developer's own numbers, 2014); in commercial free games 1.9% of monthly players buy (Swrve, 2016). At 100 downloads that is zero to two people.",
+    "source": "Game Developer, 2014; Swrve, 2016",
+    "url": "https://www.gamedeveloper.com/business/my-ios-indie-game-numbers"
+  },
+  "proceeds_per_payer": {
+    "label": "Proceeds per paying player",
+    "what": "What a paying player brings in after the store's cut",
+    "peers_where": "Apple's own figures for free apps with in-app purchases in the same category, marketed or not, a week at a time: the 25th, 50th and 75th percentile.",
+    "peers_source": "App Store Connect peer benchmarks",
+    "peers_url": "https://developer.apple.com/help/app-store-connect/view-app-analytics/view-peer-group-benchmarks/"
+  },
+  "revenue_month": {
+    "label": "Revenue, first month",
+    "what": "What players spent in a game's first month",
+    "low": 0, "high": 10,
+    "where": "Six games launched in 2026 with no marketing made $0, $0, about $0.10, $0.10, $3 and $6 in their first month or two, ads included.",
+    "source": "mobilegamer.biz, November 2026",
+    "url": "https://mobilegamer.biz/are-the-new-wave-of-solo-ai-game-makers-making-any-money-no-not-really/"
   }
 }

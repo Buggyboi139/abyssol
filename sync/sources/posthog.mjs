@@ -3,7 +3,9 @@
 // exits, errors, load times, where the graphics level settled, the last 48
 // hours by the hour, and what the last day's players did, told in a few lines
 // each. A day is a day in the reporting time zone (config/games.json,
-// "timezone"), as it is for every other source.
+// "timezone"), as it is for every other source. Fact posthog.gfx: for each of
+// the dashboard's ranges, how many different players last settled on each
+// graphics level (the daily gfx_level rows count a player again every day).
 //
 // What the game must send for this to fill in (README.md, PostHog events):
 //   - event names as the game's analytics ids: FTUE:01_Loaded, Load:Ready, Store:Tap:<product>,
@@ -11,7 +13,7 @@
 //   - a `platform` property of ios or android (PostHog's own $os is the fallback)
 // Needs <PREFIX>_POSTHOG_PROJECT_ID and a personal key (query:read): the shared POSTHOG_PERSONAL_API_KEY, scoped to
 // every game's project, or <PREFIX>_POSTHOG_PERSONAL_API_KEY for a game whose project is in another PostHog account.
-import { Rows, getJson, addDays, dateRange, keyPart, DAY } from '../lib/util.mjs';
+import { Rows, getJson, addDays, dateRange, keyPart, DAY, RANGES } from '../lib/util.mjs';
 import { ownEnv, sharedEnv } from '../lib/env.mjs';
 import { dayStart } from '../../server/zone.js';
 import { tell } from '../lib/stories.mjs';
@@ -101,6 +103,23 @@ export async function run(ctx) {
       else if (parts[0] === 'Gfx') { if (parts[2]) put(x.platform, d, `gfx_level:${keyPart(parts[2])}`, x.users); }
       else if (x.event === errorEvent) put(x.platform, d, 'app_errors', x.n);
     }
+  });
+
+  // Graphics level, each player once: where a player last settled in each of the dashboard's ranges. A day's
+  // gfx_level row counts that day's players, so adding 30 of them counts someone who plays daily 30 times.
+  await step('gfx', async () => {
+    const ranges = {};
+    for (const [k, n] of Object.entries(RANGES)) {
+      const r = await hogql(`select platform, gfx_level, count() as players from (select distinct_id, any(${P}) as platform, argMax(event, timestamp) as gfx_level from events where timestamp >= ${at(dayStart(addDays(today, -(n - 1)), zone))} and event like 'Gfx:Level:%' group by distinct_id) group by platform, gfx_level limit 1000`);
+      const out = { all: {}, ...Object.fromEntries(platforms.map((p) => [p, {}])) };
+      for (const x of r) {
+        const p = platformOf(x.platform), level = String(x.gfx_level).split(':')[2];
+        if (!live.has(p) || !level) continue;
+        for (const o of [out[p], out.all]) o[keyPart(level)] = (o[keyPart(level)] || 0) + (+x.players || 0);
+      }
+      ranges[k] = out;
+    }
+    facts.push({ key: 'posthog.gfx', value: { as_of: new Date(now).toISOString(), zone, ranges } });
   });
 
   // The last 48 hours, by the hour: who was playing, and who was seen for the first time.

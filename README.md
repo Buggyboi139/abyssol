@@ -175,7 +175,12 @@ How the analytics files are read:
   `Store sheet`). The report also logs every look at a screenshot or video as
   a page view (`Media view`); those are left out.
 - `an_downloads_direct` is first downloads with no page: **Get** tapped in the
-  search results.
+  search results. Page to download leaves them out, since the page never
+  opened.
+- Only `Counts` is read. `Unique Counts` is unique within one row of the report
+  (a day, a page type, a source, a device), so adding it across rows or days
+  counts a device once for every row it is in. Every store rate is a total
+  over a total.
 - Analytics days are UTC days. Sales report days are Pacific days. First
   downloads on the charts come from sales reports, and from analytics reports
   when no vendor number is set. The store rates (page to download, impression
@@ -321,13 +326,13 @@ where none does, the row says whose average it is.
 | Row | Our number | The average |
 |---|---|---|
 | Downloads, first month | The first 30 days on record; before that, the daily pace × 30 | Nine unmarketed solo launches of 2026 |
-| Store conversion | First downloads and redownloads ÷ unique devices shown the listing | Apple's peer percentiles when they are on record, else AppTweak's Games average |
-| Page to download | First downloads ÷ unique devices that opened the page | AppTweak, by genre |
-| Search clicks | Page views from search ÷ unique devices shown the game in search | AppFollow's category medians |
+| Store conversion | First downloads and redownloads ÷ impressions | Apple's peer percentiles when they are on record (those count each device once), else AppTweak's Games average |
+| Page to download | First downloads made from the page (those from **Get** in the search results left out) ÷ page views | AppTweak, by genre |
+| Search clicks | Page views from search ÷ impressions in search | AppFollow's category medians |
 | Returning players, day 1, 7, 30 | The share of new players who came back N days later | GameAnalytics' yearly report |
 | Session length, playtime | Seconds a session and seconds a player a day | GameAnalytics' yearly report |
-| Paying players | New payers ÷ new players (RevenueCat) | Published indie figures |
-| Proceeds per payer | Proceeds ÷ payers (RevenueCat); shown once Apple's peer percentiles are on record | Apple's peer percentiles |
+| Paying players | Of the players whose seventh day fell in the range, the share who bought within their 7 days (RevenueCat) | Published indie figures |
+| Proceeds per payer | The range's proceeds ÷ the different players who bought in it, each counted once (RevenueCat); shown once Apple's peer percentiles are on record | Apple's peer percentiles |
 | Revenue, first month | RevenueCat revenue in the first 30 days | Six unmarketed launches of 2026 |
 
 A row with no number yet says what it is waiting for.
@@ -359,10 +364,10 @@ signed-in console too, so they are kept the same way, as `manual.apple_peers`:
 |---|---|
 | Revenue | The sum of RevenueCat's revenue. Proceeds and transactions sit under it. |
 | Installs | App Store first-time downloads plus Google Play installs. Before those arrive: RevenueCat new customers (every install makes one), then PostHog new users. The card names its source. |
-| DAU | The average over whole days of each day's active players: the larger of PostHog's count and RevenueCat's customers last seen that day. |
+| DAU | The average over whole days of each day's active players: the larger of PostHog's count and RevenueCat's customers last seen that day. The change is against the same tester-free counts for the period before, or is left blank. |
 | D1 / D7 retention | Of the players who first played N days before each day in the range, the share who played again on day N. |
 | Unclean exit / crash rate | Unclean exits over sessions (PostHog). Crash rate: App Store crashes over sessions, or Google Play's user-perceived crash rate. |
-| Conversion rate | New paying customers over new customers (RevenueCat). |
+| Conversion rate | Of the players whose seventh day fell in the range, the share who bought within their first 7 days (RevenueCat). A player not yet 7 days old is left out. A game with nobody 7 days old shows everyone who has bought over everyone who has played. |
 
 The sync stores each figure as a row in `metrics_daily` (`game_slug`,
 `platform`, `date`, `source`, `metric_key`, `metric_value`), so a rerun

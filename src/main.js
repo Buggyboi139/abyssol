@@ -364,9 +364,9 @@ function retentionPanel(c) {
   });
 }
 
-function barsPanel({ title, source, empty, rows, label, valueText, tip, columns, cells, color }) {
+function barsPanel({ title, source, about, empty, rows, label, valueText, tip, columns, cells, color }) {
   return panel({
-    title, source, empty,
+    title, source, about, empty,
     table: () => ({ columns, rows: rows.map(cells) }),
     body: () => chartBox(rows.length * 28 + 18, title, (cv) => sideBars(cv, { labels: rows.map(label), values: rows.map((r) => r.v), text: (i) => valueText(rows[i]), tip: (i) => tip(rows[i], i), color })),
   });
@@ -422,7 +422,11 @@ function gameView(v) {
   const more = [];
   if (x.hourly) more.push(panel({ title: x.hourly.series.length > 1 ? 'New and active players, last 48 hours' : `${x.hourly.series[0].label} players, last 48 hours`, about: [x.hourly.source.split(' · ').reduce((rows, part, i, all) => (i % 2 ? rows : [...rows, fact(part, all[i + 1])]), []), say(x.hourly.note)], wide: true, items: x.hourly.series.length > 1 ? x.hourly.series.map((s, i) => ({ label: s.label, color: colorOf(s, i) })) : null, table: () => ({ columns: ['Hour', ...x.hourly.series.map((s) => s.label)], rows: x.hourly.hours.map((t, i) => [moment(t), ...x.hourly.series.map((s) => fmt(s.values[i], 'int'))]).reverse() }), body: () => chartBox(200, 'Players each hour', (cv) => hourLines(cv, x.hourly)) }));
   if (x.store) { const rows = x.store.steps.map((s) => ({ ...s, v: s.count })); more.push(barsPanel({ title: 'Store funnel', source: 'PostHog', rows, label: (r) => r.label, valueText: (r) => fmt(r.count, 'int'), tip: (r) => [`${fmt(r.count, 'int')} times`], columns: ['Step', 'Times'], cells: (r) => [r.label, fmt(r.count, 'int')] })); }
-  if (x.gfx) { const rows = x.gfx.levels.map((s) => ({ ...s, v: s.players })); more.push(barsPanel({ title: 'Graphics level', source: 'PostHog', rows, label: (r) => `Level ${r.level}`, valueText: (r) => `${fmt(r.players, 'int')} · ${fmt(r.share, 'pct')}`, tip: (r) => [`${fmt(r.players, 'int')} players`, `${fmt(r.share, 'pct')} of them`], columns: ['Level', 'Players', 'Share'], cells: (r) => [`Level ${r.level}`, fmt(r.players, 'int'), fmt(r.share, 'pct')] })); }
+  if (x.gfx) {
+    // Each player once when the sync has counted them so; otherwise a player counts again every day they played.
+    const once = x.gfx.unit !== 'player-days', unit = once ? 'players' : 'player-days', rows = x.gfx.levels.map((s) => ({ ...s, v: s.players }));
+    more.push(barsPanel({ title: 'Graphics level', source: 'PostHog', about: [fact('Counted', once ? 'Each player once' : 'Player-days'), say(once ? 'Each player counts once, at the level their game last settled on in the range.' : 'A player counts once for every day they played, so these are player-days, not players. The next PostHog sync counts each player once.')], rows, label: (r) => `Level ${r.level}`, valueText: (r) => `${fmt(r.players, 'int')} · ${fmt(r.share, 'pct')}`, tip: (r) => [`${fmt(r.players, 'int')} ${unit}`, `${fmt(r.share, 'pct')} of them`], columns: ['Level', once ? 'Players' : 'Player-days', 'Share'], cells: (r) => [`Level ${r.level}`, fmt(r.players, 'int'), fmt(r.share, 'pct')] }));
+  }
   if (x.community) more.push(h('section', { class: 'panel' }, panelHead(x.community.label, info(x.community.label, fact('Source', 'Game database'))), tiles(x.community.tiles)));
   if (x.more) more.push(h('section', { class: 'panel' }, panelHead('More numbers', info('More numbers', x.more.map((t) => fact(t.label, t.source)))), tiles(x.more)));
   if (more.length) out.push(h('div', { class: 'grid' }, more));

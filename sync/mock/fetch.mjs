@@ -150,6 +150,7 @@ function itunes(u, today) {
 // ---- PostHog ----
 const FTUE = ['01_Loaded', '01b_Swam', '02_Wardrobe', '03_Gift', '04_Tapped', '05_Bought', '06_Dressed', '07_Out', '08_Pearl', '09_Swim', '10_Quest', '11_QuestDone', '12_Home', '13_Decorate', '14_Camera', '15_Runway'];
 const KEEP = [1, 0.93, 0.74, 0.86, 0.69, 0.41, 0.66, 0.9, 0.71, 0.55, 0.43, 0.36, 0.33, 0.21, 0.17, 0.09];
+const GFX = [0.05, 0.3, 0.2, 0.25, 0.15, 0.05]; // the share of players on each graphics level
 function posthog(u, body, today) {
   const game = u.pathname.split('/')[3], q = body.query.query;
   const found = [...q.matchAll(/'(\d{4}-\d\d-\d\d)/g)].map((m) => m[1]);
@@ -157,6 +158,12 @@ function posthog(u, body, today) {
   const stamp = (t) => new Date(t).toISOString().slice(0, 19).replace('T', ' ');
   if (q.includes('active24')) {
     return out(['platform', 'active24', 'new24', 'back24', 'bought24', 'active', 'fresh', 'back', 'everyone'], plats.map((p) => { const m = mockDay(game, p, today), n = Math.round(m.newUsers * 0.6), a = Math.round(m.dau * 0.7); return [p, m.dau, m.newUsers, m.dau - m.newUsers, m.transactions, a, n, a - n, m.dau * 30]; }));
+  }
+  if (q.includes('as gfx_level')) {
+    // Each player once: the window's new players, at the level they settled on.
+    const rows = [];
+    for (const p of plats) GFX.forEach((share, i) => { const n = dateRange(found[0], today).reduce((a, d) => a + Math.round(mockDay(game, p, d).newUsers * share), 0); if (n) rows.push([p, `Gfx:Level:${i + 1}`, n]); });
+    return out(['platform', 'gfx_level', 'players'], rows);
   }
   if (q.includes('argMax(')) {
     return out(['distinct_id', 'first', 'last', 'platform', 'version', 'country'], Array.from({ length: 9 }, (_, i) => { const p = i % 4 === 3 ? 'android' : 'ios', last = Date.now() - i * 47 * 60000; return [`u-${game}-${i}`, stamp(i % 3 ? last - 9 * DAYMS : last - 26 * 60000), stamp(last), p, '1.3.7', i % 2 ? 'US' : 'CA']; }));
@@ -213,7 +220,8 @@ function posthog(u, body, today) {
       if (bad) rows.push([d, p, 'Session:UncleanExit:Playing', bad, bad]);
       if (rnd(game + p + d + 'l') < 0.3) rows.push([d, p, 'Session:UncleanExit:Loading', 1, 1]);
       if (rnd(game + p + d + 'e') < 0.4) rows.push([d, p, 'App:Error', int(game + p + d + 'en', 1, 4), 1]);
-      [0.05, 0.3, 0.2, 0.25, 0.15, 0.05].forEach((share, i) => { const n = Math.round(m.newUsers * share); if (n) rows.push([d, p, `Gfx:Level:${i + 1}`, n, n]); });
+      // Everyone playing that day sends it, so a day's rows add up to player-days.
+      GFX.forEach((share, i) => { const n = Math.round(m.dau * share); if (n) rows.push([d, p, `Gfx:Level:${i + 1}`, n, n]); });
     }
     return out(['day', 'platform', 'event', 'n', 'users'], rows);
   }

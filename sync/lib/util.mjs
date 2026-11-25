@@ -2,6 +2,8 @@
 import crypto from 'node:crypto';
 
 export const DAY = 86400000;
+/** The dashboard's ranges, in days (the same as RANGES in server/metrics.js). A range ends today and is n days long. */
+export const RANGES = { '7d': 7, '30d': 30, '90d': 90 };
 export const ymd = (d) => new Date(d).toISOString().slice(0, 10);
 export const addDays = (d, n) => ymd(new Date(d).getTime() + n * DAY);
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

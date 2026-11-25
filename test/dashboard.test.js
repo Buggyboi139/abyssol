@@ -3,10 +3,12 @@
 import { test, expect, beforeAll } from 'bun:test';
 import { makeDb, dbFetch, rpc, LOCAL_KEY } from '../scripts/localdb.mjs';
 import { hashPassword, verifyPassword, verifyUsername, makeSession, readSession, signingKey, COOKIE } from '../server/auth.js';
-import { buildGame, dates, change, rangeDates, addDays } from '../server/metrics.js';
+import { buildGame, dates, change, rangeDates, addDays, RANGES } from '../server/metrics.js';
 import { saleOf } from '../functions/api/webhooks/revenuecat.js';
 import { sync } from '../sync/run.mjs';
 import { loadGames } from '../sync/lib/config.mjs';
+import { RANGES as SYNC_RANGES } from '../sync/lib/util.mjs';
+import { run as revenuecatRun } from '../sync/sources/revenuecat.mjs';
 import { mockFetch, mockEnv, mockGameDb, mockGames, mockDay } from '../sync/mock/fetch.mjs';
 import { tell, tagOf } from '../sync/lib/stories.mjs';
 import { dayIn, dayStart } from '../server/zone.js';
@@ -242,6 +244,21 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
     if (r.value == null) { expect(r.need).toBeTruthy(); expect(r.verdict).toBeNull(); expect(r.short).toBeNull(); } else { expect(r.how).toBeTruthy(); expect(r.verdict).toBeTruthy(); expect(r.short.length).toBeLessThan(14); expect(['good', 'flat', 'bad']).toContain(r.tone); }
   }
 
+  // Graphics levels: each player once (the posthog.gfx fact), fewer than the daily rows, which count a player every day they play.
+  expect(pt.extras.gfx.unit).toBe('players');
+  const shares = [0.05, 0.3, 0.2, 0.25, 0.15, 0.05], range = dates(from, to);
+  expect(pt.extras.gfx.levels.map((l) => l.players)).toEqual(shares.map((s) => range.reduce((a, d) => a + Math.round(mockDay('pearl-tide', 'ios', d).newUsers * s), 0)));
+  const playerDays = await pg.query(`select sum(metric_value)::float8 as v from metrics_daily where game_slug = 'pearl-tide' and platform = 'all' and source = 'posthog' and metric_key like 'gfx_level:%' and date between $1 and $2`, [from, to]);
+  expect(pt.extras.gfx.levels.reduce((a, l) => a + l.players, 0)).toBeLessThan(playerDays.rows[0].v);
+  // Conversion: an install day counts only the players who have had 7 days, so the last week reads zero and older days are whole.
+  const conv = await pg.query(`select date::text as date, metric_value::float8 as v from metrics_daily where game_slug = 'pearl-tide' and platform = 'all' and source = 'revenuecat' and metric_key = 'conv_cohort_size'`);
+  const cohort = (d) => conv.rows.find((r) => r.date === d)?.v;
+  for (const back of [0, 1, 5]) expect(cohort(addDays(to, -back))).toBe(0);
+  for (const back of [9, 20]) expect(cohort(addDays(to, -back))).toBe(mockDay('pearl-tide', 'ios', addDays(to, -back)).newUsers);
+  expect(pt.kpis.find((k) => k.id === 'conversion').sub[1].label).toBe('players at day 7');
+  // No unique count from Apple is stored: summed over rows and days it is device-days.
+  expect((await pg.query(`select count(*)::int as n from metrics_daily where metric_key like '%\\_unique'`)).rows[0].n).toBe(0);
+
   // The store funnel starts at the shop opening (Shop:Open in Pearl Tide, Store:Open in Chillwater Lake).
   expect(pt.extras.store.steps.map((x) => x.key).slice(0, 2)).toEqual(['Open', 'Tap']);
   expect(pt.extras.store.steps[0].count).toBeGreaterThan(pt.extras.store.steps[1].count);
@@ -321,7 +338,7 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   const game = { slug: 'g', display_name: 'G', status: 'live', config: { genre: 'simulation', platforms: { ios: { status: 'live', launched: addDays(from, -3) } } } };
   const days = dates(from, addDays(to, -2)), pts = (v) => days.map((d) => [d, v]), tot = (v) => ({ sum: v * days.length, avg: v, last: v, n: days.length });
   const raw = (more = {}) => ({ game, platform: 'all', from, to, prev: {}, hourly: {}, cohorts: [], sync: [],
-    totals: { 'apple.an_downloads': tot(3), 'apple.page_views': tot(10), 'apple.impressions': tot(200), 'apple.impressions_unique': tot(150), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, tot(v)])) },
+    totals: { 'apple.an_downloads': tot(3), 'apple.page_views': tot(10), 'apple.impressions': tot(200), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, tot(v)])) },
     series: { 'apple.an_downloads': pts(3), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, pts(v)])) },
     life: { 'apple.an_downloads': pts(3), ...Object.fromEntries(Object.entries(more).map(([k, v]) => [k, pts(v)])) } });
   const row = (g, id) => g.extras.benchmarks.rows.find((r) => r.id === id);
@@ -329,7 +346,21 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   const an = buildGame(raw(), { range: '30d', now });
   expect(an.charts.players.series[0]).toMatchObject({ id: 'downloads', label: 'First downloads · App Store' });
   expect(an.charts.downloads).toMatchObject({ source: 'App Store', total: 3 * days.length, note: null });
-  expect(row(an, 'page_to_download').value).toBeCloseTo(0.3); expect(row(an, 'store_conversion').value).toBeCloseTo(0.02);
+  // Each rate is a total over a total: downloads over impressions, downloads from the page over page views.
+  expect(row(an, 'page_to_download').value).toBeCloseTo(0.3, 9); expect(row(an, 'store_conversion').value).toBeCloseTo(3 / 200, 9);
+  expect(row(an, 'store_conversion').how).toContain('impressions'); expect(row(an, 'page_to_download').note).toBeNull();
+  // Get tapped in the search results never opened the page: those downloads are left out of page to download, and said so.
+  const direct = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50 }), { range: '30d', now });
+  expect(row(direct, 'page_to_download').value).toBeCloseTo(2 / 10, 9); expect(row(direct, 'page_to_download').note).toContain('tapped Get in the search results');
+  expect(row(direct, 'store_conversion').value).toBeCloseTo((3 + 1) / 200, 9);
+  expect(row(direct, 'search_clicks').value).toBeCloseTo(4 / 50, 9); expect(row(direct, 'search_clicks').how).toContain('impressions in search');
+  // Apple's unique counts add up to device-days over a range, so they are never a denominator, whatever is on record.
+  const stale = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50, 'apple.impressions_unique': 150, 'apple.page_views_unique': 2, 'apple.impressions_search_unique': 10 }), { range: '30d', now });
+  for (const id of ['store_conversion', 'page_to_download', 'search_clicks']) expect(row(stale, id).value).toBe(row(direct, id).value);
+  // Every first download made from the search results: the page converted nobody, and the rate cannot pass 100%.
+  expect(row(buildGame(raw({ 'apple.an_downloads_direct': 3, 'apple.page_views': 1 }), { range: '30d', now }), 'page_to_download').value).toBe(0);
+  // The share of a day's players who had played before is not day 1 retention, and no longer stands in for it.
+  expect(row(buildGame(raw({ 'revenuecat.returning_customers': 6, 'revenuecat.active_customers': 10 }), { range: '30d', now }), 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' });
   expect(row(an, 'downloads_month')).toMatchObject({ value: 90, average: 50, low: 30, high: 120, verdict: '1.8× the average', short: '1.8×' });
   // Search clicks wait for the search-only counts; retention with no cohorts says what it needs.
   expect(row(an, 'search_clicks')).toMatchObject({ value: null, verdict: null, need: 'Comes with the next App Store sync', average: null });
@@ -348,6 +379,7 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   expect(row(an, 'store_conversion')).toMatchObject({ percentiles: false, average: 0.011 }); expect(row(an, 'proceeds_per_payer')).toBeUndefined();
   expect(row(byHand, 'store_conversion')).toMatchObject({ percentiles: true, average: 0.03, low: 0.01, high: 0.05, verdict: 'Between the 25th and 50th percentile', short: '25th–50th', source: 'App Store Connect peer benchmarks' });
   expect(row(byHand, 'store_conversion').where).toContain('the week of January 1'); expect(row(byHand, 'proceeds_per_payer')).toMatchObject({ average: 8, value: null });
+  expect(row(byHand, 'store_conversion').note).toContain('count each device once'); expect(row(an, 'store_conversion').note).toBeNull();
   expect(byHand.charts.ftue.steps.map((x) => x.key)).toEqual(['01_Loaded', '02_Wardrobe']);
 
   // With sales reports the count shown is theirs; the rates stay on the analytics count, which covers the same days as page views.
@@ -394,6 +426,95 @@ test('a change is a percentage for counts and points for rates, and says which w
   expect(change(5, 0)).toMatchObject({ unit: 'new', value: null });
   expect(change(5, 4, false)).toBeNull();
   expect(change(null, 4)).toBeNull();
+});
+
+test('a buyer on day 5 is credited on a 3-day run, players not yet 7 days old are left out, and a repeat buyer is one paying player', async () => {
+  const DAY = 86400000, now = Date.parse('2026-11-25T12:00:00Z'), today = '2026-11-25', day = (t) => new Date(t).toISOString().slice(0, 10);
+  const who = [
+    { id: 'a', first: now - 8.25 * DAY, last: now - 3 * DAY, buys: [now - 3.25 * DAY, now - 3.2 * DAY] }, // bought twice, on their day 5
+    { id: 'b', first: now - 8.3 * DAY, last: now - 8 * DAY, buys: [] },
+    { id: 'c', first: now - 3 * DAY, last: now - 3600000, buys: [now - 2 * DAY] }, // bought, but has not had 7 days
+    { id: 'd', first: now - 2 * DAY, last: now - DAY, buys: [] },
+    { id: 'e', first: now - 80 * DAY, last: now - 20 * DAY, buys: [now - 60 * DAY, now - 20 * DAY] }, // an old player who still buys
+  ];
+  const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/json' } });
+  const fake = async (url) => {
+    const u = new URL(url), path = u.pathname, q = u.searchParams; let m;
+    if (path.endsWith('/projects')) return json({ items: [{ id: 'proj' }] });
+    if ((m = /\/customers\/([^/]+)\/purchases$/.exec(path))) return json({ items: who.find((c) => c.id === m[1]).buys.map((at, i) => ({ id: `${m[1]}-${i}`, environment: 'production', store: 'app_store', product_id: 'p', purchased_at: at, quantity: 1, status: 'owned', revenue_in_usd: { gross: 1, proceeds: 0.7 } })), next_page: null });
+    if (path.endsWith('/customers')) return json({ items: who.map((c) => ({ id: c.id, first_seen_at: c.first, last_seen_at: c.last, last_seen_platform: 'iOS', last_seen_app_version: '', last_seen_country: 'US' })), next_page: null });
+    if (path.endsWith('/charts/revenue')) {
+      // RevenueCat's chart: a sale shows on its UTC day, and only the days asked for come back.
+      const days = [...new Set(who.flatMap((c) => c.buys.map(day)))].filter((d) => d >= q.get('start_date') && d <= q.get('end_date'));
+      return json({ measures: [{ display_name: 'Revenue' }, { display_name: 'Transactions' }], values: days.flatMap((d) => [{ cohort: Date.parse(d) / 1000, measure: 0, value: 1 }, { cohort: Date.parse(d) / 1000, measure: 1, value: 1 }]) });
+    }
+    if (path.endsWith('/products')) return json({ items: [], next_page: null });
+    return json({ measures: [], segments: [], values: [] });
+  };
+  const game = { slug: 'g', env_prefix: 'G', platforms: { ios: { status: 'live', launched: '2026-08-01' } } };
+  // The hourly run: 3 days.
+  const res = await revenuecatRun({ game, env: { G_REVENUECAT_API_KEY: 'k' }, fetchImpl: fake, days: 3, platforms: ['ios'], today, now, zone: 'UTC', cache: new Map(), pause: 0 });
+  expect(res.status).toBe('ok');
+  const at = (d, k, p = 'all') => res.daily.find((r) => r.platform === p && r.date === d && r.metric_key === k)?.metric_value;
+  // a and b installed 8 days ago, outside the run's 3 days: their install day is still rewritten, with a's day-5 purchase on it.
+  expect(at('2026-11-17', 'conv_cohort_size')).toBe(2); expect(at('2026-11-17', 'new_paying_customers')).toBe(1); expect(at('2026-11-17', 'new_paying_customers', 'ios')).toBe(1);
+  expect(at('2026-11-17', 'new_customers')).toBeUndefined();
+  // c bought and d has not, but neither has had 7 days: their install days read zero, not a share that can only go up.
+  for (const d of ['2026-11-22', '2026-11-23', today]) { expect(at(d, 'conv_cohort_size')).toBe(0); expect(at(d, 'new_paying_customers')).toBe(0); }
+  expect(res.daily.find((r) => r.metric_key === 'conv_cohort_size' && r.mode)).toBeUndefined();
+  expect(at('2026-11-22', 'new_customers')).toBe(1); expect(at('2026-11-22', 'transactions')).toBe(2); expect(at('2026-11-22', 'proceeds')).toBeCloseTo(1.4, 9);
+  // Different customers who bought in each range: a's two purchases are one paying player, and e, who installed long ago, counts where they bought.
+  const live = res.facts.find((f) => f.key === 'revenuecat.live').value;
+  expect(live.all.payers_by_range).toEqual({ '7d': 2, '30d': 3, '90d': 3 }); expect(live.ios.payers_by_range).toEqual({ '7d': 2, '30d': 3, '90d': 3 });
+  expect(live.all).toMatchObject({ unique_payers: 3, matured: 3, customers: 5 });
+  expect(SYNC_RANGES).toEqual(RANGES);
+
+  // On the page: conversion is the players whose seventh day fell in the range, and proceeds are spread over everyone who bought in it.
+  const from = addDays(today, -6), cohorts = new Map();
+  for (const r of res.daily) if (r.platform === 'all' && /^(conv_cohort_size|new_paying_customers)$/.test(r.metric_key)) cohorts.set(r.date, { ...cohorts.get(r.date), [r.metric_key]: r.metric_value });
+  const proceeds = res.daily.filter((r) => r.platform === 'all' && r.metric_key === 'proceeds' && r.date >= from).reduce((a, r) => a + r.metric_value, 0);
+  const view = (more = {}) => buildGame({
+    game: { slug: 'g', display_name: 'G', status: 'live', config: { timezone: 'UTC', platforms: { ios: { status: 'live' } } } }, platform: 'all', from, to: today, prev: {}, series: {}, hourly: {}, cohorts: [], sync: [],
+    // The old count of new players who paid is on record too, and is not what proceeds are divided by.
+    totals: { 'revenuecat.proceeds': { sum: proceeds, avg: proceeds / 7, last: 0, n: 7 }, 'revenuecat.new_paying_customers': { sum: 1, avg: 1, last: 0, n: 7 } },
+    cohorts_rc: [...cohorts].sort(), facts: { 'revenuecat.live': { value: live, at: now }, 'manual.apple_peers': { value: { proceeds_per_payer: { p25: 1, p50: 2, p75: 4 } }, at: now } }, ...more,
+  }, { range: '7d', now });
+  const v = view(), conv = v.kpis.find((k) => k.id === 'conversion'), row = (g, id) => g.extras.benchmarks.rows.find((r) => r.id === id);
+  expect(conv.value).toBeCloseTo(0.5, 9); expect(conv.sub).toEqual([{ label: 'paying', value: 1, format: 'int' }, { label: 'players at day 7', value: 2, format: 'int' }]);
+  expect(row(v, 'paying_players').value).toBeCloseTo(0.5, 9);
+  expect(proceeds).toBeCloseTo(2.1, 9); expect(row(v, 'proceeds_per_payer').value).toBeCloseTo(2.1 / 2, 9); expect(row(v, 'proceeds_per_payer').how).toContain('2 different players');
+  // Before the sync has counted them, the row waits: it never falls back to the new players who paid.
+  expect(row(view({ facts: { 'manual.apple_peers': { value: { proceeds_per_payer: { p25: 1, p50: 2, p75: 4 } }, at: now } } }), 'proceeds_per_payer')).toMatchObject({ value: null, need: 'Comes with the next RevenueCat sync' });
+
+  // A game with nobody 7 days old yet: everyone who has bought over everyone who has played, and the card says so.
+  const young = view({ cohorts_rc: [], facts: { 'revenuecat.live': { value: { all: { customers: 20, unique_payers: 1, matured: 0, payers_by_range: { '7d': 1 } } }, at: now } } }).kpis.find((k) => k.id === 'conversion');
+  expect(young.value).toBeCloseTo(0.05, 9); expect(young.rule).toContain('all time'); expect(young.sub[1]).toMatchObject({ label: 'players so far', value: 20 }); expect(young.delta).toBeNull();
+  // An older game with nobody whose seventh day fell in the range has no rate, and no all-time stand-in.
+  const synced = [{ source: 'revenuecat', last_status: 'ok', last_ok: new Date(now).toISOString(), last_run: new Date(now).toISOString(), last_message: '' }];
+  const none = view({ sync: synced, cohorts_rc: [], facts: { 'revenuecat.live': { value: { all: { customers: 20, unique_payers: 1, matured: 9, payers_by_range: { '7d': 1 } } }, at: now } } }).kpis.find((k) => k.id === 'conversion');
+  expect(none.value).toBeNull(); expect(none.empty.badge).toBe('No players 7 days old in this range');
+});
+
+test('DAU is never compared with a count that has testers in it, and graphics levels count each player once', () => {
+  const now = Date.parse('2026-11-25T12:00:00Z'), { from, to } = rangeDates('7d', now), days = dates(from, to);
+  const tot = (v, n = days.length) => ({ sum: v * n, avg: v, last: v, n });
+  const raw = (prev, more = {}) => ({ game: { slug: 'g', display_name: 'G', status: 'live', config: { platforms: { ios: { status: 'live' } } } }, platform: 'all', from, to, hourly: {}, cohorts: [], sync: [],
+    totals: { 'revenuecat.active_customers': tot(10), 'posthog.gfx_level:1': tot(4), 'posthog.gfx_level:3': tot(12) }, series: { 'revenuecat.active_customers': days.map((d) => [d, 10]) }, prev, ...more });
+  const dau = (g) => g.kpis.find((k) => k.id === 'dau');
+  // RevenueCat's chart counts testers: with only that for the period before, there is no change to show.
+  const chartOnly = dau(buildGame(raw({ 'revenuecat.active_customers_chart': tot(50) }), { range: '7d', now }));
+  expect(chartOnly.value).toBe(10); expect(chartOnly.prev).toBeNull(); expect(chartOnly.delta).toBeNull();
+  // With a tester-free count for the period before, that is the one used, however much larger the chart's is.
+  const both = dau(buildGame(raw({ 'revenuecat.active_customers_chart': tot(50), 'revenuecat.active_customers': tot(8) }), { range: '7d', now }));
+  expect(both.prev).toBe(8); expect(both.delta).toMatchObject({ value: 25, dir: 1 });
+
+  // Daily rows count a player again every day they play: without the deduplicated fact the bars are player-days.
+  const daily = buildGame(raw({}), { range: '7d', now }).extras.gfx;
+  expect(daily).toMatchObject({ unit: 'player-days' }); expect(daily.levels.map((l) => [l.level, l.players])).toEqual([['1', 28], ['3', 84]]);
+  // With it, each player counts once, for the range and platform asked for.
+  const fact = { ranges: { '7d': { all: { 3: 6, 1: 2, 5: 0 }, ios: { 3: 5 } }, '30d': { all: { 3: 30 } } } };
+  const once = buildGame(raw({}, { facts: { 'posthog.gfx': { value: fact, at: now } } }), { range: '7d', now }).extras.gfx;
+  expect(once.unit).toBe('players'); expect(once.levels).toEqual([{ level: '1', players: 2, share: 0.25 }, { level: '3', players: 6, share: 0.75 }]);
 });
 
 test('retention counts the players whose day N fell inside the range', () => {

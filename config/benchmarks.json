@@ -10,7 +10,7 @@
   },
   "store_conversion": {
     "label": "Store conversion",
-    "what": "Downloads and redownloads for every device the listing was shown on: Apple's conversion rate",
+    "what": "Downloads and redownloads for every time the listing was shown: downloads for every impression",
     "mid": 0.011, "high": 0.027,
     "where": "AppTweak's 2025 US App Store average for Games, downloads for every impression, from apps whose publishers use its tool; Simulation games average 2.7%. Apple's own peer percentiles replace it once they are read into the database.",
     "source": "AppTweak, US App Store, 2025",
@@ -21,7 +21,7 @@
   },
   "page_to_download": {
     "label": "Page to download",
-    "what": "First downloads for every device that opened the product page",
+    "what": "First downloads made from the product page for every time it was opened",
     "mid": 0.267, "low": 0.14, "high": 0.334,
     "by_genre": { "games": 0.267, "simulation": 0.334, "casual": 0.341, "rpg": 0.299, "family": 0.284, "adventure": 0.086 },
     "where": "AppTweak's 2025 US App Store average for Games, from apps whose publishers use its tool. Simulation games average 33.4% and Adventure games 8.6%; the 8.6% the article leads with is all categories, and it says 25% a few lines on. Four launches with no marketing reported 14% to 30%.",
@@ -30,7 +30,7 @@
   },
   "search_clicks": {
     "label": "Search clicks",
-    "what": "Product page views for every device the listing was shown to in App Store search",
+    "what": "Product page views for every time the listing was shown in App Store search",
     "low": 0.033, "high": 0.108,
     "where": "AppFollow, US App Store search, August 2026: the lowest and highest category median. It names no category for either end, and Games has the lowest search install rate (2.6%), so expect the low end. On the App Store a shopper can tap Get in the results without opening the page.",
     "source": "AppFollow, US App Store, August 2026",
@@ -63,7 +63,7 @@
   },
   "paying_players": {
     "label": "Players who pay",
-    "what": "New players who have bought anything",
+    "what": "New players who buy within their first 7 days",
     "mid": 0.01, "low": 0.007, "high": 0.019,
     "where": "Two small iOS games with no marketing had 0.7% and 1.1% of downloads pay (their developer's own numbers, 2014); in commercial free games 1.9% of monthly players buy (Swrve, 2016). At 100 downloads that is zero to two people.",
     "source": "Game Developer, 2014; Swrve, 2016",

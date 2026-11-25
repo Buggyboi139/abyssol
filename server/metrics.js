@@ -165,7 +165,9 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   // ---- DAU: the average over whole days (today is still being counted) ----
   const whole = activeLine ? activeLine.slice(0, -1).filter((v) => v != null) : [];
   const dau = activeLine ? (whole.length ? mean(whole) : activeLine.at(-1)) : null;
-  const prevDau = [P('posthog.dau'), P('revenuecat.active_customers_chart'), P('revenuecat.active_customers')].filter(Boolean).sort((x, y) => y.avg - x.avg)[0] || null;
+  // The period before is only ever one of the tester-free counts. RevenueCat's own chart counts testers, so when it
+  // is all there is for the period before, there is no change to show.
+  const prevDau = [P('posthog.dau'), P('revenuecat.active_customers')].filter(Boolean).sort((x, y) => y.avg - x.avg)[0] || null;
   kpis.push({
     id: 'dau', label: 'DAU', format: 'num', value: dau, prev: prevDau?.avg ?? null,
     delta: dau != null && prevDau ? change(dau, prevDau.avg, prevLive && prevDau.n >= Math.ceil(n / 2)) : null,
@@ -217,13 +219,31 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     });
   }
 
-  // ---- Conversion: new customers who paid ----
-  const conv = rateOf(T, 'revenuecat.new_paying_customers', 'revenuecat.conv_cohort_size');
+  // ---- Conversion: of the players whose seventh day fell inside the range, the share who bought within their 7 days ----
+  // Counted like retention, from whole cohorts: a player who has not had 7 days yet may still buy, so counting them
+  // as not paying would read low. The sync leaves them out of each install day until they are 7 days old.
+  const rcCohorts = new Map(raw.cohorts_rc || []);
+  const paid7 = (shift = 0) => {
+    let paying = 0, size = 0;
+    for (let d = addDays(from, -7 - shift), end = addDays(to, -7 - shift); d <= end; d = addDays(d, 1)) {
+      const c = rcCohorts.get(d);
+      if (c?.conv_cohort_size > 0) { size += c.conv_cohort_size; paying += c.new_paying_customers || 0; }
+    }
+    return size ? { rate: paying / size, paying, size, young: false } : null;
+  };
+  // A game too new to have anyone 7 days old: everyone who has bought over everyone who has played, until it does.
+  const rcLive = raw.facts?.['revenuecat.live']?.value?.[platform] || null;
+  const young = rcLive?.matured === 0 && rcLive.customers > 0 ? { rate: (rcLive.unique_payers || 0) / rcLive.customers, paying: rcLive.unique_payers || 0, size: rcLive.customers, young: true } : null;
+  const conv = paid7() || young, convPrev = paid7(n);
   kpis.push({
-    id: 'conversion', label: 'Conversion rate', format: 'pct', value: conv,
-    delta: change(conv, rateOf(P, 'revenuecat.new_paying_customers', 'revenuecat.conv_cohort_size'), enough('revenuecat.conv_cohort_size'), { pp: true }),
-    sub: conv != null ? [{ label: 'paying', value: T('revenuecat.new_paying_customers').sum, format: 'int' }, { label: 'new customers', value: T('revenuecat.conv_cohort_size').sum, format: 'int' }] : [],
-    source: 'RevenueCat', rule: 'New paying customers over new customers in the range.', spark: null, empty: conv != null ? null : why(['revenuecat']),
+    id: 'conversion', label: 'Conversion rate', format: 'pct', value: conv?.rate ?? null,
+    delta: conv && !conv.young && convPrev ? change(conv.rate, convPrev.rate, prevLive, { pp: true }) : null,
+    sub: conv ? [{ label: 'paying', value: conv.paying, format: 'int' }, { label: conv.young ? 'players so far' : 'players at day 7', value: conv.size, format: 'int' }] : [],
+    source: 'RevenueCat',
+    rule: conv?.young
+      ? 'No player has had 7 days yet, so this is everyone who has bought over everyone who has played, all time. Once players are 7 days old it becomes the share who buy within their first 7 days.'
+      : 'Of the players whose seventh day fell in the range, the share who bought within their first 7 days. A player who has not had 7 days yet is left out: they may still buy.',
+    spark: null, empty: conv ? null : why(['revenuecat'], 'No players 7 days old in this range'),
   });
 
   // ---- Charts ----
@@ -314,9 +334,12 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   const store = Object.fromEntries(byPrefix('posthog.store:').map((s) => [s.key, s.value]));
   extras.store = STORE.some(([k]) => store[k] > 0) ? { steps: STORE.filter(([k]) => store[k] != null).map(([k, label]) => ({ key: k, label, count: store[k] })) } : null;
 
-  const gfx = byPrefix('posthog.gfx_level:').sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true }));
+  // Graphics level: each player once, at the level they last settled on in the range (the posthog.gfx fact). The
+  // daily rows count a player again every day they play, so without the fact they are shown as player-days.
+  const gfxOnce = raw.facts?.['posthog.gfx']?.value?.ranges?.[range]?.[platform] || null;
+  const gfx = (gfxOnce ? Object.entries(gfxOnce).map(([key, value]) => ({ key, value: +value || 0 })) : byPrefix('posthog.gfx_level:')).filter((s) => s.value > 0).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true }));
   const gfxAll = gfx.reduce((a, s) => a + s.value, 0);
-  extras.gfx = gfxAll > 0 ? { levels: gfx.map((s) => ({ level: s.key, players: s.value, share: s.value / gfxAll })) } : null;
+  extras.gfx = gfxAll > 0 ? { unit: gfxOnce ? 'players' : 'player-days', levels: gfx.map((s) => ({ level: s.key, players: s.value, share: s.value / gfxAll })) } : null;
 
   // The last 48 hours: who was new (RevenueCat, else PostHog) and who was playing (PostHog).
   const hourSeries = (key) => { const pts = raw.hourly?.[key]; return pts?.length ? new Map(pts.map(([h, v]) => [Date.parse(h), v])) : null; };
@@ -452,32 +475,36 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
         });
       }
       // Downloads beside page views come from the same analytics reports, so both cover the same days; the sales count stands in without them.
+      // Every rate is a total over a total. Apple's unique counts are unique within a day and a slice of its report,
+      // so over a range they add up to device-days, and a total over them reads too high.
       const first = sums('apple.an_downloads') ?? sums('apple.downloads'), again = sums('apple.an_downloads') != null ? sums('apple.an_redownloads') || 0 : null;
-      const devices = sums('apple.impressions_unique'), opened = sums('apple.page_views_unique') ?? sums('apple.page_views'), direct = sums('apple.an_downloads') != null ? sums('apple.an_downloads_direct') : null;
+      const shown = sums('apple.impressions'), opened = sums('apple.page_views'), direct = sums('apple.an_downloads') != null ? sums('apple.an_downloads_direct') || 0 : null;
       add('Getting found', 'store_conversion', bench.store_conversion, {
-        value: again != null ? rate(first + again, devices) : null, need: needApple,
-        how: `${int((first || 0) + (again || 0))} downloads and redownloads ÷ ${int(devices || 0)} devices shown the listing, ${span}`,
+        value: again != null ? rate(first + again, shown) : null, need: needApple,
+        how: `${int((first || 0) + (again || 0))} downloads and redownloads ÷ ${int(shown || 0)} impressions, ${span}`,
+        note: peers?.store_conversion?.p50 != null ? 'Apple\'s peer percentiles count each device once. This counts every impression, so it reads a little lower than Apple\'s own figure.' : null,
       });
+      // A Get tapped in the search results never opened the page, so it is not the page's doing.
+      const fromPage = first != null ? Math.max(0, first - (direct || 0)) : null;
       add('Getting found', 'page_to_download', bench.page_to_download, {
-        value: rate(first, opened), need: needApple,
-        how: `${int(first || 0)} first downloads ÷ ${int(opened || 0)} devices that opened the page, ${span}`,
-        note: direct > 0 ? `${int(direct)} of the ${int(first)} tapped Get in the search results and never opened the page.` : null,
+        value: rate(fromPage, opened), need: needApple,
+        how: `${int(fromPage || 0)} first downloads from the page ÷ ${int(opened || 0)} page views, ${span}`,
+        note: direct > 0 ? `${int(direct)} more tapped Get in the search results without opening the page. They are left out.` : direct == null && first != null ? 'Downloads from the sales report: any made from the search results without opening the page are counted too.' : null,
       });
-      const searchViews = sums('apple.page_views_search'), searchShown = sums('apple.impressions_search_unique');
+      const searchViews = sums('apple.page_views_search'), searchShown = sums('apple.impressions_search');
       add('Getting found', 'search_clicks', bench.search_clicks, {
         value: rate(searchViews, searchShown), need: sums('apple.impressions') != null ? 'Comes with the next App Store sync' : needApple,
-        how: `${int(searchViews || 0)} page views from search ÷ ${int(searchShown || 0)} devices shown it in search, ${span}`,
+        how: `${int(searchViews || 0)} page views from search ÷ ${int(searchShown || 0)} impressions in search, ${span}`,
       });
     }
 
-    // Returning players: day N retention from cohorts (PostHog's, else the hand-read ones); for day 1, failing both, the share of each day's players who had played before.
+    // Returning players: day N retention from cohorts (PostHog's, else the hand-read ones). Nothing stands in for
+    // them: the share of a day's players who had played before is a different, far higher number.
     const R = bench.retention, thin = (size) => (size < 100 ? 'Fewer than 100 players: read it loosely.' : null);
-    const back = sums('revenuecat.returning_customers'), active = sums('revenuecat.active_customers');
     for (const N of [1, 7, 30]) {
       const k = kept(N), m = manual?.retention?.[`d${N}`], b = { ...R[`d${N}`], what: R.what, where: R.where, source: R.source, url: R.url };
       if (k) add('Playing', `d${N}`, b, { value: k.rate, how: `${int(k.back)} of ${int(k.size)} new players came back on day ${N} · PostHog`, note: thin(k.size) });
       else if (m?.size > 0) add('Playing', `d${N}`, b, { value: m.back / m.size, how: `${int(m.back)} of ${int(m.size)} new players came back on day ${N}${m.cohorts ? `, ${m.cohorts}` : ''} · ${readOn}`, note: [thin(m.size), manual.retention.note].filter(Boolean).join(' ') || null });
-      else if (N === 1 && active > 0) add('Playing', 'd1', b, { value: back / active, what: 'Of each day\'s players, the share who had played before. It stands in for day 1 retention until there are cohorts to count.', how: `${int(back)} returning ÷ ${int(active)} active players, a day at a time, ${span} · RevenueCat`, note: 'The average is day 1 retention, a stricter count.' });
       else add('Playing', `d${N}`, b, { need: manual ? `No players ${N} days old yet` : syncBy.posthog?.state === 'ok' ? `No players ${N} ${N === 1 ? 'day' : 'days'} old yet` : 'Needs PostHog' });
     }
     const S = manual?.session;
@@ -486,9 +513,19 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     if (S?.per_player_day_secs > 0) add('Playing', 'playtime', bench.playtime, { format: 'mins', value: S.per_player_day_secs, how: `${int(S.player_days)} days of play, ${(S.sessions / S.player_days).toFixed(1)} sessions each · ${readOn}`, note: S.note || null });
 
     // Paying.
-    const payers = sums('revenuecat.new_paying_customers'), cohort = sums('revenuecat.conv_cohort_size'), proceeds = sums('revenuecat.proceeds');
-    add('Paying', 'paying_players', bench.paying_players, { value: rate(payers, cohort), how: `${int(payers || 0)} of ${int(cohort || 0)} new players, ${span} · RevenueCat`, need: 'Needs RevenueCat' });
-    if (peers?.proceeds_per_payer) add('Paying', 'proceeds_per_payer', bench.proceeds_per_payer, { format: 'usd', value: payers > 0 && proceeds != null ? proceeds / payers : null, how: `$${(proceeds || 0).toFixed(2)} ÷ ${int(payers || 0)} paying ${payers === 1 ? 'player' : 'players'}, ${span} · RevenueCat`, need: payers === 0 ? 'No paying players in this range' : 'Needs RevenueCat' });
+    add('Paying', 'paying_players', bench.paying_players, conv?.young
+      ? { value: conv.rate, how: `${int(conv.paying)} of ${int(conv.size)} players, all time · RevenueCat`, note: 'No player has had 7 days yet, so every player counts. Once some have, only they do.' }
+      : conv ? { value: conv.rate, how: `${int(conv.paying)} of the ${int(conv.size)} players whose seventh day fell in the ${span} bought within their 7 days · RevenueCat`, note: 'A player who has not had 7 days yet is left out: they may still buy.' }
+        : { need: rcLive || rcCohorts.size ? 'No players 7 days old in this range' : 'Needs RevenueCat' });
+    // Proceeds per paying player: all the range's proceeds over everyone who bought in it, each counted once,
+    // whenever they first played and however often they bought.
+    const proceeds = sums('revenuecat.proceeds'), payers = rcLive?.payers_by_range?.[range] ?? null;
+    if (peers?.proceeds_per_payer) add('Paying', 'proceeds_per_payer', bench.proceeds_per_payer, {
+      format: 'usd', value: payers > 0 && proceeds != null ? proceeds / payers : null,
+      how: `$${(proceeds || 0).toFixed(2)} ÷ ${int(payers || 0)} ${payers === 1 ? 'player' : 'different players'} who bought, ${span} · RevenueCat`,
+      note: 'Every player who bought in the range counts once, however often they bought and whenever they first played.',
+      need: payers === 0 && !(proceeds > 0) ? 'No paying players in this range' : proceeds != null ? 'Comes with the next RevenueCat sync' : 'Needs RevenueCat',
+    });
     const lifeRev = raw.life?.['revenuecat.revenue'], start = downloads?.launched;
     if (lifeRev && start) {
       const end = addDays(start, 29), month = lifeRev.filter(([d]) => d >= start && d <= end), age = Math.min(30, dates(start, to).length);

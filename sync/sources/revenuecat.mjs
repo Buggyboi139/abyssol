@@ -10,14 +10,20 @@
 //   - sales are production purchases by the customers left
 // Daily: new_customers (exact), active_customers and returning_customers (who
 // was last seen that day, kept at its highest: exact for today), revenue,
-// transactions, proceeds, both by product, the paying share of each day's new
-// customers, and active_customers_chart (RevenueCat's own UTC count, for the
-// days before this pull began). Hourly: new customers and sales. Fact
-// revenuecat.live: today and the last 24 hours, by country and version.
+// transactions, proceeds, both by product, and active_customers_chart
+// (RevenueCat's own UTC count, for the days before this pull began).
+// Conversion, by install day: conv_cohort_size is the day's new customers who
+// have had their 7 days, new_paying_customers those of them who bought within
+// the 7. A customer is counted only once 7 days old, so a day reads zero until
+// then and never changes after day 8; every run rewrites the last CONV_BACK
+// install days, however short its window.
+// Hourly: new customers and sales. Fact revenuecat.live: today and the last 24
+// hours, by country and version, and how many different customers bought in
+// each of the dashboard's ranges (payers_by_range) and ever (unique_payers).
 // Needs a v2 secret key that can read customers, purchases, products, and
 // charts: <PREFIX>_REVENUECAT_API_KEY. One-time purchases only: a game that
 // sells subscriptions needs /subscriptions read too.
-import { Rows, getJson, ymd, addDays, dateRange, sleep, keyPart, DAY } from '../lib/util.mjs';
+import { Rows, getJson, ymd, addDays, dateRange, sleep, keyPart, DAY, RANGES } from '../lib/util.mjs';
 import { ownEnv } from '../lib/env.mjs';
 import { dayIn, dayStart } from '../../server/zone.js';
 import { onSale, versionParts, versionNewer } from './listing.mjs';
@@ -26,6 +32,11 @@ export const source = 'revenuecat';
 const ORIGIN = 'https://api.revenuecat.com', API = `${ORIGIN}/v2`, HOUR = 3600000;
 const platformOf = (s) => (/^(ios|iphone|ipad|mac)/i.test(s || '') ? 'ios' : /^android/i.test(s || '') ? 'android' : null);
 const STORE_PLATFORM = { app_store: 'ios', mac_app_store: 'ios', play_store: 'android' };
+// A purchase on day 4 to 7 changes an install day up to 7 days back, so the conversion rows reach back at least 8
+// days whatever the run's window; 14 also rides out a week of missed runs.
+const CONV_BACK = 14, MATURE = 7 * DAY;
+// Purchases are read as far back as the longest range, so each range's count of paying customers is whole.
+const PAYERS_BACK = Math.max(...Object.values(RANGES));
 
 export async function run(ctx) {
   const { game, env, fetchImpl, days, platforms, today, now, zone = 'UTC' } = ctx;
@@ -49,6 +60,8 @@ export async function run(ctx) {
   const from = addDays(today, -days), dates = dateRange(from, today), inWindow = new Set(dates);
   const live = new Set(platforms), yesterday = addDays(today, -1);
   const todayStart = dayStart(today, zone), dayAgo = now - DAY;
+  const convDates = dateRange(addDays(today, -Math.max(days, CONV_BACK)), today), inConv = new Set(convDates);
+  const rangeStart = Object.fromEntries(Object.entries(RANGES).map(([k, n]) => [k, dayStart(addDays(today, -(n - 1)), zone)]));
 
   // ---- Everyone RevenueCat has seen, and who is a tester ----
   const excluded = new Set(String(ownEnv(env, game, 'REVENUECAT_EXCLUDE') || '').split(/[\s,]+/).filter(Boolean));
@@ -75,7 +88,9 @@ export async function run(ctx) {
   if (readWhole > 8000) notes.push(`${readWhole} customers are read whole every run: move to an incremental pull before about 15,000`);
 
   // ---- Purchases: read for whoever was around on a day RevenueCat's chart shows a sale, and for today's players ----
-  const windowStart = dayStart(from, zone), limit = Math.max(800, days * 150);
+  // The chart is asked for the longest range, not the run's window: who paid in the last 90 days, and whether a
+  // customer who installed a week ago has bought since, both need sales from before a 3-day window.
+  const windowStart = dayStart(addDays(today, -Math.max(days, PAYERS_BACK)), zone), limit = Math.max(800, days * 150);
   let saleDays = null;
   try {
     const qs = new URLSearchParams({ start_date: addDays(ymd(windowStart), -1), end_date: addDays(ymd(now), 1), resolution: 'day' });
@@ -90,7 +105,7 @@ export async function run(ctx) {
   else for (const t of saleDays) for (const c of customers) if (around(c, t - DAY / 2, t + DAY * 1.5)) scan.add(c);
   if (recent.length <= 200) for (const c of recent) scan.add(c);
   let list = [...scan].sort((a, b) => b.last - a.last);
-  if (list.length > limit) { notes.push(`purchases read for the ${limit} most recent of ${list.length} customers`); list = list.slice(0, limit); }
+  if (list.length > limit) { notes.push(`purchases read for the ${limit} most recent of ${list.length} customers, so paying customers may be undercounted`); list = list.slice(0, limit); }
   for (let i = 0; i < list.length; i++) {
     const c = list[i];
     if (i) await sleep(ctx.pause ?? 140); // 480 calls a minute
@@ -114,11 +129,15 @@ export async function run(ctx) {
   const each = (p, fn) => { fn(p); fn('all'); };
   // Today is still being counted: its rows only ever go up (a sale the webhook reported is kept).
   const mode = (d) => (d === today ? 'max' : undefined);
-  for (const d of dates) for (const p of [...platforms, 'all']) for (const k of ['new_customers', 'revenue', 'transactions', 'proceeds', 'conv_cohort_size', 'new_paying_customers']) rows.add(p, d, k, 0, mode(d));
+  for (const d of dates) for (const p of [...platforms, 'all']) for (const k of ['new_customers', 'revenue', 'transactions', 'proceeds']) rows.add(p, d, k, 0, mode(d));
+  // Conversion rows are worked out whole each run, so they are set, never kept at their highest.
+  for (const d of convDates) for (const p of [...platforms, 'all']) for (const k of ['conv_cohort_size', 'new_paying_customers']) rows.add(p, d, k, 0);
   for (const c of players) {
-    if (inWindow.has(c.firstDay)) {
-      const paid = c.buys.some((b) => b.at - c.first < 7 * DAY);
-      each(c.p, (p) => { rows.add(p, c.firstDay, 'new_customers', 1, mode(c.firstDay)); rows.add(p, c.firstDay, 'conv_cohort_size', 1, mode(c.firstDay)); if (paid) rows.add(p, c.firstDay, 'new_paying_customers', 1, mode(c.firstDay)); });
+    if (inWindow.has(c.firstDay)) each(c.p, (p) => rows.add(p, c.firstDay, 'new_customers', 1, mode(c.firstDay)));
+    // Only a customer who has had the whole 7 days counts: a newer one who has not bought yet may still.
+    if (inConv.has(c.firstDay) && c.first <= now - MATURE) {
+      const paid = c.buys.some((b) => b.at - c.first < MATURE);
+      each(c.p, (p) => { rows.add(p, c.firstDay, 'conv_cohort_size', 1); if (paid) rows.add(p, c.firstDay, 'new_paying_customers', 1); });
     }
     // Last seen is all RevenueCat keeps, so a day's active count is whoever was last seen on it: exact while the day
     // is in progress, a floor afterwards. Kept at its highest.
@@ -169,10 +188,21 @@ export async function run(ctx) {
       came_back: { cohort: settled.length, back: settled.filter((c) => c.lastDay > c.firstDay).length },
     };
   };
+  // Different customers who bought: in each range (the same days the range's proceeds cover) and ever. By the store
+  // the purchase was made in, as the proceeds are. `matured` is how many customers have had their 7 days.
+  const payersFor = (p, xs) => {
+    const bought = (c, t0) => c.buys.some((b) => (p === 'all' || b.p === p) && b.at >= t0);
+    return {
+      payers_by_range: Object.fromEntries(Object.entries(rangeStart).map(([k, t0]) => [k, players.filter((c) => bought(c, t0)).length])),
+      unique_payers: players.filter((c) => bought(c, 0)).length,
+      matured: xs.filter((c) => c.first <= now - MATURE).length,
+    };
+  };
+  const block = (p) => { const xs = p === 'all' ? players : players.filter((c) => c.p === p); return { ...liveFor(xs), ...payersFor(p, xs) }; };
   const left = Object.values(testers).reduce((a, n) => a + n, 0);
   const facts = [{ key: 'revenuecat.live', value: {
     as_of: new Date(now).toISOString(), zone, day_started: new Date(todayStart).toISOString(),
-    all: liveFor(players), ...Object.fromEntries(platforms.map((p) => [p, liveFor(players.filter((c) => c.p === p))])),
+    all: block('all'), ...Object.fromEntries(platforms.map((p) => [p, block(p)])),
     testers: { total: left, ...testers },
   } }];
 

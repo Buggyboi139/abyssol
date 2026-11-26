@@ -340,7 +340,30 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 
   // ---- Where the listing comes up in search ----
   const search = platform !== 'android' ? raw.facts?.['listing.search']?.value : null;
-  const ranked = (search?.terms || []).map((t) => ({ term: t.term, now: t.rank, values: clip(line(`listing.${t.key}`)) || chartDays.map(() => null) }));
+  const checkedDay = search?.checked_at ? dayIn(Date.parse(search.checked_at), zone) : to;
+  const ranked = (search?.terms || []).map((t) => {
+    const full = line(`listing.${t.key}`);
+    const values = clip(full) || chartDays.map(() => null);
+    let prev = null, prevDate = null;
+    if (full) {
+      for (let i = days.length - 1; i >= 0; i--) {
+        if (days[i] < checkedDay && full[i] != null) { prev = full[i]; prevDate = days[i]; break; }
+      }
+    }
+    const nowRank = t.rank ?? null;
+    const move = nowRank != null && prev != null ? prev - nowRank : null;
+    const seenRanks = [...values.filter((v) => v != null), ...(nowRank != null ? [nowRank] : [])];
+    return {
+      term: t.term,
+      now: nowRank,
+      prev,
+      prev_date: prevDate,
+      move,
+      best: seenRanks.length ? Math.min(...seenRanks) : null,
+      worst: seenRanks.length ? Math.max(...seenRanks) : null,
+      values,
+    };
+  });
   charts.ranks = ranked.length
     ? { dates: chartDays, series: ranked, store: search.store, storefront: String(search.storefront || '').toUpperCase(), depth: search.depth, checked_at: search.checked_at }
     : { empty: why(['listing'], 'No search terms set') };

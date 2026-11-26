@@ -1,10 +1,10 @@
 // Every chart on the dashboard, on Chart.js. One axis per chart, thin marks,
 // quiet grids, and a tooltip on hover; text stays in the ink colors and the
 // marks carry the series colors.
-import { Chart, BarController, LineController, BarElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Filler } from 'chart.js';
+import { Chart, BarController, LineController, ScatterController, BarElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Filler } from 'chart.js';
 import { fmt, tick, day, fullDay, hour } from './format.js';
 
-Chart.register(BarController, LineController, BarElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Filler);
+Chart.register(BarController, LineController, ScatterController, BarElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Filler);
 
 export const INK = { surface: '#1a1a19', grid: '#2c2c2a', axis: '#383835', text: '#f0efec', text2: '#c3c2b7', muted: '#898781' };
 /** Series colors, given out in this order and never by rank (validated for the dark surface). */
@@ -189,21 +189,205 @@ export function growthLine(canvas, { dates, cumulative, daily, label = 'Total' }
   });
 }
 
-/** Where the listing comes up for each search term. First place is at the top. */
-export function rankLines(canvas, { dates, series }) {
-  const wide = (canvas.parentElement?.clientWidth || canvas.clientWidth || 0) >= 520;
-  const known = series.flatMap((s) => s.values.filter((v) => v != null)), worst = Math.max(5, ...known);
-  const dots = series.every((s) => s.values.filter((v) => v != null).length <= 14) ? 4 : lonely(4);
+const MOVE_COLOR = { up: '#22c55e', down: '#ef5350', flat: SERIES[0] };
+const moveTone = (m) => (m > 0 ? 'up' : m < 0 ? 'down' : 'flat');
+const splitTerm = (term) => {
+  const words = term.split(/\s+/);
+  if (words.length <= 1 || term.length <= 10) return term;
+  if (words.length === 2) return words;
+  let best = [words[0], words.slice(1).join(' ')];
+  for (let k = 1; k < words.length; k++) {
+    const a = words.slice(0, k).join(' '), b = words.slice(k).join(' ');
+    if (Math.max(a.length, b.length) < Math.max(best[0].length, best[1].length)) best = [a, b];
+  }
+  return best;
+};
+
+// Top-10 reference line, previous-rank movement trails, and collision-free #rank + ▲/▼ annotations.
+const rankMarks = {
+  id: 'rankMarks',
+  beforeDatasetsDraw(chart, _args, opts) {
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    const items = opts.items || [];
+    const pts = chart.getDatasetMeta(0)?.data || [];
+    ctx.save();
+    // Subtle Top-10 threshold guide line.
+    const y10 = y.getPixelForValue(10);
+    ctx.strokeStyle = 'rgba(240, 239, 236, 0.14)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(a.left, y10); ctx.lineTo(a.right, y10); ctx.stroke();
+    ctx.setLineDash([]);
+    // Vertical movement trails from previous rank to current dot.
+    items.forEach((it, i) => {
+      const pt = pts[i];
+      if (!pt || !it.move || it.prev == null) return;
+      const fromVal = Math.min(100, Math.max(1, it.prev));
+      const py = y.getPixelForValue(fromVal);
+      if (Math.abs(py - pt.y) < 3) return;
+      const col = it.move > 0 ? 'rgba(34, 197, 94, 0.45)' : 'rgba(239, 83, 80, 0.45)';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      if (it.prev > 100) ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(pt.x, py); ctx.lineTo(pt.x, pt.y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(pt.x, py, 3, 0, Math.PI * 2); ctx.fillStyle = INK.surface; ctx.fill(); ctx.stroke();
+    });
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart, _args, opts) {
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    const items = opts.items || [];
+    const pts = chart.getDatasetMeta(0)?.data || [];
+    if (!pts.length) return;
+    const slotW = (a.right - a.left) / Math.max(items.length, 1);
+    const stacked = slotW < 58;
+    const font = `600 11px ${Chart.defaults.font.family}`;
+    const boxes = [];
+    pts.forEach((pt, i) => {
+      boxes.push([pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7]);
+      const it = items[i];
+      if (it?.move && it.prev != null) {
+        const py = y.getPixelForValue(Math.min(100, Math.max(1, it.prev)));
+        boxes.push([pt.x - 5, Math.min(pt.y, py) - 4, pt.x + 5, Math.max(pt.y, py) + 4]);
+      }
+    });
+    const hits = (b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+
+    ctx.save();
+    ctx.font = font;
+    ctx.textBaseline = 'middle';
+    items.forEach((it, i) => {
+      const pt = pts[i];
+      if (!pt) return;
+      const rankTxt = `#${it.now}`;
+      const moveTxt = it.move > 0 ? `▲${it.move}` : it.move < 0 ? `▼${Math.abs(it.move)}` : '';
+      const rw = ctx.measureText(rankTxt).width;
+      const mw = moveTxt ? ctx.measureText(moveTxt).width : 0;
+      const twoLines = stacked && !!moveTxt;
+      const w = twoLines ? Math.max(rw, mw) : rw + (moveTxt ? 4 + mw : 0);
+      const h = twoLines ? 23 : 12;
+      const cx = Math.min(Math.max(pt.x, a.left + w / 2 + 1), a.right - w / 2 - 1);
+      const step = h / 2 + 10;
+      // Place labels on the open side of the dot: below when the trail extends upward (moved down), above otherwise.
+      const preferBelow = it.move < 0 || pt.y - h - 10 < 4;
+      const offsets = preferBelow
+        ? [step, -step, step + 13, -(step + 13), step + 26, -(step + 26), step + 39]
+        : [-step, step, -(step + 13), step + 13, -(step + 26), step + 26, step + 39];
+      let cy = pt.y + offsets[0];
+      for (const dy of offsets) {
+        const y0 = pt.y + dy;
+        const box = [cx - w / 2 - 2, y0 - h / 2 - 1, cx + w / 2 + 2, y0 + h / 2 + 1];
+        if (box[1] >= 2 && box[3] <= a.bottom - 2 && !hits(box)) { cy = y0; break; }
+      }
+      cy = Math.min(Math.max(cy, h / 2 + 2), a.bottom - h / 2 - 2);
+      boxes.push([cx - w / 2 - 2, cy - h / 2 - 1, cx + w / 2 + 2, cy + h / 2 + 1]);
+
+      if (Math.abs(cy - pt.y) > h / 2 + 15) {
+        ctx.strokeStyle = 'rgba(195, 194, 183, 0.28)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pt.x, pt.y + (cy > pt.y ? 6 : -6));
+        ctx.lineTo(cx, cy + (cy > pt.y ? -(h / 2 + 1) : h / 2 + 1));
+        ctx.stroke();
+      }
+      if (twoLines) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = INK.text;
+        ctx.fillText(rankTxt, cx, cy - 5.5);
+        ctx.fillStyle = it.move > 0 ? MOVE_COLOR.up : MOVE_COLOR.down;
+        ctx.fillText(moveTxt, cx, cy + 6.5);
+      } else {
+        ctx.textAlign = 'left';
+        const x0 = cx - w / 2;
+        ctx.fillStyle = INK.text;
+        ctx.fillText(rankTxt, x0, cy);
+        if (moveTxt) {
+          ctx.fillStyle = it.move > 0 ? MOVE_COLOR.up : MOVE_COLOR.down;
+          ctx.fillText(moveTxt, x0 + rw + 4, cy);
+        }
+      }
+    });
+    ctx.restore();
+  },
+};
+
+/** Top 10 search keywords plotted by their placement in the top 100 (#1 at top), with movement arrows. */
+export function rankScatter(canvas, { items }) {
+  const hostW = canvas.parentElement?.clientWidth || canvas.clientWidth || 0;
+  const slotW = items.length ? (hostW - 56) / items.length : 80;
+  const flat = slotW >= 58;
+  const data = items.map((it, i) => ({ x: i, y: it.now }));
+  const colors = items.map((it) => MOVE_COLOR[moveTone(it.move)]);
   return make(canvas, {
-    type: 'line',
-    data: { labels: dates, datasets: series.map((s, i) => ({ label: s.term, data: s.values, borderColor: SERIES[i % SERIES.length], backgroundColor: SERIES[i % SERIES.length], borderWidth: 2, pointRadius: dots, pointBorderColor: INK.surface, pointBorderWidth: 2, pointHoverRadius: 6, pointHitRadius: 12, tension: 0, spanGaps: true })) },
-    options: {
-      layout: { padding: { right: wide ? 124 : 8 } },
-      interaction: { mode: 'index', intersect: false },
-      scales: { x: { ...xDays(dates), offset: true }, y: { reverse: true, min: 1, suggestedMax: worst + 1, grid: { color: INK.grid, lineWidth: 1 }, border: { display: false }, ticks: { precision: 0, maxTicksLimit: 6, callback: (v) => `#${v}` } } },
-      plugins: { tooltip: tooltip({ callbacks: { title: (it) => fullDay(dates[it[0].dataIndex]), label: (it) => ` ${it.dataset.label}: #${it.raw}` } }) },
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Search rank',
+        data,
+        clip: false,
+        pointRadius: 5.5,
+        pointHoverRadius: 7.5,
+        pointHitRadius: 16,
+        pointBackgroundColor: colors,
+        pointBorderColor: INK.surface,
+        pointBorderWidth: 2,
+      }],
     },
-    plugins: wide ? [crosshair, endLabels] : [crosshair],
+    options: {
+      layout: { padding: { top: flat ? 24 : 32, right: 16, bottom: 4 } },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      scales: {
+        x: {
+          type: 'linear',
+          min: -0.55,
+          max: Math.max(items.length - 0.45, 0.55),
+          grid: { color: 'rgba(44, 44, 42, 0.5)', lineWidth: 1 },
+          border: { color: INK.axis },
+          afterBuildTicks: (axis) => { axis.ticks = items.map((_, i) => ({ value: i })); },
+          ticks: {
+            autoSkip: false,
+            color: INK.text2,
+            minRotation: flat ? 0 : 40,
+            maxRotation: flat ? 0 : 40,
+            font: { size: flat ? 11 : 10.5 },
+            callback: (v) => {
+              const it = items[v];
+              if (!it) return '';
+              return flat ? splitTerm(it.term) : it.term;
+            },
+          },
+        },
+        y: {
+          reverse: true,
+          min: 1,
+          max: 100,
+          grid: { color: INK.grid, lineWidth: 1 },
+          border: { display: false },
+          afterBuildTicks: (axis) => { axis.ticks = [1, 25, 50, 75, 100].map((v) => ({ value: v })); },
+          ticks: { color: INK.muted, callback: (v) => `#${v}` },
+        },
+      },
+      plugins: {
+        tooltip: tooltip({
+          displayColors: false,
+          callbacks: {
+            title: (it) => items[it[0].dataIndex]?.term || '',
+            label: (it) => {
+              const s = items[it.dataIndex];
+              const lines = [`Placement: #${s.now}`];
+              if (s.move > 0) lines.push(`Moved ▲ ${s.move} (from #${s.prev}${s.prev_date ? ` on ${day(s.prev_date)}` : ''})`);
+              else if (s.move < 0) lines.push(`Moved ▼ ${Math.abs(s.move)} (from #${s.prev}${s.prev_date ? ` on ${day(s.prev_date)}` : ''})`);
+              else if (s.prev != null) lines.push(`No change (was #${s.prev}${s.prev_date ? ` on ${day(s.prev_date)}` : ''})`);
+              if (s.best != null && s.worst != null && s.best !== s.worst) lines.push(`Range: #${s.best} – #${s.worst}`);
+              return lines;
+            },
+          },
+        }),
+        rankMarks: { items },
+      },
+    },
+    plugins: [rankMarks],
   });
 }
 

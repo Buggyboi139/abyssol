@@ -4,7 +4,7 @@
 import './style.css';
 import { api, Unauthorized, explain } from './api.js';
 import { fmt, day, moment, time, ago, deltaText, clockIn, dateOf } from './format.js';
-import { destroyCharts, dayBars, stackedDayBars, dayLines, retentionCurve, sideBars, hourLines, growthLine, rankLines, sparkline, colorOf, SERIES } from './charts.js';
+import { destroyCharts, dayBars, stackedDayBars, dayLines, retentionCurve, sideBars, hourLines, growthLine, rankScatter, sparkline, colorOf, SERIES } from './charts.js';
 
 const RANGES = [['7d', '7D'], ['30d', '30D'], ['90d', '90D']];
 const PLATFORMS = [['all', 'All'], ['ios', 'iOS'], ['android', 'Android']];
@@ -261,19 +261,47 @@ function listingPanel(l) {
 }
 
 function ranksPanel(c) {
-  const shown = (c.series || []).slice(0, SERIES.length);
-  const about = c.empty ? null : [fact('Storefront', c.storefront), fact('Checked', ago(c.checked_at)), say(`Lower is better. A term with no rank is outside the top ${c.depth}. The history starts the day the dashboard first looked.`)];
-  // A line needs two days. Until there are two, the ranks are badges.
-  const days = c.empty ? 0 : c.dates.filter((_, i) => c.series.some((s) => s.values[i] != null)).length;
-  if (!c.empty && days < 2) {
-    return h('section', { class: 'panel' },
-      panelHead('Search rank', info('Search rank', fact('Source', `${c.store} search`), about)),
-      h('div', { class: 'ranks' }, c.series.map((s) => h('div', { class: `rank${s.now ? '' : ' rank-none'}` }, h('div', { class: 'rank-n' }, s.now ? `#${s.now}` : '—'), h('div', { class: 'rank-term' }, s.term)))));
-  }
+  const rankMove = (m) => (m > 0 ? h('span', { class: 'rank-up' }, `▲ ${m}`) : m < 0 ? h('span', { class: 'rank-down' }, `▼ ${Math.abs(m)}`) : null);
+  const top10 = (c.series || [])
+    .slice()
+    .sort((a, b) => (a.now ?? Infinity) - (b.now ?? Infinity))
+    .slice(0, 10);
+  const inTop100 = top10.filter((s) => s.now != null && s.now <= 100);
+  const outside = top10.filter((s) => s.now == null || s.now > 100);
+  const anyMoved = inTop100.some((s) => s.move != null && s.move !== 0);
+  const legendItems = anyMoved
+    ? [{ label: 'Moved up', color: '#22c55e' }, { label: 'Moved down', color: '#ef5350' }, { label: 'Unchanged', color: SERIES[0] }]
+    : null;
+  const about = c.empty ? null : [
+    fact('Storefront', c.storefront),
+    fact('Checked', ago(c.checked_at)),
+    say(`Top 10 tracked keywords plotted by placement in the top 100 (#1 is at the top). Arrows show movement from the previous recorded day. A term with no rank is outside the top ${c.depth}.`),
+  ];
   return panel({
-    title: 'Search rank', empty: c.empty, source: c.empty ? null : `${c.store} search`, about, items: shown.map((s, i) => ({ label: `${s.term} ${s.now ? `#${s.now}` : '—'}`, color: SERIES[i] })),
-    table: () => ({ columns: ['Day', ...c.series.map((s) => s.term)], rows: c.dates.map((d, i) => [day(d), ...c.series.map((s) => (s.values[i] == null ? '—' : `#${s.values[i]}`))]).reverse() }),
-    body: () => chartBox(240, 'Search rank for each term, day by day', (cv) => rankLines(cv, { dates: c.dates, series: shown })),
+    title: 'Search keywords',
+    empty: c.empty,
+    source: c.empty ? null : `${c.store} search`,
+    about,
+    items: legendItems,
+    table: () => ({
+      columns: ['Keyword', 'Rank', 'Move', 'Best'],
+      rows: top10.map((s) => [
+        s.term,
+        s.now != null ? `#${s.now}` : '—',
+        rankMove(s.move) || (s.prev != null ? '—' : '—'),
+        s.best != null ? `#${s.best}` : '—',
+      ]),
+    }),
+    body: () => [
+      inTop100.length
+        ? chartBox(290, 'Top 10 search keywords by placement in the top 100', (cv) => rankScatter(cv, { items: inTop100 }))
+        : emptyState({ kind: 'none', badge: 'None in top 100', text: '' }),
+      outside.length
+        ? h('div', { class: 'ranks-outside' },
+          h('span', { class: 'pgroup-k' }, 'Outside top 100'),
+          outside.map((s) => h('span', { class: 'tag' }, h('b', null, s.term), ` ${s.now ? `#${s.now}` : `>${c.depth}`}`, s.move ? [' ', rankMove(s.move)] : null)))
+        : null,
+    ],
   });
 }
 

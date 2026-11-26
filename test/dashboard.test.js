@@ -567,3 +567,42 @@ test('with nothing configured the API fails closed', async () => {
   const noDb = pages({ ...env, SUPABASE_URL: '' });
   expect((await noDb('/api/overview', { headers: { cookie } })).status).toBe(503);
 });
+
+test('search keywords track the top 10 and report up/down rank movement from the prior day', () => {
+  const games = loadGames();
+  expect(games.find((g) => g.slug === 'pearl-tide').search_terms.length).toBe(10);
+  expect(games.find((g) => g.slug === 'chillwater-lake').search_terms.length).toBe(10);
+
+  const now = Date.parse('2026-11-25T20:00:00Z'), { from, to } = rangeDates('7d', now);
+  const yest = addDays(to, -1), twoAgo = addDays(to, -2);
+  const raw = {
+    game: { slug: 'g', display_name: 'G', status: 'live', config: { platforms: { ios: { status: 'live' } } } },
+    platform: 'all', from, to, totals: {}, prev: {}, hourly: {}, cohorts: [], sync: [],
+    series: {
+      'listing.rank_up': [[twoAgo, 12], [yest, 10], [to, 4]],
+      'listing.rank_down': [[yest, 4], [to, 9]],
+      'listing.rank_flat': [[yest, 1], [to, 1]],
+      'listing.rank_new': [[to, 15]],
+    },
+    facts: {
+      'listing.search': {
+        value: {
+          store: 'App Store', storefront: 'us', depth: 200, checked_at: new Date(now).toISOString(),
+          terms: [
+            { term: 'up term', key: 'rank_up', rank: 4 },
+            { term: 'down term', key: 'rank_down', rank: 9 },
+            { term: 'flat term', key: 'rank_flat', rank: 1 },
+            { term: 'new term', key: 'rank_new', rank: 15 },
+          ],
+        },
+        at: now,
+      },
+    },
+  };
+  const v = buildGame(raw, { range: '7d', now });
+  const by = (term) => v.charts.ranks.series.find((s) => s.term === term);
+  expect(by('up term')).toMatchObject({ now: 4, prev: 10, prev_date: yest, move: 6, best: 4, worst: 12 });
+  expect(by('down term')).toMatchObject({ now: 9, prev: 4, prev_date: yest, move: -5, best: 4, worst: 9 });
+  expect(by('flat term')).toMatchObject({ now: 1, prev: 1, prev_date: yest, move: 0, best: 1, worst: 1 });
+  expect(by('new term')).toMatchObject({ now: 15, prev: null, prev_date: null, move: null, best: 15, worst: 15 });
+});

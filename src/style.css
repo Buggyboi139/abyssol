@@ -184,6 +184,9 @@ table.matrix td { vertical-align: top; }
 .rank-n { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .rank-none .rank-n { color: var(--muted); }
 .rank-term { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
+.ranks-outside { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.rank-up { color: #22c55e; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rank-down { color: #ef5350; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stars { color: var(--text-2); letter-spacing: 1px; }
 .reviews, .stories { list-style: none; margin: 0; padding: 0; }
 .reviews li { border-top: 1px solid var(--line); padding: 10px 0; }

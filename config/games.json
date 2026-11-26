@@ -15,7 +15,7 @@
         "android": { "status": "in_review" }
       },
       "storefronts": ["us", "ca", "gb", "au", "mx", "sa"],
-      "search_terms": ["cozy mermaid", "mermaid", "mermaid games", "mermaid runway", "mermaid swim", "mermaid home", "mermaid fashion", "mermaid simulator", "mermaid life", "mermaid dress up"],
+      "search_terms": ["cozy mermaid", "mermaid", "mermaid games", "mermaid runway", "mermaid swim", "mermaid nail", "mermaid home", "mermaid fashion", "mermaid life", "mermaid dress up"],
       "posthog": { "platform_property": "platform", "error_event": "App:Error" },
       "game_db": {
         "label": "Reef Runway",

@@ -1,0 +1,12 @@
+{
+  "_": "Recorded US App Store search rank history before Abyssol started pulling listing ranks daily (2026-11-25). Loaded idempotently by sync/sources/listing.mjs for dates strictly before today.",
+  "pearl-tide": {
+    "2026-11-12": { "cozy mermaid": 1, "mermaid": 14 },
+    "2026-11-19": { "cozy mermaid": 1, "mermaid": 3, "mermaid runway": 16, "mermaid life": 19, "mermaid dress up": 69 },
+    "2026-11-20": { "cozy mermaid": 1, "mermaid": 3, "mermaid runway": 9, "mermaid life": 26, "mermaid dress up": 87 },
+    "2026-11-21": { "cozy mermaid": 1, "mermaid": 3, "mermaid runway": 6, "mermaid life": 10, "mermaid dress up": 53 },
+    "2026-11-22": { "cozy mermaid": 1, "mermaid": 3, "mermaid runway": 7, "mermaid life": 15, "mermaid dress up": 49 },
+    "2026-11-23": { "cozy mermaid": 1, "mermaid": 3, "mermaid games": 24, "mermaid runway": 3, "mermaid life": 15, "mermaid dress up": 51 },
+    "2026-11-24": { "cozy mermaid": 1, "mermaid": 3, "mermaid games": 11, "mermaid runway": 3, "mermaid life": 15, "mermaid dress up": 47 }
+  }
+}

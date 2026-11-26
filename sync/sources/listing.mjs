@@ -6,12 +6,17 @@
 // A number a day goes to metrics (rating, rating_count, reviews_total,
 // rank_<term>); the rest is kept as facts (listing.ios, listing.search).
 // Google Play's rating comes with the google source.
+import fs from 'node:fs';
 import { Rows, getJson, signJwt, pem, keyPart, sleep } from '../lib/util.mjs';
 import { sharedEnv } from '../lib/env.mjs';
 
 export const source = 'listing';
 const ASC = 'https://api.appstoreconnect.apple.com', ITUNES = 'https://itunes.apple.com';
 const RANK_DEPTH = 200;
+const RANK_HISTORY = (() => {
+  try { return JSON.parse(fs.readFileSync(new URL('../../config/rank-history.json', import.meta.url), 'utf8')); }
+  catch { return {}; }
+})();
 
 const STATE = {
   READY_FOR_SALE: 'On sale', READY_FOR_DISTRIBUTION: 'On sale', WAITING_FOR_REVIEW: 'Waiting for review', IN_REVIEW: 'In review',
@@ -55,7 +60,7 @@ export async function run(ctx) {
   if (!appId) return { status: 'skipped', message: 'config/games.json has no platforms.ios.app_store_id' };
   const pause = () => sleep(ctx.pause ?? 400);
   const rows = new Rows(game.slug, source), notes = [];
-  const put = (key, value) => { rows.add('ios', today, key, value); rows.add('all', today, key, value); };
+  const put = (key, value, date = today) => { rows.add('ios', date, key, value); rows.add('all', date, key, value); };
 
   // ---- Rating, a storefront at a time ----
   const fronts = (game.storefronts?.length ? game.storefronts : ['us']).filter((c) => /^[a-z]{2}$/.test(c));
@@ -84,6 +89,13 @@ export async function run(ctx) {
       if (at >= 0) put(key, at + 1);
     } catch (e) { notes.push(`search "${term}": ${e.message}`); }
     await pause();
+  }
+  const tracked = new Set((game.search_terms || []).map((t) => t.toLowerCase()));
+  for (const [date, byTerm] of Object.entries(RANK_HISTORY[game.slug] || {})) {
+    if (date >= today) continue;
+    for (const [term, rank] of Object.entries(byTerm || {})) {
+      if (typeof rank === 'number' && tracked.has(term.toLowerCase())) put(`rank_${keyPart(term.toLowerCase())}`, rank, date);
+    }
   }
 
   // ---- Versions and written reviews, from App Store Connect ----

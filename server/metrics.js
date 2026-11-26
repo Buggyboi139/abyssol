@@ -524,13 +524,16 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
         how: `${int((first || 0) + (again || 0))} downloads and redownloads ÷ ${int(shown || 0)} ${shownU != null ? 'unique impressions (daily)' : 'impressions'}, ${span}`,
         note: shownU == null && shown != null ? 'Using total impressions until the next App Store sync fills unique counts.' : null,
       });
-      // A Get tapped in the search results never opened the page, so it is not the page's doing.
-      const fromPage = first != null ? Math.max(0, first - (direct || 0)) : null;
+      // Page to download: all first downloads ÷ unique product page views — matches AppTweak's published benchmark
+      // definition (which does not subtract direct Get taps in search results). Direct taps and the page-only rate
+      // are noted in the info popover.
+      const fromPage = first != null && direct != null ? Math.max(0, first - direct) : null;
+      const pageOnly = direct > 0 && opened > 0 ? Math.round((fromPage / opened) * 100) : null;
       add('Getting found', 'page_to_download', bench.page_to_download, {
-        value: rate(fromPage, opened), need: needApple,
-        how: `${int(fromPage || 0)} first downloads from the page ÷ ${int(opened || 0)} ${openedU != null ? 'unique page views (daily)' : 'page views'}, ${span}`,
+        value: rate(first, opened), need: needApple,
+        how: `${int(first || 0)} first downloads ÷ ${int(opened || 0)} ${openedU != null ? 'unique page views (daily)' : 'page views'}, ${span}`,
         note: [
-          direct > 0 ? `${int(direct)} more tapped Get in the search results without opening the page. They are left out.` : direct == null && first != null ? 'Downloads from the sales report: any made from the search results without opening the page are counted too.' : null,
+          direct > 0 ? `${int(direct)} of the ${int(first)} tapped Get in search results without opening the page${pageOnly != null ? ` (page-only: ${pageOnly}%)` : ''}.` : null,
           openedU == null && opened != null ? 'Using total page views until the next App Store sync fills unique counts.' : null,
         ].filter(Boolean).join(' ') || null,
       });

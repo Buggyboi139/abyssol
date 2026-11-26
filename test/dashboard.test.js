@@ -349,18 +349,16 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   // Without unique counts on record, store rates fall back to total counts and note it.
   expect(row(an, 'page_to_download').value).toBeCloseTo(0.3, 9); expect(row(an, 'store_conversion').value).toBeCloseTo(3 / 200, 9);
   expect(row(an, 'store_conversion').how).toContain('impressions'); expect(row(an, 'page_to_download').note).toContain('total page views');
-  // Get tapped in the search results never opened the page: those downloads are left out of page to download, and said so.
+  // Page to download matches AppTweak's benchmark (all first downloads ÷ unique page views), and notes direct search Get taps + page-only rate.
   const direct = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50 }), { range: '30d', now });
-  expect(row(direct, 'page_to_download').value).toBeCloseTo(2 / 10, 9); expect(row(direct, 'page_to_download').note).toContain('tapped Get in the search results');
+  expect(row(direct, 'page_to_download').value).toBeCloseTo(3 / 10, 9); expect(row(direct, 'page_to_download').note).toContain('tapped Get in search results'); expect(row(direct, 'page_to_download').note).toContain('page-only: 20%');
   expect(row(direct, 'store_conversion').value).toBeCloseTo((3 + 1) / 200, 9);
   expect(row(direct, 'search_clicks').value).toBeCloseTo(4 / 50, 9); expect(row(direct, 'search_clicks').how).toContain('impressions in search');
   // With Apple's unique counts present, all three store rates use unique counts (matched unique over unique on search clicks).
   const uniq = buildGame(raw({ 'apple.an_downloads_direct': 1, 'apple.an_redownloads': 1, 'apple.page_views_search': 4, 'apple.impressions_search': 50, 'apple.impressions_unique': 150, 'apple.page_views_unique': 5, 'apple.page_views_search_unique': 3, 'apple.impressions_search_unique': 30 }), { range: '30d', now });
   expect(row(uniq, 'store_conversion').value).toBeCloseTo((3 + 1) / 150, 9);
-  expect(row(uniq, 'page_to_download').value).toBeCloseTo(2 / 5, 9);
+  expect(row(uniq, 'page_to_download').value).toBeCloseTo(3 / 5, 9); expect(row(uniq, 'page_to_download').note).toContain('page-only: 40%');
   expect(row(uniq, 'search_clicks').value).toBeCloseTo(3 / 30, 9);
-  // Every first download made from the search results: the page converted nobody, and the rate cannot pass 100%.
-  expect(row(buildGame(raw({ 'apple.an_downloads_direct': 3, 'apple.page_views_unique': 1 }), { range: '30d', now }), 'page_to_download').value).toBe(0);
   // The share of a day's players who had played before is not day 1 retention, and no longer stands in for it.
   expect(row(buildGame(raw({ 'revenuecat.returning_customers': 6, 'revenuecat.active_customers': 10 }), { range: '30d', now }), 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' });
   // Total downloads in Against the average uses the real download total, never a 30-day pace projection.

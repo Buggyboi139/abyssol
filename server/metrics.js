@@ -93,6 +93,11 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   const liveSince = (platform === 'all' ? PLATFORMS.filter((p) => p !== 'all') : [platform]).map((p) => game.platforms[p]?.launched).filter(Boolean).sort()[0] || null;
   const prevLive = !liveSince || dates(liveSince, from).length - 1 >= Math.ceil(n / 2);
   const enough = (k) => prevLive && (P(k)?.n || 0) >= Math.ceil(n / 2);
+  // Trim pre-launch days from charts and sparklines so a 90D view on a younger game fills the chart instead of
+  // squeezing real days onto the far right behind months of pre-launch zeros.
+  const trim = liveSince && liveSince > from && liveSince <= to ? days.indexOf(liveSince) : 0;
+  const chartDays = trim > 0 ? days.slice(trim) : days;
+  const clip = (arr) => (arr && trim > 0 ? arr.slice(trim) : arr);
 
   // Why there is nothing to show: the game or platform is not live, a source
   // failed or is not connected, or there is nothing in the range.
@@ -114,7 +119,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     id: 'revenue', label: 'Revenue', format: 'usd', value: rev ? rev.sum : null, prev: P('revenuecat.revenue')?.sum ?? null,
     delta: rev ? change(rev.sum, P('revenuecat.revenue')?.sum, enough('revenuecat.revenue')) : null,
     sub: rev ? [{ label: 'tx', value: T('revenuecat.transactions')?.sum ?? 0, format: 'int' }, ...(T('revenuecat.proceeds') ? [{ label: 'proceeds', value: T('revenuecat.proceeds').sum, format: 'usd' }] : [])] : [],
-    source: 'RevenueCat', rule: 'What players paid in the range. Proceeds are what is left after the store takes its cut.', spark: line('revenuecat.revenue'), empty: rev ? null : why(['revenuecat']),
+    source: 'RevenueCat', rule: 'What players paid in the range. Proceeds are what is left after the store takes its cut.', spark: clip(line('revenuecat.revenue')), empty: rev ? null : why(['revenuecat']),
   });
 
   // PostHog counts only once it has seen a player in this range or the one before: connected with no build
@@ -154,7 +159,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     rule: instTail > 0
       ? 'Official first-time downloads from the store, plus real-time installs from RevenueCat (testers excluded) for the recent day or two the store has not posted yet.'
       : 'First-time downloads as the stores count them. Until a store count arrives: new customers in RevenueCat, then new players in PostHog.',
-    spark: instLine, empty: inst ? null : why(['apple', 'posthog', 'revenuecat']),
+    spark: clip(instLine), empty: inst ? null : why(['apple', 'posthog', 'revenuecat']),
   });
 
   // ---- Who played each day. New: RevenueCat's customers (every install makes one), else PostHog's first sightings.
@@ -177,9 +182,10 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   }) : null;
   const activeSource = [phDau && 'PostHog', (rcSeen || rcChart) && 'RevenueCat'].filter(Boolean).join(' + ') || null;
 
-  // ---- DAU: the average over whole days (today is still being counted) ----
-  const whole = activeLine ? activeLine.slice(0, -1).filter((v) => v != null) : [];
-  const dau = activeLine ? (whole.length ? mean(whole) : activeLine.at(-1)) : null;
+  // ---- DAU: the average over whole live days (today is still being counted, pre-launch days left out) ----
+  const liveActive = clip(activeLine);
+  const whole = liveActive ? liveActive.slice(0, -1).filter((v) => v != null) : [];
+  const dau = liveActive ? (whole.length ? mean(whole) : liveActive.at(-1)) : null;
   // The period before is only ever one of the tester-free counts. RevenueCat's own chart counts testers, so when it
   // is all there is for the period before, there is no change to show.
   const prevDau = [P('posthog.dau'), P('revenuecat.active_customers')].filter(Boolean).sort((x, y) => y.avg - x.avg)[0] || null;
@@ -189,7 +195,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     sub: phDau && T('posthog.wau') ? [{ label: 'WAU', value: T('posthog.wau').last, format: 'int' }] : [],
     source: activeSource ? `Active players · ${activeSource}` : null,
     rule: 'The average over whole days of each day\'s active players: the larger of PostHog\'s count and RevenueCat\'s customers seen that day. Today is left out until it ends.',
-    spark: activeLine, empty: activeLine ? null : why(['posthog', 'revenuecat']),
+    spark: liveActive, empty: activeLine ? null : why(['posthog', 'revenuecat']),
   });
 
   // ---- Retention: of the players whose day N fell inside the range, the share who came back ----
@@ -265,24 +271,24 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   const charts = {};
   const revLine = line('revenuecat.revenue');
   charts.revenue = revLine
-    ? { dates: days, revenue: revLine, transactions: line('revenuecat.transactions') || days.map(() => null), quiet: rev.sum > 0 ? null : 'No sales in this range' }
+    ? { dates: chartDays, revenue: clip(revLine), transactions: clip(line('revenuecat.transactions')) || chartDays.map(() => null), quiet: rev.sum > 0 ? null : 'No sales in this range' }
     : { empty: why(['revenuecat']) };
 
   // What the stores have not posted yet reads as that, not as zero.
   const storeLine = storeKeys.length ? sumLines(storeKeys.map((k) => line(k[0]))) : null;
   const storeLabel = storeKeys.length ? `First downloads · ${storeKeys.map((k) => k[1]).join(' + ')}` : null;
   const byDay = [
-    storeLine && { id: 'downloads', label: storeLabel, short: 'Downloads', values: storeLine, late: true },
-    newLine && { id: 'new', label: 'New', values: newLine },
-    activeLine && { id: 'active', label: 'Active', values: activeLine },
-    backLine && backLine.some((v) => v != null) && { id: 'returning', label: 'Returning', values: backLine },
+    storeLine && { id: 'downloads', label: storeLabel, short: 'Downloads', values: clip(storeLine), late: true },
+    newLine && { id: 'new', label: 'New', values: clip(newLine) },
+    activeLine && { id: 'active', label: 'Active', values: clip(activeLine) },
+    backLine && backLine.some((v) => v != null) && { id: 'returning', label: 'Returning', values: clip(backLine) },
   ].filter(Boolean);
   charts.players = byDay.length ? {
-    dates: days, series: byDay,
+    dates: chartDays, series: byDay,
     sources: [storeLine && storeLabel, newSource && `New · ${newSource}`, activeSource && `Active · ${activeSource}`].filter(Boolean),
     notes: [
       !storeLine && state === 'live' && platform !== 'android' && syncBy.apple && syncBy.apple.state !== 'ok' ? 'App Store first downloads are not connected yet: New is every first launch RevenueCat saw.' : null,
-      utcUntil ? `Active up to ${utcUntil} is RevenueCat's own count, which uses UTC days.` : null,
+      utcUntil && (!liveSince || utcUntil >= liveSince) ? `Active up to ${utcUntil} is RevenueCat's own count, which uses UTC days.` : null,
     ].filter(Boolean),
   } : { empty: why(['revenuecat', 'posthog']) };
 
@@ -334,9 +340,9 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 
   // ---- Where the listing comes up in search ----
   const search = platform !== 'android' ? raw.facts?.['listing.search']?.value : null;
-  const ranked = (search?.terms || []).map((t) => ({ term: t.term, now: t.rank, values: line(`listing.${t.key}`) || days.map(() => null) }));
+  const ranked = (search?.terms || []).map((t) => ({ term: t.term, now: t.rank, values: clip(line(`listing.${t.key}`)) || chartDays.map(() => null) }));
   charts.ranks = ranked.length
-    ? { dates: days, series: ranked, store: search.store, storefront: String(search.storefront || '').toUpperCase(), depth: search.depth, checked_at: search.checked_at }
+    ? { dates: chartDays, series: ranked, store: search.store, storefront: String(search.storefront || '').toUpperCase(), depth: search.depth, checked_at: search.checked_at }
     : { empty: why(['listing'], 'No search terms set') };
 
   const curve = RETENTION_DAYS.map((N) => ({ day: N, ...(kept(N) || {}) })).filter((p) => p.rate != null);
@@ -642,21 +648,29 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 /** Every game side by side, and the portfolio's totals. */
 export function buildOverview(raw, { range = '30d', now = Date.now() } = {}) {
   const views = (raw.games || []).filter(Boolean).map((g) => buildGame(g, { range, now }));
-  const days = dates(raw.from, raw.to);
+  const fullDays = dates(raw.from, raw.to);
+  const earliest = views.map((v) => v.charts.revenue?.dates?.[0] || v.charts.players?.dates?.[0]).filter(Boolean).sort()[0];
+  const days = earliest && earliest > raw.from && earliest <= raw.to ? dates(earliest, raw.to) : fullDays;
+  const align = (seriesDates, values) => {
+    if (!seriesDates || !values) return null;
+    const byDate = new Map(seriesDates.map((d, i) => [d, values[i]]));
+    return days.map((d) => (byDate.has(d) ? byDate.get(d) : null));
+  };
   const total = (id, format, label, source) => {
-    const ks = views.map((v) => v.kpis.find((k) => k.id === id)).filter((k) => k.value != null);
+    const ks = views.map((v) => ({ k: v.kpis.find((k) => k.id === id), ds: v.charts.revenue?.dates || v.charts.players?.dates })).filter((x) => x.k.value != null);
     if (!ks.length) return { id, label, format, value: null, delta: null, sub: [], source: null, spark: null, empty: { kind: 'none', badge: 'No live data yet', text: '' } };
-    const value = ks.reduce((a, k) => a + k.value, 0), withPrev = ks.filter((k) => k.prev != null && k.delta);
-    const spark = days.map((_, i) => { const vs = ks.map((k) => k.spark?.[i]).filter((v) => v != null); return vs.length ? vs.reduce((a, v) => a + v, 0) : null; });
+    const value = ks.reduce((a, { k }) => a + k.value, 0), withPrev = ks.filter(({ k }) => k.prev != null && k.delta);
+    const aligned = ks.map(({ k, ds }) => (k.spark && ds && k.spark.length === ds.length ? align(ds, k.spark) : k.spark));
+    const spark = days.map((_, i) => { const vs = aligned.map((s) => s?.[i]).filter((v) => v != null); return vs.length ? vs.reduce((a, v) => a + v, 0) : null; });
     return {
       id, label, format, value, sub: [], source, spark, empty: null,
-      delta: withPrev.length === ks.length ? change(value, withPrev.reduce((a, k) => a + k.prev, 0)) : null,
+      delta: withPrev.length === ks.length ? change(value, withPrev.reduce((a, { k }) => a + k.prev, 0)) : null,
     };
   };
   const live = views.filter((v) => v.game.status === 'live').length;
   const withRevenue = views.filter((v) => v.charts.revenue.revenue);
   return {
-    range, from: raw.from, to: raw.to, days: days.length, clock: { zone: ZONE, name: zoneName(ZONE, now) },
+    range, from: raw.from, to: raw.to, days: fullDays.length, clock: { zone: ZONE, name: zoneName(ZONE, now) },
     totals: [
       total('revenue', 'usd', 'Revenue', 'All games · RevenueCat'),
       total('installs', 'int', 'Installs', 'All games'),
@@ -664,7 +678,7 @@ export function buildOverview(raw, { range = '30d', now = Date.now() } = {}) {
       { id: 'live', label: 'Games live', format: 'int', value: live, of: views.length, delta: null, sub: [], source: null, spark: null, empty: null },
     ],
     revenue_by_game: withRevenue.length
-      ? { dates: days, series: withRevenue.map((v) => ({ slug: v.game.slug, label: v.game.name, values: v.charts.revenue.revenue })), quiet: withRevenue.some((v) => v.kpis[0].value > 0) ? null : 'No sales in this range' }
+      ? { dates: days, series: withRevenue.map((v) => ({ slug: v.game.slug, label: v.game.name, values: align(v.charts.revenue.dates, v.charts.revenue.revenue) })), quiet: withRevenue.some((v) => v.kpis[0].value > 0) ? null : 'No sales in this range' }
       : { empty: { kind: 'none', badge: 'No live data yet', text: '' } },
     games: views.map((v) => ({ game: v.game, state: v.state, state_label: v.state_label, has_data: v.has_data, kpis: v.kpis.map((k) => ({ ...k, spark: k.id === 'revenue' ? k.spark : null })), sync: v.sync })),
     nav: views.map((v) => v.game), sources: SOURCES, generated_at: new Date(now).toISOString(),

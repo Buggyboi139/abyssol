@@ -106,16 +106,17 @@ export function stackedDayBars(canvas, { dates, series, format }) {
 
 /** Counts of people a day, one line a series, on one shared axis. */
 export function dayLines(canvas, { dates, series, format = 'int' }) {
+  const wide = (canvas.parentElement?.clientWidth || canvas.clientWidth || 0) >= 520;
   return make(canvas, {
     type: 'line',
     data: { labels: dates, datasets: series.map((s, i) => ({ label: s.short || s.label, data: s.values, borderColor: colorOf(s, i), backgroundColor: colorOf(s, i), borderWidth: 2, pointRadius: lonely(3), pointHoverRadius: 4, pointHitRadius: 12, pointHoverBorderColor: INK.surface, pointHoverBorderWidth: 2, tension: 0.25, spanGaps: false })) },
     options: {
-      layout: { padding: { right: 96 } },
+      layout: { padding: { right: wide ? 96 : 8 } },
       interaction: { mode: 'index', intersect: false },
       scales: { x: xDays(dates), y: yCount(format, { whole: true }) },
       plugins: { tooltip: tooltip({ callbacks: { title: (it) => fullDay(dates[it[0].dataIndex]), label: (it) => ` ${it.dataset.label}: ${fmt(it.raw, format)}` } }) },
     },
-    plugins: [crosshair, endLabels],
+    plugins: wide ? [crosshair, endLabels] : [crosshair],
   });
 }
 
@@ -159,16 +160,18 @@ export function sideBars(canvas, { labels, values, text, tip, color = SERIES[0] 
 
 /** Counts an hour over the last two days, a line a measure. */
 export function hourLines(canvas, { hours, series }) {
+  const wide = (canvas.parentElement?.clientWidth || canvas.clientWidth || 0) >= 520;
+  const labelEnds = wide && series.length > 1;
   return make(canvas, {
     type: 'line',
     data: { labels: hours, datasets: series.map((s, i) => ({ label: s.label, data: s.values, borderColor: colorOf(s, i), backgroundColor: colorOf(s, i), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 10, pointHoverBorderColor: INK.surface, pointHoverBorderWidth: 2, tension: 0.3 })) },
     options: {
-      layout: { padding: { right: series.length > 1 ? 72 : 8 } },
+      layout: { padding: { right: labelEnds ? 72 : 8 } },
       interaction: { mode: 'index', intersect: false },
       scales: { x: { grid: { display: false }, border: { color: INK.axis }, ticks: { maxRotation: 0, autoSkipPadding: 28, callback(v) { return hour(hours[v]); } } }, y: yCount('int', { whole: true }) },
       plugins: { tooltip: tooltip({ callbacks: { title: (it) => hour(hours[it[0].dataIndex]), label: (it) => ` ${it.dataset.label}: ${fmt(it.raw, 'int')}` } }) },
     },
-    plugins: series.length > 1 ? [crosshair, endLabels] : [crosshair],
+    plugins: labelEnds ? [crosshair, endLabels] : [crosshair],
   });
 }
 
@@ -188,18 +191,19 @@ export function growthLine(canvas, { dates, cumulative, daily, label = 'Total' }
 
 /** Where the listing comes up for each search term. First place is at the top. */
 export function rankLines(canvas, { dates, series }) {
+  const wide = (canvas.parentElement?.clientWidth || canvas.clientWidth || 0) >= 520;
   const known = series.flatMap((s) => s.values.filter((v) => v != null)), worst = Math.max(5, ...known);
   const dots = series.every((s) => s.values.filter((v) => v != null).length <= 14) ? 4 : lonely(4);
   return make(canvas, {
     type: 'line',
     data: { labels: dates, datasets: series.map((s, i) => ({ label: s.term, data: s.values, borderColor: SERIES[i % SERIES.length], backgroundColor: SERIES[i % SERIES.length], borderWidth: 2, pointRadius: dots, pointBorderColor: INK.surface, pointBorderWidth: 2, pointHoverRadius: 6, pointHitRadius: 12, tension: 0, spanGaps: true })) },
     options: {
-      layout: { padding: { right: 124 } },
+      layout: { padding: { right: wide ? 124 : 8 } },
       interaction: { mode: 'index', intersect: false },
       scales: { x: { ...xDays(dates), offset: true }, y: { reverse: true, min: 1, suggestedMax: worst + 1, grid: { color: INK.grid, lineWidth: 1 }, border: { display: false }, ticks: { precision: 0, maxTicksLimit: 6, callback: (v) => `#${v}` } } },
       plugins: { tooltip: tooltip({ callbacks: { title: (it) => fullDay(dates[it[0].dataIndex]), label: (it) => ` ${it.dataset.label}: #${it.raw}` } }) },
     },
-    plugins: [crosshair, endLabels],
+    plugins: wide ? [crosshair, endLabels] : [crosshair],
   });
 }
 

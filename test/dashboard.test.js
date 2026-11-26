@@ -377,6 +377,9 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   expect(youngView.charts.downloads.realtime_tail).toBe(26);
   expect(youngView.kpis.find((k) => k.id === 'installs').value).toBe(162);
   expect(row(youngView, 'downloads_month').value).toBe(162);
+  // Pre-launch days are trimmed from charts so 30D/90D views on a young game fill the chart cleanly.
+  expect(youngView.charts.players.dates[0]).toBe(addDays(to, -18));
+  expect(youngView.charts.players.dates.length).toBe(19);
   // Projections live in their own clearly labeled panel (18 completed days: 17*8 + 14 = 150 -> 8.33/day; + 11 days left = 254).
   expect(youngView.extras.projected.tiles.find((t) => t.id === 'dl_30d')).toMatchObject({ label: 'First 30 days', value: Math.round(162 + (150 / 18) * 11), sub: 'projected · 11d left' });
   // Search clicks wait for the search-only counts; retention with no cohorts says what it needs.

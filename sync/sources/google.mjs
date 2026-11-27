@@ -1,10 +1,17 @@
 // Google Play, for a game whose Android platform is live.
-//   Play Developer Reporting API: crash rate, ANR rate, and active devices.
+//   Play Developer Reporting API (Android vitals): crash, ANR, low-memory-kill
+//     and slow-frame rates, and active devices. Play reports them
+//     only once enough devices run the app.
 //   Play's monthly statistics exports (a Cloud Storage bucket): installs,
-//     uninstalls, and ratings. The Reporting API has neither, so these need
+//     uninstalls, ratings, daily crash and ANR counts, and store listing
+//     visitors and the installs they made, overall and from Play search and
+//     Explore. The Reporting API has none of these, so they need
 //     GOOGLE_PLAY_BUCKET (Play Console, Download reports, Statistics: the
-//     pubsite_prod_... name in "Copy Cloud Storage URI").
+//     pubsite_prod_... name in "Copy Cloud Storage URI"). Play writes them
+//     several days late.
 //   Android Publisher API: the last week's written reviews.
+// Play Console's peer comparison (Statistics, Compare to peers) has no API: it is
+// read by hand into the manual.google_peers fact (README, Numbers read by hand).
 // Needs GOOGLE_PLAY_SERVICE_ACCOUNT_JSON, a service account invited in Play
 // Console with "View app information and download bulk reports".
 import { Rows, request, getJson, signJwt, parseTable, col, num, addDays, HttpError } from '../lib/util.mjs';
@@ -51,21 +58,29 @@ export async function run(ctx) {
     } while (page);
     return n;
   };
-  try {
-    const a = await vitals('crashRateMetricSet', ['crashRate', 'userPerceivedCrashRate', 'distinctUsers'], { crashRate: 'crash_rate', userPerceivedCrashRate: 'user_perceived_crash_rate', distinctUsers: 'active_devices' });
-    const b = await vitals('anrRateMetricSet', ['anrRate', 'userPerceivedAnrRate'], { anrRate: 'anr_rate', userPerceivedAnrRate: 'user_perceived_anr_rate' });
-    parts++; notes.push(a + b ? `vitals: ${a + b} values` : 'vitals: Play has none for this app yet (it reports them once enough devices run it)');
-  } catch (e) { notes.push(`vitals: ${explain(e)}`); }
+  // Each set on its own: Play may answer one and refuse another (a set it has no data for, or one it has not opened to the app).
+  const SETS = [
+    ['crashRateMetricSet', ['crashRate', 'userPerceivedCrashRate', 'distinctUsers'], { crashRate: 'crash_rate', userPerceivedCrashRate: 'user_perceived_crash_rate', distinctUsers: 'active_devices' }],
+    ['anrRateMetricSet', ['anrRate', 'userPerceivedAnrRate'], { anrRate: 'anr_rate', userPerceivedAnrRate: 'user_perceived_anr_rate' }],
+    ['lmkRateMetricSet', ['userPerceivedLmkRate'], { userPerceivedLmkRate: 'user_perceived_lmk_rate' }],
+    ['slowRenderingRateMetricSet', ['slowRenderingRate30Fps'], { slowRenderingRate30Fps: 'slow_rendering_rate' }],
+  ];
+  let got = 0; const refused = [];
+  for (const [set, metrics, map] of SETS) {
+    try { got += await vitals(set, metrics, map); } catch (e) { refused.push(`${set.replace('MetricSet', '')} (${explain(e)})`); }
+  }
+  if (refused.length < SETS.length) parts++;
+  notes.push(`vitals: ${got ? `${got} values` : 'Play has none for this app yet (it reports them once enough devices run it)'}${refused.length ? `; not read: ${refused.join(', ')}` : ''}`);
 
   // ---- Installs and ratings, from the statistics exports ----
   const bucket = sharedEnv(env, game, 'GOOGLE_PLAY_BUCKET').replace(/^gs:\/\//, '').replace(/\/.*$/, '');
   if (!bucket) notes.push('installs and ratings: set GOOGLE_PLAY_BUCKET');
   else {
     const since = addDays(today, -days), months = new Set([since.slice(0, 7).replace('-', ''), today.slice(0, 7).replace('-', '')]);
-    const stats = async (kind, read) => {
+    const stats = async (kind, read, file = 'overview') => {
       let n = 0;
       for (const m of months) {
-        const object = `stats/${kind}/${kind}_${pkg}_${m}_overview.csv`;
+        const object = `stats/${kind}/${kind}_${pkg}_${m}_${file}.csv`;
         let r;
         try { r = await request(fetchImpl, `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(object)}?alt=media`, { headers, timeout: 60000 }); }
         catch (e) { if (e instanceof HttpError && e.status === 404) continue; throw e; }
@@ -90,6 +105,29 @@ export async function run(ctx) {
       });
       parts++; notes.push(`statistics: ${i} install days, ${r} rating days`);
     } catch (e) { notes.push(`statistics: ${explain(e)}`); }
+    // Crashes and ANRs as counts, which Play writes even when it has too few devices for the vitals' rates.
+    try {
+      const c = await stats('crashes', (row, d) => {
+        rows.set('android', d, 'crashes', num(col(row, /^daily crashes$/i)));
+        rows.set('android', d, 'anrs', num(col(row, /^daily anrs$/i)));
+      });
+      parts++; notes.push(`crash counts: ${c} days`);
+    } catch (e) { notes.push(`crash counts: ${explain(e)}`); }
+    // Store listing visitors and the installs they made, from the store performance export: one row a country a
+    // day for the totals, and one a traffic source a day for what came from Play search and from Explore.
+    try {
+      const day = new Map(), add = (d, k, v) => { const t = day.get(d) || day.set(d, {}).get(d); t[k] = (t[k] || 0) + v; };
+      await stats('store_performance', (row, d) => {
+        add(d, 'store_acquisitions', num(col(row, /^store listing acquisitions$/i))); add(d, 'store_visitors', num(col(row, /^store listing visitors$/i)));
+      }, 'country');
+      await stats('store_performance', (row, d) => {
+        const from = /search/i.test(col(row, /^traffic source$/i) || '') ? 'search' : /explore/i.test(col(row, /^traffic source$/i) || '') ? 'explore' : null;
+        add(d, 'store_visitors_search', 0); add(d, 'store_visitors_explore', 0); add(d, 'store_acquisitions_search', 0); add(d, 'store_acquisitions_explore', 0);
+        if (from) { add(d, `store_acquisitions_${from}`, num(col(row, /^store listing acquisitions$/i))); add(d, `store_visitors_${from}`, num(col(row, /^store listing visitors$/i))); }
+      }, 'traffic_source');
+      for (const [d, t] of day) for (const [k, v] of Object.entries(t)) rows.set('android', d, k, v);
+      parts++; notes.push(`store listing: ${day.size} days`);
+    } catch (e) { notes.push(`store listing: ${explain(e)}`); }
   }
 
   // ---- Reviews written in the last week ----

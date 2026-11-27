@@ -445,6 +445,13 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
   tile('apple.sessions', 'Sessions (opted in)', 'sum', 'int', 'App Store');
   tile('google.active_devices', 'Active devices', 'avg', 'num', 'Google Play');
   tile('google.user_perceived_anr_rate', 'ANR rate', 'avg', 'pct', 'Google Play');
+  tile('google.user_perceived_lmk_rate', 'Low-memory kills', 'avg', 'pct', 'Google Play');
+  tile('google.slow_rendering_rate', 'Slow frames (under 30 fps)', 'avg', 'pct', 'Google Play');
+  tile('google.crashes', 'Crashes', 'sum', 'int', 'Google Play');
+  tile('google.anrs', 'ANRs', 'sum', 'int', 'Google Play');
+  tile('google.store_visitors', 'Store listing visitors', 'sum', 'int', 'Google Play');
+  tile('google.store_visitors_search', 'Visitors from Play search', 'sum', 'int', 'Google Play');
+  tile('google.store_visitors_explore', 'Visitors from Explore', 'sum', 'int', 'Google Play');
   tile('google.rating_total', 'Rating', 'last', 'rating', 'Google Play');
   tile('google.reviews_7d', 'Reviews, last 7 days', 'last', 'int', 'Google Play');
   tile('posthog.app_errors', 'App errors', 'sum', 'int', 'PostHog');
@@ -516,10 +523,19 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       const tail = low != null && v < low ? ', under the usual range' : high != null && v > high ? ', above the usual range' : '';
       return { ratio: r, short: r >= 1.15 ? `${r >= 10 ? Math.round(r) : r.toFixed(1)}×` : r > 0.87 ? 'Typical' : `${Math.round(r * 100)}%`, verdict: times + tail, tone: r >= 1.15 ? 'good' : (low != null ? v < low : r <= 0.87) ? 'bad' : 'flat' };
     };
-    const placed = (v, q) => (v == null ? none : { ratio: v / q.p50, short: v < q.p25 ? 'Bottom 25%' : v < q.p50 ? '25th–50th' : v < q.p75 ? '50th–75th' : 'Top 25%', verdict: v < q.p25 ? 'Below the 25th percentile' : v < q.p50 ? 'Between the 25th and 50th percentile' : v < q.p75 ? 'Between the 50th and 75th percentile' : 'Above the 75th percentile', tone: v < q.p25 ? 'bad' : v < q.p50 ? 'flat' : 'good' });
+    // A row where less is better (players lost) reads the percentiles the other way round.
+    const placed = (v, q, lower) => (v == null ? none : {
+      ratio: q.p50 > 0 ? v / q.p50 : null,
+      short: lower ? (v <= q.p25 ? 'Lowest 25%' : v <= q.p50 ? '25th–50th' : v <= q.p75 ? '50th–75th' : 'Highest 25%') : v < q.p25 ? 'Bottom 25%' : v < q.p50 ? '25th–50th' : v < q.p75 ? '50th–75th' : 'Top 25%',
+      verdict: v < q.p25 ? 'Below the 25th percentile' : v < q.p50 ? 'Between the 25th and 50th percentile' : v < q.p75 ? 'Between the 50th and 75th percentile' : 'Above the 75th percentile',
+      tone: lower ? (v > q.p75 ? 'bad' : v > q.p50 ? 'flat' : 'good') : v < q.p25 ? 'bad' : v < q.p50 ? 'flat' : 'good',
+    });
     const rows = [];
-    // Apple's peer percentiles are read from its console by hand and kept as a fact: { week, group, <row id>: { p25, p50, p75 } }.
-    const peers = ownFact('manual.apple_peers');
+    // Peer percentiles are read from each store's console by hand and kept as a fact: Apple's { week, group, <row id>:
+    // { p25, p50, p75 } }, Google's { read_at, days, group, <row id>: { p25, p50, p75, ours, ours_days } }. Each view
+    // takes its own store's: an App Store number is never set beside Google's peers, or the other way round.
+    const peers = platform === 'android' ? ownFact('manual.google_peers') : ownFact('manual.apple_peers');
+    const peersRead = peers?.week ? ` Read from App Store Connect for ${peers.week}.` : peers?.read_at ? ` Read from Play Console on ${peers.read_at}${peers.days ? `, the days ${peers.days}` : ''}.` : '';
     // An average published for one platform (an ios or android block in the config) replaces the shared one on that platform's view.
     const forP = (b) => (b?.[platform] ? { ...b, ...b[platform] } : b);
     const add = (group, id, b0, o) => {
@@ -528,26 +544,26 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       const scale = q ? { average: q.p50, low: q.p25, high: q.p75, top: null, percentiles: true } : { average: b.mid ?? null, low: b.low ?? null, high: b.high ?? null, top: b.top ?? null, percentiles: false };
       rows.push({
         id, group, label: b.label, what: o.what || b.what, format: o.format || 'pct', value, how: value != null ? o.how : null, ...scale,
-        peer_group: q ? peers.group || null : null, ...(q ? placed(value, q) : beside(value, b)),
-        where: q ? `${b.peers_where}${peers.week ? ` Read from App Store Connect for ${peers.week}.` : ''}` : b.where, source: q ? b.peers_source : b.source, url: q ? b.peers_url : b.url, need: value == null ? o.need || 'No figure yet' : null, note: (value != null && o.note) || null,
+        peer_group: q ? peers.group || null : null, ...(q ? placed(value, q, b.lower) : beside(value, b)),
+        where: q ? `${b.peers_where}${peersRead}` : b.where, source: q ? b.peers_source : b.source, url: q ? b.peers_url : b.url, need: value == null ? o.need || 'No figure yet' : null, note: (value != null && o.note) || null,
       });
     };
     const needApple = 'Needs App Store Connect analytics';
 
+    // Total downloads: actual real downloads in the first 30 days (never extrapolated to a fictional pace).
+    if (downloads) {
+      const total = (xs) => xs.reduce((x, v) => x + v, 0), month = downloads.daily.slice(0, 30).filter((v) => v != null);
+      const pastMonth = downloads.days_live > 30;
+      const actual = pastMonth ? total(month) : downloads.total;
+      add('Getting found', 'downloads_month', bench.downloads_month, {
+        format: 'int', value: actual,
+        how: pastMonth
+          ? `${int(actual)} in the first 30 days · ${downloads.source}`
+          : `${int(actual)} in the first ${downloads.days_live} ${downloads.days_live === 1 ? 'day' : 'days'} · ${downloads.source}`,
+        note: downloads.note || null,
+      });
+    }
     if (platform !== 'android') {
-      // Total downloads: actual real downloads in the first 30 days (never extrapolated to a fictional pace).
-      if (downloads) {
-        const total = (xs) => xs.reduce((x, v) => x + v, 0), month = downloads.daily.slice(0, 30).filter((v) => v != null);
-        const pastMonth = downloads.days_live > 30;
-        const actual = pastMonth ? total(month) : downloads.total;
-        add('Getting found', 'downloads_month', bench.downloads_month, {
-          format: 'int', value: actual,
-          how: pastMonth
-            ? `${int(actual)} in the first 30 days · ${downloads.source}`
-            : `${int(actual)} in the first ${downloads.days_live} ${downloads.days_live === 1 ? 'day' : 'days'} · ${downloads.source}`,
-          note: downloads.note || null,
-        });
-      }
       // Downloads beside page views come from the same analytics reports, so both cover the same days; the sales count stands in without them.
       // Use Apple's Unique Counts (unique devices per day) when present so repeated views by the same shopper do not deflate conversion rates.
       const first = sums('apple.an_downloads') ?? sums('apple.downloads'), again = sums('apple.an_downloads') != null ? sums('apple.an_redownloads') || 0 : null;
@@ -580,6 +596,15 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
         value: rate(searchViews, searchShown), need: sums('apple.impressions') != null ? 'Comes with the next App Store sync' : needApple,
         how: `${int(searchViews || 0)} ${useSearchU ? 'unique page views' : 'page views'} from search ÷ ${int(searchShown || 0)} ${useSearchU ? 'unique impressions' : 'impressions'} in search, ${span}`,
       });
+    } else {
+      // Google Play's store listing: the installs made from it over everyone who opened it, from launch day on
+      // (closed-test visitors before it would count otherwise).
+      const fromLaunch = (k) => { const pts = (raw.series?.[k] || []).filter(([d]) => !liveSince || d >= liveSince); return pts.length ? pts.reduce((x, [, v]) => x + (v || 0), 0) : null; };
+      const got = fromLaunch('google.store_acquisitions'), seen = fromLaunch('google.store_visitors');
+      add('Getting found', 'page_to_download', bench.page_to_download, {
+        value: rate(got, seen), need: 'Comes with Google Play’s store performance export',
+        how: `${int(got || 0)} installs from the store listing ÷ ${int(seen || 0)} visitors to it, ${liveSince && liveSince > from ? `since launch on ${liveSince}` : span} · Google Play`,
+      });
     }
 
     // Returning players: day N retention from cohorts (PostHog's, else the hand-read ones). Nothing stands in for
@@ -595,6 +620,15 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     if (S?.secs > 0) add('Playing', 'session_length', bench.session_length, { format: 'mins', value: S.secs, how: `${int(S.sessions)} sessions · ${readOn}`, note: S.note || null });
     else { const secs = rate(sums('apple.session_seconds'), sums('apple.sessions')); add('Playing', 'session_length', bench.session_length, { format: 'mins', value: secs, how: `${int(sums('apple.sessions') || 0)} sessions from players who share usage with Apple, ${span}`, need: 'Needs session lengths' }); }
     if (S?.per_player_day_secs > 0) add('Playing', 'playtime', bench.playtime, { format: 'mins', value: S.per_player_day_secs, how: `${int(S.player_days)} days of play, ${(S.sessions / S.player_days).toFixed(1)} sessions each · ${readOn}`, note: S.note || null });
+    // Rows only Google measures, the game's figure and its peers read from Play Console together, so both share one
+    // definition. The game's own counts only days since launch (closed-test players before it would count otherwise).
+    const fromGoogle = (group, id, format) => {
+      const q = peers?.[id]; if (platform !== 'android' || q?.p50 == null || rows.some((r) => r.id === id)) return;
+      add(group, id, bench[id], { format, value: q.ours ?? null, how: `Play Console's own figure for the game, ${q.ours_days || 'since launch'}, read ${peers.read_at}`, need: 'Comes with the next Play Console read after launch' });
+    };
+    fromGoogle('Playing', 'playtime', 'mins');
+    fromGoogle('Playing', 'dau_mau', 'pct');
+    fromGoogle('Playing', 'user_loss', 'pct');
 
     // Paying.
     add('Paying', 'paying_players', bench.paying_players, conv?.young
@@ -610,6 +644,8 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       note: 'Every player who bought in the range counts once, however often they bought and whenever they first played.',
       need: payers === 0 && !(proceeds > 0) ? 'No paying players in this range' : proceeds != null ? 'Comes with the next RevenueCat sync' : 'Needs RevenueCat',
     });
+    fromGoogle('Paying', 'buyer_ratio', 'pct');
+    fromGoogle('Paying', 'purchase_value', 'usd');
     const lifeRev = raw.life?.['revenuecat.revenue'], start = downloads?.launched;
     if (lifeRev && start) {
       const end = addDays(start, 29), month = lifeRev.filter(([d]) => d >= start && d <= end), age = Math.min(30, dates(start, to).length);

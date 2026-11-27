@@ -171,7 +171,7 @@ history stays under the old one.
 | PostHog | Hourly | DAU, WAU, sessions, new users, day 1 to day 30 retention, the first-steps funnel, the store funnel, unclean exits, errors, load time, graphics level, and a readable note on what each of the last day's players did | Any platform is live |
 | Game database | Hourly | Player counts from the game's own Supabase project | Any platform is live |
 | App Store Connect | Twice daily | Downloads, redownloads, updates, proceeds, impressions, page views (each also for App Store search alone), sessions, crashes | iOS is live |
-| Google Play | Twice daily | Crash and ANR rates, active devices, installs, uninstalls, ratings, reviews | Android is live |
+| Google Play | Twice daily | Crash, ANR, low-memory-kill and slow-frame rates, active devices (vitals, once Play has enough devices); installs, uninstalls, ratings, crash and ANR counts, store listing visitors and installs, overall and from Play search and Explore (the statistics exports, several days late); reviews | Android is live |
 
 Apple's analytics reports (impressions, page views, sessions, crashes) need an
 ongoing report request for the app. Only an Admin key can create one: run the
@@ -339,14 +339,17 @@ where none does, the row says whose average it is.
 
 | Row | Our number | The average |
 |---|---|---|
-| Downloads, first month | The first 30 days on record; before that, the daily pace × 30 | Nine unmarketed solo launches of 2026 |
+| Downloads, first month | The first 30 days on record; before that, the daily pace × 30 | Nine unmarketed solo launches of 2026; on Android, the three that gave Google Play's count |
 | Store conversion | First downloads and redownloads ÷ impressions | Apple's peer percentiles when they are on record (those count each device once), else AppTweak's Games average |
 | Page to download | First downloads made from the page (those from **Get** in the search results left out) ÷ page views | AppTweak, by genre |
+| Store listing to install (Android) | Installs from the Google Play store listing ÷ its visitors, from launch day on | Google's peer percentiles when they are on record, else AppTweak's Google Play average |
 | Search clicks | Page views from search ÷ impressions in search | AppFollow's category medians |
 | Returning players, day 1, 7, 30 | The share of new players who came back N days later | GameAnalytics' yearly report (iOS and Android together; day 1's top quarter per platform) |
-| Session length, playtime | Seconds a session and seconds a player a day | GameAnalytics' yearly report |
+| Session length, playtime | Seconds a session and seconds a player a day | GameAnalytics' yearly report; on Android, Google's peer percentiles for time in the app per daily player |
+| Daily ÷ monthly players, players lost (Android) | Play Console's own figures for the game, from launch day on | Google's peer percentiles; for players lost, less is better |
 | Paying players | Of the players whose seventh day fell in the range, the share who bought within their 7 days (RevenueCat) | Published indie figures; on Android, RevenueCat's Android median |
 | Proceeds per payer | The range's proceeds ÷ the different players who bought in it, each counted once (RevenueCat); shown once Apple's peer percentiles are on record | Apple's peer percentiles |
+| Monthly buyers, revenue per purchase (Android) | Play Console's own figures for the game, from launch day on | Google's peer percentiles |
 | Revenue, first month | RevenueCat revenue in the first 30 days | Six unmarketed launches of 2026 |
 
 A row with no number yet says what it is waiting for. An average published for one platform sits in that entry's `ios` or `android` block in `config/benchmarks.json` and replaces the shared one on that platform's view. The App Store rows and Apple's peer percentiles are iOS only, and so is the hand-read GameAnalytics fact unless it carries `"platform"`: the Android view never shows them.
@@ -373,6 +376,28 @@ signed-in console too, so they are kept the same way, as `manual.apple_peers`:
   "store_conversion": { "p25": 0, "p50": 0, "p75": 0 },
   "proceeds_per_payer": { "p25": 0, "p50": 0, "p75": 0 } }
 ```
+
+Google's are in Play Console, Statistics, Compare to peers, which has no API.
+They are kept as `manual.google_peers`, with `"platform": "android"` so only
+the Android view uses them. Each figure is the day-by-day percentile averaged
+over the days read; times are seconds, money is US dollars. `ours` is Play
+Console's own figure for the game, averaged over the days since launch only
+(leave it out before there are any), and `ours_days` says which:
+
+```json
+{ "platform": "android", "read_at": "YYYY-MM-DD", "days": "the days read", "group": "Simulation",
+  "page_to_download": { "p25": 0, "p50": 0, "p75": 0 },
+  "playtime": { "p25": 0, "p50": 0, "p75": 0, "ours": 0, "ours_days": "..." },
+  "dau_mau": { "p25": 0, "p50": 0, "p75": 0 }, "user_loss": { "p25": 0, "p50": 0, "p75": 0 },
+  "buyer_ratio": { "p25": 0, "p50": 0, "p75": 0 }, "purchase_value": { "p25": 0, "p50": 0, "p75": 0 } }
+```
+
+Their metrics, in Compare to peers: Legacy Store listing performance, Store
+listing conversion rate, All users (`page_to_download`: installs over visitors,
+the same count the store performance export gives); Engagement, Average App
+Usage Time Per DAU (`playtime`) and DAU/MAU (`dau_mau`); Users, User loss rate
+(`user_loss`); Monetization, Monthly buyer ratio (`buyer_ratio`) and Monthly
+average revenue per purchase (`purchase_value`).
 
 | KPI | Rule |
 |---|---|

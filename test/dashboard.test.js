@@ -437,6 +437,39 @@ test('each platform\'s view takes its own averages, and iOS-only facts stay off 
   expect(android.charts.retention.points).toBeUndefined(); expect(ios.charts.retention.source).toBe('GameAnalytics, read 2026-01-02');
 });
 
+test('Google\'s peer percentiles sit on the Android view alone, with the rows only Google measures', () => {
+  const now = Date.parse('2026-11-25T20:00:00Z'), { from, to } = rangeDates('30d', now);
+  const live = { status: 'live', launched: addDays(to, -6) };
+  const game = { slug: 'g', display_name: 'G', status: 'live', config: { genre: 'simulation', platforms: { ios: live, android: live } } };
+  const after = dates(addDays(to, -6), addDays(to, -2)), before = dates(addDays(to, -12), addDays(to, -7));
+  const series = { 'google.store_acquisitions': [...before, ...after].map((d) => [d, 2]), 'google.store_visitors': [...before, ...after].map((d) => [d, 10]) };
+  const google = { platform: 'android', read_at: '2026-11-24', days: 'Nov 12 to 21, 2026', group: 'Simulation',
+    page_to_download: { p25: 0.13, p50: 0.22, p75: 0.32 }, playtime: { p25: 467, p50: 739, p75: 1368 },
+    dau_mau: { p25: 0.06, p50: 0.076, p75: 0.108, ours: 0.2, ours_days: '3 days since launch' }, user_loss: { p25: 0.012, p50: 0.022, p75: 0.04, ours: 0.01 },
+    buyer_ratio: { p25: 0.0018, p50: 0.0072, p75: 0.026 }, purchase_value: { p25: 3.24, p50: 5.36, p75: 8.26 } };
+  const life = { 'google.installs': after.map((d) => [d, 3]), 'apple.an_downloads': after.map((d) => [d, 3]) };
+  const view = (platform, facts) => buildGame({ game, platform, from, to, prev: {}, hourly: {}, cohorts: [], sync: [], series, life,
+    totals: { 'google.installs': { sum: 15, avg: 3, last: 3, n: 5 }, 'apple.an_downloads': { sum: 15, avg: 3, last: 3, n: 5 } }, facts }, { range: '30d', now });
+  const row = (g, id) => g.extras.benchmarks.rows.find((r) => r.id === id);
+  const facts = { 'manual.google_peers': { value: google, at: now } };
+  const [ios, android, bare] = [view('ios', facts), view('android', facts), view('android', {})];
+
+  // The store listing: installs over visitors from launch day on, against Google's peers and not AppTweak's average.
+  expect(row(android, 'page_to_download')).toMatchObject({ label: 'Store listing to install', value: 0.2, percentiles: true, average: 0.22, low: 0.13, high: 0.32, peer_group: 'Simulation', source: 'Google Play Console, Compare to peers', short: '25th–50th' });
+  expect(row(android, 'page_to_download').where).toContain('Read from Play Console on 2026-11-24, the days Nov 12 to 21, 2026.');
+  expect(row(bare, 'page_to_download')).toMatchObject({ average: 0.1615, percentiles: false, source: 'AppTweak, US Google Play, 2025' });
+  expect(row(ios, 'page_to_download').percentiles).toBe(false);
+  // Rows only Google measures: the game's figure as Play Console gives it, or what it waits for.
+  expect(row(android, 'dau_mau')).toMatchObject({ value: 0.2, short: 'Top 25%', tone: 'good', how: "Play Console's own figure for the game, 3 days since launch, read 2026-11-24" });
+  expect(row(android, 'user_loss')).toMatchObject({ value: 0.01, short: 'Lowest 25%', tone: 'good' });
+  expect(row(android, 'playtime')).toMatchObject({ value: null, average: 739, need: 'Comes with the next Play Console read after launch' });
+  expect(row(android, 'buyer_ratio').group).toBe('Paying'); expect(row(android, 'purchase_value').format).toBe('usd');
+  for (const id of ['dau_mau', 'user_loss', 'buyer_ratio', 'purchase_value']) { expect(row(ios, id)).toBeUndefined(); expect(row(bare, id)).toBeUndefined(); }
+  // Unmarketed Google Play launches for the first month's installs.
+  expect(row(android, 'downloads_month')).toMatchObject({ average: 31, low: 11, high: 70 });
+  expect(row(ios, 'downloads_month')).toMatchObject({ average: 50, low: 30, high: 120 });
+});
+
 test('the overview adds the games up and takes bad parameters as the defaults', async () => {
   const o = await (await call('/api/overview?range=nonsense', { headers: { cookie } })).json();
   expect(o.range).toBe('30d');

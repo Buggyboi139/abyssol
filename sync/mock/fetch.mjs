@@ -286,16 +286,25 @@ function apple(u, today) {
 // ---- Google Play ----
 function google(u, body, today) {
   const p = u.pathname; let m;
-  if ((m = /\/apps\/([^/]+)\/(crashRateMetricSet|anrRateMetricSet)$/.exec(p))) { const [year, month, day] = addDays(today, -1).split('-').map(Number); return json({ freshnessInfo: { freshnesses: [{ aggregationPeriod: 'DAILY', latestEndTime: { year, month, day, timeZone: { id: 'America/Los_Angeles' } } }] } }); }
-  if ((m = /\/apps\/([^/]+)\/(crashRateMetricSet|anrRateMetricSet):query$/.exec(p))) {
+  if ((m = /\/apps\/([^/]+)\/(crashRateMetricSet|anrRateMetricSet|lmkRateMetricSet|slowRenderingRateMetricSet)$/.exec(p))) { const [year, month, day] = addDays(today, -1).split('-').map(Number); return json({ freshnessInfo: { freshnesses: [{ aggregationPeriod: 'DAILY', latestEndTime: { year, month, day, timeZone: { id: 'America/Los_Angeles' } } }] } }); }
+  if ((m = /\/apps\/([^/]+)\/(crashRateMetricSet|anrRateMetricSet|lmkRateMetricSet|slowRenderingRateMetricSet):query$/.exec(p))) {
     const s = body.timelineSpec, at = (t) => `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`;
     const rows = dateRange(at(s.startTime), addDays(at(s.endTime), -1)).map((d) => { const [year, month, day] = d.split('-').map(Number); return { aggregationPeriod: 'DAILY', startTime: { year, month, day, timeZone: { id: 'America/Los_Angeles' } }, metrics: body.metrics.map((k) => ({ metric: k, decimalValue: { value: k === 'distinctUsers' ? String(mockDay(m[1], 'android', d).dau) : (0.002 + rnd(d + k) * 0.01).toFixed(5) } })) }; });
     return json({ rows });
   }
   if (u.host === 'storage.googleapis.com') {
-    const object = decodeURIComponent(p.split('/o/')[1]), f = /stats\/(installs|ratings)\/\1_(.+)_(\d{6})_overview\.csv/.exec(object);
+    const object = decodeURIComponent(p.split('/o/')[1]), f = /stats\/(installs|ratings|store_performance|crashes)\/\1_(.+)_(\d{6})_(overview|country|traffic_source)\.csv/.exec(object);
     if (!f) return json({ error: { code: 404 } }, 404);
     const month = `${f[3].slice(0, 4)}-${f[3].slice(4)}`, days = dateRange(`${month}-01`, today).filter((d) => d.startsWith(month));
+    if ((f[1] === 'store_performance') === (f[4] === 'overview')) return json({ error: { code: 404 } }, 404);
+    const utf16 = (lines) => new Response(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(lines.join('\n'), 'utf16le')]), { status: 200 });
+    // Two countries a day: half the day's new players arrive from each, from three times as many visitors.
+    // By traffic source the same day splits two thirds from Play search and a third from Explore.
+    if (f[1] === 'store_performance' && f[4] === 'country') return utf16(['Date,Package name,Country / region,Store listing acquisitions,Store listing visitors,Store listing conversion rate',
+      ...days.flatMap((d) => { const x = mockDay(f[2], 'android', d), a = Math.ceil(x.newUsers / 2), b = x.newUsers - a; return [`${d},${f[2]},US,${a},${a * 3},0.33`, `${d},${f[2]},GB,${b},${b * 3},0.33`]; })]);
+    if (f[1] === 'store_performance') return utf16(['Date,Package name,Traffic source,Search term,UTM source,UTM campaign,Store listing acquisitions,Store listing visitors,Store listing conversion rate',
+      ...days.flatMap((d) => { const x = mockDay(f[2], 'android', d), a = Math.round((x.newUsers * 2) / 3), b = x.newUsers - a; return [`${d},${f[2]},Google Play search,mermaid,Other,Other,${a},${a * 3},0.33`, `${d},${f[2]},Google Play explore,Other,Other,Other,${b},${b * 3},0.33`]; })]);
+    if (f[1] === 'crashes') return utf16(['Date,Package Name,Daily Crashes,Daily ANRs', ...days.map((d) => `${d},${f[2]},${Math.floor(rnd(d + 'c') * 3)},${Math.floor(rnd(d + 'a') * 2)}`)]);
     const lines = f[1] === 'installs'
       ? ['Date,Package Name,Daily Device Installs,Daily Device Uninstalls,Daily Device Upgrades,Total User Installs,Daily User Installs,Daily User Uninstalls,Active Device Installs,Install events,Update events,Uninstall events', ...days.map((d) => { const x = mockDay(f[2], 'android', d); return `${d},${f[2]},${x.newUsers + 1},2,0,0,${x.newUsers},1,"1,${String(100 + x.dau).padStart(3, '0')}",0,0,0`; })]
       : ['Date,Package Name,Daily Average Rating,Total Average Rating', ...days.map((d) => `${d},${f[2]},${rnd(d) < 0.5 ? 'NA' : '5.00'},4.6`)];

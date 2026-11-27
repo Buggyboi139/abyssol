@@ -104,7 +104,8 @@ test('each rise is told once, a fall and a first sight are noted without a word,
   await metric('pearl-tide', 'posthog', 'ios', '2026-11-25', 'new_users', 10);
   await metric('pearl-tide', 'apple', 'ios', '2026-11-24', 'downloads', 40);
   await pg.query(`insert into sync_runs (source, game_slug, status, message) values ('google', 'pearl-tide', 'ok', '')`);
-  await rpc(pg, 'dashboard_push_changes');                      // whatever was there before is the starting point
+  await metric('pearl-tide', 'posthog', 'android', '2026-11-25', 'new_users', 6);
+  expect(await rpc(pg, 'dashboard_push_changes')).toEqual([]);  // whatever was there before is the starting point, on every platform
   expect(await rpc(pg, 'dashboard_push_changes')).toEqual([]);  // and nothing is told twice
 
   await metric('pearl-tide', 'posthog', 'ios', '2026-11-26', 'new_users', 2);

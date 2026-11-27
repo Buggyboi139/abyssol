@@ -112,9 +112,12 @@ declare
   r record;
   prev double precision;
   k text;
+  known text[];
 begin
   -- The sync and the webhook can both ask at once: one at a time.
   perform pg_advisory_xact_lock(4207731);
+  -- What was watched before this call: a source first seen in this very call is new for all its numbers.
+  known := array(select split_part(key, '|', 1) || '|' || split_part(key, '|', 2) from push_state);
 
   for r in
     with watch (kind, source, platform, metric, how) as (values
@@ -135,7 +138,7 @@ begin
     select value into prev from push_state where key = k;
     -- First sight of a number whose source is already watched for this game (a first sale on
     -- the other platform) counts from 0; a source never watched before starts silently.
-    if prev is null and exists (select 1 from push_state p where p.key like format('%s|%s|%%', r.slug, r.source)) then
+    if prev is null and format('%s|%s', r.slug, r.source) = any(known) then
       prev := 0;
       insert into push_state (key, value) values (k, 0);
     end if;

@@ -468,6 +468,12 @@ test('Google\'s peer percentiles sit on the Android view alone, with the rows on
   // Unmarketed Google Play launches for the first month's installs.
   expect(row(android, 'downloads_month')).toMatchObject({ average: 31, low: 11, high: 70 });
   expect(row(ios, 'downloads_month')).toMatchObject({ average: 50, low: 30, high: 120 });
+  // Play has posted no day since launch yet: RevenueCat's real-time installs stand in for every day, not a zero.
+  const waiting = buildGame({ game, platform: 'android', from, to, prev: {}, hourly: {}, cohorts: [], sync: [], series,
+    life: { 'google.installs': before.map((d) => [d, 3]), 'revenuecat.new_customers': after.map((d) => [d, 2]) },
+    totals: { 'google.installs': { sum: 18, avg: 3, last: 3, n: 6 } }, facts }, { range: '30d', now });
+  expect(row(waiting, 'downloads_month')).toMatchObject({ value: 10, average: 31 });
+  expect(row(waiting, 'downloads_month').note).toContain('has not posted a day since launch yet: 10 real-time installs from RevenueCat');
 });
 
 test('the overview adds the games up and takes bad parameters as the defaults', async () => {

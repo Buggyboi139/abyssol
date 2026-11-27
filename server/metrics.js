@@ -312,8 +312,9 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       return sum;
     });
     // When using official store downloads, add real-time RevenueCat installs (testers excluded) ONLY for unposted days
-    // strictly after the store's last posted day. Earlier days stay strictly on the official store count.
-    if (storeKeys.length && lastOfficial >= 0 && rcLifeMap.size) {
+    // strictly after the store's last posted day (every day since launch, when the store has posted none of them yet).
+    // Earlier days stay strictly on the official store count.
+    if (storeKeys.length && rcLifeMap.size) {
       for (let i = lastOfficial + 1; i < ds.length; i++) {
         if (rcLifeMap.has(ds[i])) {
           const v = rcLifeMap.get(ds[i]);
@@ -332,7 +333,9 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
       marks: [1, 7, 14, 30, 60, 90].filter((N) => N <= ds.length && cumulative[N - 1] != null).map((N) => ({ day: N, date: ds[N - 1], value: cumulative[N - 1] })),
       source: storeKeys.length ? storeName : fromRc ? 'New players · RevenueCat' : 'New players · PostHog',
       note: storeKeys.length
-        ? (tailTotal > 0 ? `Official ${storeName} count through ${ds[lastOfficial]} (${Math.round(officialTotal).toLocaleString('en-US')}) plus ${Math.round(tailTotal).toLocaleString('en-US')} real-time installs since then from RevenueCat (testers excluded).` : null)
+        ? (tailTotal > 0 ? (lastOfficial < 0
+          ? `${storeName} has not posted a day since launch yet: ${Math.round(tailTotal).toLocaleString('en-US')} real-time installs from RevenueCat (testers excluded) until it does.`
+          : `Official ${storeName} count through ${ds[lastOfficial]} (${Math.round(officialTotal).toLocaleString('en-US')}) plus ${Math.round(tailTotal).toLocaleString('en-US')} real-time installs since then from RevenueCat (testers excluded).`) : null)
         : 'Until the store’s own count is connected, a download is a first launch.',
     };
   }

@@ -370,7 +370,10 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 
   const curve = RETENTION_DAYS.map((N) => ({ day: N, ...(kept(N) || {}) })).filter((p) => p.rate != null);
   // Until PostHog has cohorts of its own, the curve is the hand-read one, when there is one.
-  const byHand = raw.facts?.['manual.gameanalytics']?.value || null, handOn = byHand?.read_at ? `${byHand.source || 'GameAnalytics'}, read ${byHand.read_at}` : null;
+  // Facts read by hand belong to one platform (the GameAnalytics read and Apple's peers are iOS unless they say otherwise):
+  // the combined view takes them, the other platform's view never does.
+  const ownFact = (k) => { const v = raw.facts?.[k]?.value || null; return v && (platform === 'all' || (v.platform || 'ios') === platform) ? v : null; };
+  const byHand = ownFact('manual.gameanalytics'), handOn = byHand?.read_at ? `${byHand.source || 'GameAnalytics'}, read ${byHand.read_at}` : null;
   const handCurve = Object.entries(byHand?.retention || {}).map(([k, v]) => ({ day: Number(String(k).replace(/^d/, '')), ...v })).filter((p) => p.day > 0 && p.size > 0).map((p) => ({ day: p.day, rate: p.back / p.size, back: p.back, size: p.size })).sort((x, y) => x.day - y.day);
   charts.retention = curve.length ? { points: [{ day: 0, rate: 1, back: curve[0].size, size: curve[0].size }, ...curve], source: 'PostHog' }
     : handCurve.length ? { points: [{ day: 0, rate: 1, back: handCurve[0].size, size: handCurve[0].size }, ...handCurve], source: handOn }
@@ -495,7 +498,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
 
   // ---- Against the average: a game's own numbers beside the average for a launch like it, each with how it is worked out and where the average comes from ----
   // Numbers read by hand from a tool with no sync of its own (GameAnalytics today) are kept as a fact and fill what the synced sources cannot.
-  const manual = raw.facts?.['manual.gameanalytics']?.value || null;
+  const manual = byHand;
   const readOn = manual?.read_at ? `${manual.source || 'GameAnalytics'}, read ${manual.read_at}` : null;
   let benchmarks = null;
   if (state === 'live' && Object.keys(totals).length) {
@@ -516,8 +519,11 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     const placed = (v, q) => (v == null ? none : { ratio: v / q.p50, short: v < q.p25 ? 'Bottom 25%' : v < q.p50 ? '25th–50th' : v < q.p75 ? '50th–75th' : 'Top 25%', verdict: v < q.p25 ? 'Below the 25th percentile' : v < q.p50 ? 'Between the 25th and 50th percentile' : v < q.p75 ? 'Between the 50th and 75th percentile' : 'Above the 75th percentile', tone: v < q.p25 ? 'bad' : v < q.p50 ? 'flat' : 'good' });
     const rows = [];
     // Apple's peer percentiles are read from its console by hand and kept as a fact: { week, group, <row id>: { p25, p50, p75 } }.
-    const peers = raw.facts?.['manual.apple_peers']?.value || null;
-    const add = (group, id, b, o) => {
+    const peers = ownFact('manual.apple_peers');
+    // An average published for one platform (an ios or android block in the config) replaces the shared one on that platform's view.
+    const forP = (b) => (b?.[platform] ? { ...b, ...b[platform] } : b);
+    const add = (group, id, b0, o) => {
+      const b = forP(b0);
       const q = peers?.[id]?.p50 != null ? peers[id] : null, value = o.value ?? null;
       const scale = q ? { average: q.p50, low: q.p25, high: q.p75, top: null, percentiles: true } : { average: b.mid ?? null, low: b.low ?? null, high: b.high ?? null, top: b.top ?? null, percentiles: false };
       rows.push({
@@ -580,7 +586,7 @@ export function buildGame(raw, { range = '30d', now = Date.now() } = {}) {
     // them: the share of a day's players who had played before is a different, far higher number.
     const R = bench.retention, thin = (size) => (size < 100 ? 'Fewer than 100 players: read it loosely.' : null);
     for (const N of [1, 7, 30]) {
-      const k = kept(N), m = manual?.retention?.[`d${N}`], b = { ...R[`d${N}`], what: R.what, where: R.where, source: R.source, url: R.url };
+      const k = kept(N), m = manual?.retention?.[`d${N}`], b = { what: R.what, where: R.where, source: R.source, url: R.url, ...forP(R[`d${N}`]) };
       if (k) add('Playing', `d${N}`, b, { value: k.rate, how: `${int(k.back)} of ${int(k.size)} new players came back on day ${N} · PostHog`, note: thin(k.size) });
       else if (m?.size > 0) add('Playing', `d${N}`, b, { value: m.back / m.size, how: `${int(m.back)} of ${int(m.size)} new players came back on day ${N}${m.cohorts ? `, ${m.cohorts}` : ''} · ${readOn}`, note: [thin(m.size), manual.retention.note].filter(Boolean).join(' ') || null });
       else add('Playing', `d${N}`, b, { need: manual ? `No players ${N} days old yet` : syncBy.posthog?.state === 'ok' ? `No players ${N} ${N === 1 ? 'day' : 'days'} old yet` : 'Needs PostHog' });

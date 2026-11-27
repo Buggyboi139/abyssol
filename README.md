@@ -329,13 +329,13 @@ where none does, the row says whose average it is.
 | Store conversion | First downloads and redownloads ÷ impressions | Apple's peer percentiles when they are on record (those count each device once), else AppTweak's Games average |
 | Page to download | First downloads made from the page (those from **Get** in the search results left out) ÷ page views | AppTweak, by genre |
 | Search clicks | Page views from search ÷ impressions in search | AppFollow's category medians |
-| Returning players, day 1, 7, 30 | The share of new players who came back N days later | GameAnalytics' yearly report |
+| Returning players, day 1, 7, 30 | The share of new players who came back N days later | GameAnalytics' yearly report (iOS and Android together; day 1's top quarter per platform) |
 | Session length, playtime | Seconds a session and seconds a player a day | GameAnalytics' yearly report |
-| Paying players | Of the players whose seventh day fell in the range, the share who bought within their 7 days (RevenueCat) | Published indie figures |
+| Paying players | Of the players whose seventh day fell in the range, the share who bought within their 7 days (RevenueCat) | Published indie figures; on Android, RevenueCat's Android median |
 | Proceeds per payer | The range's proceeds ÷ the different players who bought in it, each counted once (RevenueCat); shown once Apple's peer percentiles are on record | Apple's peer percentiles |
 | Revenue, first month | RevenueCat revenue in the first 30 days | Six unmarketed launches of 2026 |
 
-A row with no number yet says what it is waiting for.
+A row with no number yet says what it is waiting for. An average published for one platform sits in that entry's `ios` or `android` block in `config/benchmarks.json` and replaces the shared one on that platform's view. The App Store rows and Apple's peer percentiles are iOS only, and so is the hand-read GameAnalytics fact unless it carries `"platform"`: the Android view never shows them.
 
 **Numbers read by hand.** A tool with no sync of its own can still fill a row.
 GameAnalytics has no key in this project, so its figures are read in the browser

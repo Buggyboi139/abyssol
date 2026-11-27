@@ -1,5 +1,5 @@
 {
-  "_": "The averages the dashboard sets a game's own numbers beside, each with where it comes from. The comparison is a game launched with no marketing wherever a figure for one exists; where none does, the row says whose average it is. Rates are shares (0.267 is 26.7%), times are seconds. Update a number only with its source. Apple's peer percentiles come from a signed-in console, so they are kept in the database (the manual.apple_peers fact), not here.",
+  "_": "The averages the dashboard sets a game's own numbers beside, each with where it comes from. The comparison is a game launched with no marketing wherever a figure for one exists; where none does, the row says whose average it is. Rates are shares (0.267 is 26.7%), times are seconds. Update a number only with its source. Apple's peer percentiles come from a signed-in console, so they are kept in the database (the manual.apple_peers fact), not here. An entry's ios or android block replaces its fields on that platform's view; a figure published for both platforms together serves both.",
   "downloads_month": {
     "label": "Total downloads",
     "what": "First downloads in a game's first month on one store",
@@ -37,11 +37,13 @@
     "url": "https://appfollow.io/blog/aso-benchmarks"
   },
   "retention": {
-    "d1": { "label": "Returning players, day 1", "low": 0.13, "mid": 0.22, "high": 0.30, "top": 0.40 },
+    "d1": { "label": "Returning players, day 1", "low": 0.13, "mid": 0.22, "high": 0.30, "top": 0.40,
+      "ios": { "high": 0.32, "where": "Median and bottom quarter: GameAnalytics' 2025 figures for 16,000 mobile games on iOS and Android together; it publishes no median for one platform alone. Top quarter: iOS games alone, 31% to 33% on day 1 in 2024 (Android 25% to 27%). No figure exists for small or unmarketed games alone.", "source": "GameAnalytics, 2025 and 2026 benchmarks", "url": "https://www.gameanalytics.com/reports/2025-mobile-gaming-benchmarks" },
+      "android": { "high": 0.26, "where": "Median and bottom quarter: GameAnalytics' 2025 figures for 16,000 mobile games on iOS and Android together; it publishes no median for one platform alone. Top quarter: Android games alone, 25% to 27% on day 1 in 2024 (iOS 31% to 33%). No figure exists for small or unmarketed games alone.", "source": "GameAnalytics, 2025 and 2026 benchmarks", "url": "https://www.gameanalytics.com/reports/2025-mobile-gaming-benchmarks" } },
     "d7": { "label": "Returning players, day 7", "low": 0.015, "mid": 0.04, "high": 0.065, "top": 0.115 },
     "d30": { "label": "Returning players, day 30", "mid": 0.007, "high": 0.017 },
     "what": "New players who play again that many days later",
-    "where": "GameAnalytics' median for 16,000 mobile games with 1,000 or more monthly players in 2025, with the bottom and top quarter of games as the range. No figure exists for small or unmarketed games alone.",
+    "where": "GameAnalytics' median for 16,000 mobile games on iOS and Android together, with 1,000 or more monthly players in 2025, with the bottom and top quarter of games as the range. No figure exists for small or unmarketed games alone.",
     "source": "GameAnalytics, 2026 benchmarks",
     "url": "https://www.gameanalytics.com/reports/2026-mobile-pc-gaming-benchmarks"
   },
@@ -67,7 +69,13 @@
     "mid": 0.01, "low": 0.007, "high": 0.019,
     "where": "Two small iOS games with no marketing had 0.7% and 1.1% of downloads pay (their developer's own numbers, 2014); in commercial free games 1.9% of monthly players buy (Swrve, 2016). At 100 downloads that is zero to two people.",
     "source": "Game Developer, 2014; Swrve, 2016",
-    "url": "https://www.gamedeveloper.com/business/my-ios-indie-game-numbers"
+    "url": "https://www.gamedeveloper.com/business/my-ios-indie-game-numbers",
+    "android": {
+      "mid": 0.009, "low": null, "high": null,
+      "where": "RevenueCat's median for 115,000 subscription apps: 0.9% of Android downloads paid within 35 days, against 2.6% on iOS. No figure exists for Android games alone, or for games with no marketing.",
+      "source": "RevenueCat, State of Subscription Apps 2026",
+      "url": "https://www.revenuecat.com/blog/engineering/android-paywall-gap"
+    }
   },
   "proceeds_per_payer": {
     "label": "Proceeds per paying player",

@@ -407,6 +407,35 @@ test('without sales reports the App Store\'s analytics downloads stand in, and t
   expect(row(both, 'page_to_download').value).toBeCloseTo(0.3);
 });
 
+test('each platform\'s view takes its own averages, and iOS-only facts stay off the Android view', () => {
+  const now = Date.parse('2026-11-25T20:00:00Z'), { from, to } = rangeDates('30d', now);
+  const live = { status: 'live', launched: addDays(from, -3) };
+  const game = { slug: 'g', display_name: 'G', status: 'live', config: { genre: 'simulation', platforms: { ios: live, android: live } } };
+  const days = dates(from, addDays(to, -2)), tot = (v) => ({ sum: v * days.length, avg: v, last: v, n: days.length });
+  const hand = { source: 'GameAnalytics', read_at: '2026-01-02', retention: { d1: { back: 11, size: 50 } }, session: { secs: 600, sessions: 40 } };
+  const peers = { week: 'the week of January 1', group: 'Simulation', proceeds_per_payer: { p25: 4, p50: 8, p75: 16 } };
+  const view = (platform) => buildGame({ game, platform, from, to, prev: {}, hourly: {}, cohorts: [], sync: [], series: {}, life: {},
+    totals: { 'google.installs': tot(3), 'apple.an_downloads': tot(3) },
+    facts: { 'manual.gameanalytics': { value: hand, at: now }, 'manual.apple_peers': { value: peers, at: now } } }, { range: '30d', now });
+  const row = (g, id) => g.extras.benchmarks.rows.find((r) => r.id === id);
+  const [all, ios, android] = ['all', 'ios', 'android'].map(view);
+
+  // Day 1's top quarter is published per platform; the median is both together, so it stays the same.
+  expect(row(all, 'd1')).toMatchObject({ average: 0.22, high: 0.3, source: 'GameAnalytics, 2026 benchmarks' });
+  expect(row(ios, 'd1')).toMatchObject({ average: 0.22, high: 0.32, source: 'GameAnalytics, 2025 and 2026 benchmarks' });
+  expect(row(android, 'd1')).toMatchObject({ average: 0.22, high: 0.26, source: 'GameAnalytics, 2025 and 2026 benchmarks' });
+  expect(row(android, 'd1').where).toContain('Android games alone');
+  // Paying players: indie iOS games on iOS, RevenueCat's Android median on Android.
+  expect(row(ios, 'paying_players')).toMatchObject({ average: 0.01, low: 0.007, high: 0.019 });
+  expect(row(android, 'paying_players')).toMatchObject({ average: 0.009, low: null, high: null, source: 'RevenueCat, State of Subscription Apps 2026' });
+  // The hand-read GameAnalytics figures and Apple's peers are iOS: never Android's numbers or averages.
+  expect(row(ios, 'd1').value).toBeCloseTo(0.22); expect(row(ios, 'session_length').value).toBe(600);
+  expect(row(ios, 'proceeds_per_payer')).toMatchObject({ average: 8, percentiles: true });
+  expect(row(android, 'd1')).toMatchObject({ value: null, need: 'Needs PostHog' }); expect(row(android, 'session_length').value).toBeNull();
+  expect(row(android, 'proceeds_per_payer')).toBeUndefined(); expect(row(android, 'store_conversion')).toBeUndefined();
+  expect(android.charts.retention.points).toBeUndefined(); expect(ios.charts.retention.source).toBe('GameAnalytics, read 2026-01-02');
+});
+
 test('the overview adds the games up and takes bad parameters as the defaults', async () => {
   const o = await (await call('/api/overview?range=nonsense', { headers: { cookie } })).json();
   expect(o.range).toBe('30d');

@@ -1,0 +1,14 @@
+name = "abyssol-sync-cron"
+main = "sync-cron.js"
+compatibility_date = "2025-01-01"
+workers_dev = false
+
+[triggers]
+crons = [
+  "7 * * * *",
+  "20 2,14 * * *",
+]
+
+[vars]
+GITHUB_REPO = "Buggyboi139/abyssol"
+GITHUB_REF = "main"

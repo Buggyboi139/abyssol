@@ -13,6 +13,7 @@ import { mockFetch, mockEnv, mockGameDb, mockGames, mockDay } from '../sync/mock
 import { tell, tagOf } from '../sync/lib/stories.mjs';
 import { dayIn, dayStart } from '../server/zone.js';
 import { pages } from './pages.mjs';
+import syncCron, { dispatchWorkflow } from '../worker/sync-cron.js';
 
 const DB = 'http://db.test', USERNAME = 'Owner', PASSWORD = 'correct horse battery staple';
 const LOGIN = { username: USERNAME, password: PASSWORD };
@@ -633,4 +634,31 @@ test('search keywords track the top 10 and report up/down rank movement from the
   expect(by('down term')).toMatchObject({ now: 9, prev: 4, prev_date: yest, move: -5, best: 4, worst: 9 });
   expect(by('flat term')).toMatchObject({ now: 1, prev: 1, prev_date: yest, move: 0, best: 1, worst: 1 });
   expect(by('new term')).toMatchObject({ now: 15, prev: null, prev_date: null, move: null, best: 15, worst: 15 });
+});
+
+test('the Cloudflare cron worker dispatches hourly and daily GitHub workflows', async () => {
+  const calls = [];
+  const okFetch = async (url, opts) => { calls.push({ url, opts }); return new Response(null, { status: 204 }); };
+  const baseEnv = { GITHUB_TOKEN: 'ghp_test', GITHUB_REPO: 'Buggyboi139/abyssol', GITHUB_REF: 'main' };
+
+  const hourly = await dispatchWorkflow('sync-hourly.yml', baseEnv, okFetch);
+  expect(hourly).toEqual({ workflow: 'sync-hourly.yml', repo: 'Buggyboi139/abyssol', ref: 'main', status: 204 });
+  expect(calls[0].url).toBe('https://api.github.com/repos/Buggyboi139/abyssol/actions/workflows/sync-hourly.yml/dispatches');
+  expect(calls[0].opts.method).toBe('POST');
+  expect(calls[0].opts.headers.authorization).toBe('Bearer ghp_test');
+  expect(JSON.parse(calls[0].opts.body)).toEqual({ ref: 'main' });
+
+  const prevFetch = globalThis.fetch;
+  globalThis.fetch = okFetch;
+  try {
+    await syncCron.scheduled({ cron: '7 * * * *' }, baseEnv);
+    await syncCron.scheduled({ cron: '20 2,14 * * *' }, baseEnv);
+  } finally {
+    globalThis.fetch = prevFetch;
+  }
+  expect(calls.map((c) => c.url.split('/').at(-2))).toEqual(['sync-hourly.yml', 'sync-hourly.yml', 'sync-daily.yml']);
+  await expect(syncCron.scheduled({ cron: '0 0 * * *' }, baseEnv)).rejects.toThrow(/Unknown cron/);
+  await expect(dispatchWorkflow('sync-hourly.yml', { GITHUB_REPO: 'Buggyboi139/abyssol' }, okFetch)).rejects.toThrow(/GITHUB_TOKEN/);
+  await expect(dispatchWorkflow('sync-hourly.yml', baseEnv, async () => new Response('forbidden', { status: 403 }))).rejects.toThrow(/403/);
+  expect(syncCron.fetch().status).toBe(404);
 });

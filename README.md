@@ -78,6 +78,20 @@ and "No live data yet". Its sync is skipped, and the skip is recorded.
    Actions, add the secrets in [GitHub Actions secrets](#github-actions-secrets).
    Run **Sync hourly** and **Sync daily** once by hand from the Actions tab.
 
+   Because GitHub's `schedule` trigger drops and delays hourly jobs under load,
+   a Cloudflare Worker Cron Trigger (`worker/sync-cron.js`) dispatches
+   `sync-hourly.yml` (`7 * * * *`) and `sync-daily.yml` (`20 2,14 * * *`) on
+   time via `workflow_dispatch`. Deploy it and add a fine-grained GitHub token
+   scoped to this repository with **Actions: Read and write**:
+
+   ```bash
+   bun run deploy:cron
+   ```
+
+   ```bash
+   bun x wrangler secret put GITHUB_TOKEN --config worker/wrangler.toml
+   ```
+
 5. **Domain.** In the Pages project, Custom domains, add your domain. If the
    domain's DNS is at Cloudflare, Pages adds the record. If it's elsewhere,
    add a `CNAME` for a subdomain that points to `<project>.pages.dev`. An apex

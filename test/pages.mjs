@@ -7,10 +7,13 @@ import * as session from '../functions/api/session.js';
 import * as overview from '../functions/api/overview.js';
 import * as game from '../functions/api/game/[slug].js';
 import * as revenuecat from '../functions/api/webhooks/revenuecat.js';
+import * as push from '../functions/api/push/index.js';
+import * as pushTest from '../functions/api/push/test.js';
 
 const ROUTES = [
   [/^\/api\/login$/, login], [/^\/api\/logout$/, logout], [/^\/api\/session$/, session], [/^\/api\/overview$/, overview],
   [/^\/api\/game\/([^/]+)$/, game, 'slug'], [/^\/api\/webhooks\/revenuecat$/, revenuecat],
+  [/^\/api\/push$/, push], [/^\/api\/push\/test$/, pushTest],
 ];
 
 export function pages(env) {

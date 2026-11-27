@@ -4,6 +4,7 @@
 import './style.css';
 import { api, Unauthorized, explain } from './api.js';
 import { fmt, day, moment, time, ago, deltaText, clockIn, dateOf } from './format.js';
+import { startWorker, openNotifications } from './push.js';
 import { destroyCharts, dayBars, stackedDayBars, dayLines, retentionCurve, sideBars, hourLines, growthLine, rankScatter, sparkline, colorOf, SERIES } from './charts.js';
 
 const RANGES = [['7d', '7D'], ['30d', '30D'], ['90d', '90D']];
@@ -41,6 +42,7 @@ const ICONS = {
   down: [['path', { d: 'M8 12.500l4.500-8h-9z', fill: 'currentColor' }]],
   flat: [['path', { d: 'M3.500 8h9', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' }]],
   info: [['circle', { cx: 8, cy: 8, r: 6.2, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4 }], ['path', { d: 'M8 7.300v4', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round' }], ['circle', { cx: 8, cy: 4.800, r: 0.95, fill: 'currentColor' }]],
+  bell: [['path', { d: 'M4 11.500V7.300a4 4 0 0 1 8 0v4.200l1 1.300H3z', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }], ['path', { d: 'M6.600 14.200a1.500 1.500 0 0 0 2.800 0', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5, 'stroke-linecap': 'round' }]],
   wave: [['path', { d: 'M1.500 10.500c2 0 2-2 4.300-2s2.300 2 4.400 2 2.200-2 4.300-2M1.500 6c2 0 2-2 4.300-2s2.300 2 4.400 2 2.200-2 4.300-2', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.7, 'stroke-linecap': 'round' }]],
 };
 function icon(name, cls = '') {
@@ -532,6 +534,7 @@ function paintChrome() {
   header.replaceChildren(
     h('div', { class: 'brand' }, icon('wave', 'logo'), 'Abyssol'),
     h('nav', { class: 'tabs', 'aria-label': 'Games' }, tab('overview', 'Overview'), state.nav.map((g) => tab(g.slug, g.name, { status: g.status, label: g.status_label }))),
+    h('button', { class: 'ghost bell', type: 'button', 'aria-label': 'Notifications', title: 'Notifications', onclick: () => openNotifications({ h, icon }) }, icon('bell')),
     h('button', { class: 'ghost', type: 'button', onclick: signOut }, 'Sign out'));
 
   const game = state.view !== 'overview' && state.nav.find((g) => g.slug === state.view);
@@ -620,6 +623,7 @@ window.addEventListener('hashchange', () => { if (state.authed) { readHash(); lo
 // The sync runs hourly: look again every ten minutes while the page is in front.
 setInterval(() => { if (state.authed && !state.loading && document.visibilityState === 'visible') load(); }, 600000);
 
+startWorker();
 (async () => {
   try { (await api.session()).authenticated ? showApp() : showLogin(); }
   catch (e) { showLogin(explain(e)); }

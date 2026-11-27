@@ -111,6 +111,7 @@ Set these in the Pages project (Settings, Variables and Secrets), type
 | `SUPABASE_URL` | The central project's URL, `https://<project-ref>.supabase.co`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | The central project's service role (secret) key. |
 | `REVENUECAT_WEBHOOK_AUTH` | Optional. 16 characters or more. Only for the [RevenueCat webhook](#revenuecat-webhook). |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Optional. For [notifications](#notifications): `bun run push-keys` makes and sets all three. |
 
 Changing `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`, or `SESSION_SECRET` signs everyone out.
 
@@ -138,6 +139,7 @@ A source with no secret set is skipped, not failed, and its badge reads
 | `ASC_PRIVATE_KEY` | Both | The whole text of the key's `.p8` file. |
 | `ASC_VENDOR_NUMBER` | Daily | Your vendor number (App Store Connect, Payments and Financial Reports). Needed for sales reports. |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Daily | The service account's key file, as JSON. Invite the account in Play Console with "View app information and download bulk reports". |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Both | Optional. The same three as on the Pages project, for [notifications](#notifications). Without them, changes are noted and nothing is sent. |
 | `GOOGLE_PLAY_BUCKET` | Daily | The `pubsite_prod_...` bucket name (Play Console, Download reports, Statistics, Copy Cloud Storage URI). Needed for installs and ratings. |
 
 Games 3 and 4 read `GAME3_*` and `GAME4_*` secrets of the same names
@@ -251,6 +253,48 @@ Only production purchases count. The hourly pull stays the record: it
 overwrites each day with RevenueCat's own totals, so today's figure can read a
 little high between a webhook sale and the next pull.
 
+### Notifications
+
+The dashboard installs as an app and sends notifications to the phones that
+ask for them: new players (PostHog, within the hour), store downloads (the App
+Store and Google Play, a day or two late), sales (within seconds with the
+RevenueCat webhook, else within the hour), new App Store ratings and written
+reviews, and a source that stops syncing or starts again. Each device picks
+which of these it gets.
+
+How it works: after each sync, and after each sale the webhook counts,
+`dashboard_push_changes()` compares the watched numbers with what it last
+told (`push_state`) and returns each rise once. A fall (a store correcting
+itself, a refund) is noted without a word, and so is a source the first time
+it reports for a game, so a new source never sends its history.
+`server/notify.js` words them, and `server/webpush.js` sends them as Web Push
+(RFC 8291 encryption, RFC 8292 VAPID) on Web Crypto alone, from the Pages
+Functions and from the sync alike. A push service that says a device is gone
+(404 or 410) drops it; ten failed rounds in a row drop it too.
+
+Turn it on:
+
+1. Run the migration `20261127000100_push.sql`.
+2. Make the keys and set them on the Pages project and in the Actions
+   secrets, then deploy:
+
+   ```bash
+   bun run push-keys --subject https://<your-domain> --cloudflare <project> --github <owner/repo>
+   ```
+
+   ```bash
+   bun run deploy
+   ```
+
+3. On Android, open the dashboard in Chrome, sign in, tap the bell, and tap
+   **Turn on**. **Install** (or Chrome's menu, Add to Home screen) puts it on
+   the home screen as an app. On an iPhone, add it to the Home Screen first
+   (Share, Add to Home Screen) and turn notifications on from there: iOS gives
+   notifications only to web apps on the Home Screen.
+
+New keys make every device's subscription useless: turn notifications off and
+on again on each one.
+
 ## API
 
 Every route but the first three answers `401` without a valid session cookie.
@@ -263,6 +307,10 @@ Every route but the first three answers `401` without a valid session cookie.
 | `GET /api/overview?range=7d\|30d\|90d` | Totals and a card a game. |
 | `GET /api/game/:slug?range=7d\|30d\|90d&platform=all\|ios\|android` | One game's KPIs, charts, and sync health. |
 | `POST /api/webhooks/revenuecat?game=:slug` | Its own secret, not the cookie. |
+| `GET /api/push?endpoint=:url` | The VAPID public key, what this device gets, the kinds, and what was sent lately. |
+| `POST /api/push` | Body `{"subscription": {...}, "kinds": [...], "device": "..."}`. Turns a device on or changes its kinds. |
+| `DELETE /api/push` | Body `{"endpoint": "..."}`. Turns a device off. |
+| `POST /api/push/test` | Body `{"endpoint": "..."}`. A test notification to that device alone. |
 
 ## Local development
 

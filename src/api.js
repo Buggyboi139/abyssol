@@ -20,6 +20,10 @@ export const api = {
   login: (username, password) => request('/api/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   logout: () => request('/api/logout', { method: 'POST', body: '{}' }),
   overview: (range) => request(`/api/overview?range=${encodeURIComponent(range)}`),
+  push: (endpoint) => request(`/api/push?endpoint=${encodeURIComponent(endpoint || '')}`),
+  pushOn: (subscription, kinds, device) => request('/api/push', { method: 'POST', body: JSON.stringify({ subscription, kinds, device }) }),
+  pushOff: (endpoint) => request('/api/push', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+  pushTest: (endpoint) => request('/api/push/test', { method: 'POST', body: JSON.stringify({ endpoint }) }),
   game: (slug, range, platform) => request(`/api/game/${encodeURIComponent(slug)}?range=${encodeURIComponent(range)}&platform=${encodeURIComponent(platform)}`),
 };
 
@@ -32,5 +36,10 @@ const WORDS = {
   not_found: 'That game is not on the dashboard.',
   too_many_attempts: 'Too many tries. Wait 15 minutes.',
   invalid_login: 'Wrong username or password.',
+  push_not_configured: 'Notifications are not set up on the server yet.',
+  bad_subscription: 'The browser gave a subscription the server could not use.',
+  not_subscribed: 'This device is not signed up for notifications.',
+  subscription_gone: 'The push service no longer knows this device. Turn notifications off and on again.',
+  push_failed: 'The push service did not take the notification.',
 };
 export const explain = (e) => WORDS[e?.code] || 'Something went wrong.';

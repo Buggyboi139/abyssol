@@ -17,7 +17,8 @@
     "hash-password": "bun scripts/hash-password.mjs",
     "sync": "bun sync/run.mjs",
     "sync:hourly": "bun sync/run.mjs hourly",
-    "sync:daily": "bun sync/run.mjs daily"
+    "sync:daily": "bun sync/run.mjs daily",
+    "push-keys": "bun scripts/push-keys.mjs"
   },
   "dependencies": {
     "chart.js": "^4.4.7",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",
+    "http_ece": "^1.2.1",
     "vite": "^6.0.7",
     "wrangler": "^3.107.0"
   }

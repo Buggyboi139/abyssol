@@ -48,6 +48,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; color: var(--text-2); white-space: nowrap; }
 .ghost:hover:not(:disabled) { border-color: var(--axis); color: var(--text); background: var(--surface); }
 .ghost:disabled { opacity: 0.5; cursor: default; }
+.ghost.bell { display: inline-flex; align-items: center; padding: 6px 8px; }
+.ghost.bell .icon { width: 16px; height: 16px; }
+.ghost.bell + .ghost { margin-left: 0; }
 .ghost.small { padding: 3px 9px; font-size: 12px; border-radius: 6px; }
 
 /* ---- Status pills, chips ---- */
@@ -265,6 +268,29 @@ table.matrix td { vertical-align: top; }
 .skeleton { background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-color: transparent; }
 .skeleton.tall { min-height: 340px; }
 @keyframes shimmer { to { background-position: -200% 0; } }
+/* ---- Notifications dialog ---- */
+.dlg { width: min(460px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); padding: 0; }
+.dlg::backdrop { background: rgb(0 0 0 / 0.55); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; }
+.dlg-head h2 { font-size: 16px; margin: 0; }
+.dlg-head .icon { width: 12px; height: 12px; }
+.dlg-body { padding: 4px 16px 4px; display: grid; gap: 12px; }
+.dlg-body p { margin: 0; color: var(--text-2); line-height: 1.45; }
+.dlg-row { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.dlg-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dlg-kinds { border: 0; padding: 0; margin: 0; display: grid; gap: 4px; }
+.dlg-kinds legend { padding: 0; margin-bottom: 6px; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; }
+.dlg-kind { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.dlg-kind input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--series-1); flex: none; }
+.dlg-kind span { display: grid; gap: 2px; }
+.dlg-kind small { color: var(--text-2); font-size: 12px; line-height: 1.35; }
+.dlg-recent h3 { font-size: 12px; margin: 4px 0 6px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.dlg-sent { padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.dlg-sent > div:first-child { display: flex; justify-content: space-between; gap: 10px; }
+.dlg-when { color: var(--text-2); white-space: nowrap; font-size: 12px; }
+.dlg-text { color: var(--text-2); margin-top: 2px; }
+.dlg-note { margin: 0; padding: 8px 16px 14px; min-height: 18px; font-size: 13px; color: var(--text-2); }
+
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } .main { transition: none; } }
 
 /* ---- Smaller screens ---- */
@@ -274,6 +300,7 @@ table.matrix td { vertical-align: top; }
   .top { flex-wrap: wrap; gap: 0 12px; padding: 0 14px; }
   .brand { padding: 12px 0; }
   .top .ghost { margin-left: auto; }
+  .top .ghost.bell + .ghost { margin-left: 6px; }
   .tabs { order: 3; flex-basis: 100%; height: 40px; margin: 0 -14px; padding: 0 6px; }
   .toolbar, .main { padding-left: 14px; padding-right: 14px; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }

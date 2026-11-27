@@ -26,6 +26,7 @@ import * as posthog from './sources/posthog.mjs';
 import * as apple from './sources/apple.mjs';
 import * as google from './sources/google.mjs';
 import * as supabase_game from './sources/supabase_game.mjs';
+import { notifyChanges } from '../server/notify.js';
 
 // The listing goes first: it learns which version is on sale, which RevenueCat's tester rule reads.
 export const SOURCES = { listing, revenuecat, posthog, apple, google, supabase_game };
@@ -68,7 +69,13 @@ export async function sync({ what = 'all', games = loadGames(), zone = loadZone(
     }
   }
   await store.logRuns(runs.map(({ source, game_slug, status, message }) => ({ source, game_slug, status, message })));
-  return { runs, daily: store.kept.daily, hourly: store.kept.hourly, facts: store.kept.facts };
+  // What changed goes to the phones that asked (server/notify.js). A failure here never fails the sync.
+  let pushed = null;
+  if (!dryRun) {
+    try { pushed = await notifyChanges(env, store, { fetchImpl }); if (pushed.messages.length) log(`push    ${pushed.messages.length} change${pushed.messages.length > 1 ? 's' : ''}, ${pushed.sent} sent, ${pushed.failed} failed`); }
+    catch (e) { log(`push    could not check for changes: ${e.message}`); }
+  }
+  return { runs, daily: store.kept.daily, hourly: store.kept.hourly, facts: store.kept.facts, pushed };
 }
 
 function parseArgs(argv) {

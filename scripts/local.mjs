@@ -15,6 +15,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { makeDb, serveDb, LOCAL_KEY } from './localdb.mjs';
 import { hashPassword } from '../server/auth.js';
+import { makeVapidKeys } from '../server/webpush.js';
 import { sync } from '../sync/run.mjs';
 import { loadGames } from '../sync/lib/config.mjs';
 import { mockFetch, mockEnv, mockGameDb, mockGames } from '../sync/mock/fetch.mjs';
@@ -37,7 +38,7 @@ if (!flag('--empty')) {
 }
 
 // Settings for `wrangler pages dev`. The file is ignored by git.
-const vars = path.join(ROOT, '.dev.vars');
+const vars = path.join(ROOT, '.dev.vars'), vapid = await makeVapidKeys();
 fs.writeFileSync(vars, [
   `SUPABASE_URL=${url}`,
   `SUPABASE_SERVICE_ROLE_KEY=${LOCAL_KEY}`,
@@ -45,6 +46,9 @@ fs.writeFileSync(vars, [
   `DASHBOARD_PASSWORD=${await hashPassword(PASSWORD)}`,
   `SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}`,
   `REVENUECAT_WEBHOOK_AUTH=local-webhook-${crypto.randomBytes(8).toString('hex')}`,
+  `VAPID_PUBLIC_KEY=${vapid.publicKey}`,
+  `VAPID_PRIVATE_KEY=${vapid.privateKey}`,
+  'VAPID_SUBJECT=https://localhost',
 ].join('\n') + '\n', { mode: 0o600 });
 
 console.log(`\nLocal database on ${url} (made-up numbers; it lasts until you stop this).`);

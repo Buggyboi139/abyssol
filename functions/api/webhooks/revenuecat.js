@@ -9,6 +9,7 @@
 import { sameSecret } from '../../../server/auth.js';
 import { db } from '../../../server/db.js';
 import { json } from '../../../server/http.js';
+import { notifyChanges } from '../../../server/notify.js';
 
 const SALES = new Set(['INITIAL_PURCHASE', 'RENEWAL', 'NON_RENEWING_PURCHASE']);
 const PLATFORM = { APP_STORE: 'ios', MAC_APP_STORE: 'ios', PLAY_STORE: 'android' };
@@ -25,10 +26,10 @@ export function saleOf(event) {
   const cut = (Number(event.commission_percentage) || 0) + (Number(event.tax_percentage) || 0);
   const metrics = { revenue: round(price), transactions: 1, [`revenue_by_product:${product}`]: round(price), [`transactions_by_product:${product}`]: 1 };
   if (cut > 0 && cut < 1) metrics.proceeds = round(price * (1 - cut));
-  return { id: String(event.id).slice(0, 120), platform, at: new Date(at).toISOString(), metrics };
+  return { id: String(event.id).slice(0, 120), platform, at: new Date(at).toISOString(), metrics, product: String(event.product_id || '').slice(0, 80) };
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   const secret = env.REVENUECAT_WEBHOOK_AUTH;
   if (!secret || String(secret).length < 16) return json({ error: 'not_configured' }, 503);
   if (!(await sameSecret(request.headers.get('authorization') || '', secret))) return json({ error: 'unauthorized' }, 401);
@@ -40,7 +41,13 @@ export async function onRequestPost({ request, env }) {
   const sale = saleOf(body?.event);
   // Anything that is not a production sale is acknowledged, so RevenueCat doesn't send it again.
   if (!sale) return json({ ok: true, counted: false });
-  const counted = await db(env).rpc('dashboard_record_sale', { p_event_id: sale.id, p_game: game, p_platform: sale.platform, p_at: sale.at, p_metrics: sale.metrics });
+  const store = db(env);
+  const counted = await store.rpc('dashboard_record_sale', { p_event_id: sale.id, p_game: game, p_platform: sale.platform, p_at: sale.at, p_metrics: sale.metrics });
+  if (counted === true) {
+    // The sale goes to the phones now rather than at the next hourly sync, after the answer if the platform allows.
+    const tell = notifyChanges(env, store, { sale: { game, product: sale.product } }).catch((e) => console.error(`push after sale: ${e?.message || e}`));
+    if (typeof waitUntil === 'function') waitUntil(tell); else await tell;
+  }
   return json({ ok: true, counted: counted === true });
 }
 

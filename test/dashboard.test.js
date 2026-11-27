@@ -112,18 +112,16 @@ test('before any sync, every game draws empty states and nothing throws', async 
   for (const g of o.games) for (const k of g.kpis) { expect(k.value).toBeNull(); expect(k.empty.badge).toBeTruthy(); }
 });
 
-test('a sync fills the live platform only, and records why the rest were skipped', async () => {
+test('a sync fills the live platforms only, and records why the rest were skipped', async () => {
   const { runs } = await mockSync();
   const by = (slug, source) => runs.find((r) => r.game_slug === slug && r.source === source);
-  for (const s of ['listing', 'revenuecat', 'posthog', 'apple', 'supabase_game']) expect(by('pearl-tide', s).status).toBe('ok');
-  expect(by('pearl-tide', 'google').status).toBe('skipped');
-  expect(by('pearl-tide', 'google').message).toMatch(/Android is not live/);
+  for (const s of ['listing', 'revenuecat', 'posthog', 'apple', 'google', 'supabase_game']) expect(by('pearl-tide', s).status).toBe('ok');
   for (const slug of ['chillwater-lake', 'game-3', 'game-4']) for (const r of runs.filter((x) => x.game_slug === slug)) {
     expect(r.status).toBe('skipped');
     expect(r.message).toMatch(/No live platform/);
   }
   const platforms = await pg.query(`select game_slug, platform, count(*)::int as n from metrics_daily group by 1, 2 order by 1, 2`);
-  expect(platforms.rows.map((r) => `${r.game_slug}/${r.platform}`)).toEqual(['pearl-tide/all', 'pearl-tide/ios']);
+  expect(platforms.rows.map((r) => `${r.game_slug}/${r.platform}`)).toEqual(['pearl-tide/all', 'pearl-tide/android', 'pearl-tide/ios']);
 });
 
 test('an App Store analytics day is read once from its newest file, and the processing day is not filled with zeros', async () => {
@@ -156,13 +154,13 @@ test('the live game has every chart; games in review and before launch have clea
   expect(pt.charts.retention.points.map((p) => p.day)).toEqual([0, 1, 3, 7, 14, 30]);
   expect(pt.charts.ftue.steps[0]).toMatchObject({ key: '01_Loaded', label: 'Loaded', share: 1 });
   expect(pt.charts.products.items.length).toBeGreaterThan(0);
-  expect(pt.sync.map((s) => `${s.source}:${s.state}`)).toEqual(['revenuecat:ok', 'posthog:ok', 'apple:ok', 'google:waiting', 'listing:ok', 'supabase_game:ok']);
+  expect(pt.sync.map((s) => `${s.source}:${s.state}`)).toEqual(['revenuecat:ok', 'posthog:ok', 'apple:ok', 'google:ok', 'listing:ok', 'supabase_game:ok']);
   expect(pt.sync[0].last_ok).toMatch(/^\d{4}-\d\d-\d\dT/);
   expect(pt.nav.length).toBe(4);
 
   const android = await (await call('/api/game/pearl-tide?platform=android', { headers: { cookie } })).json();
-  expect(android.state).toBe('in_review');
-  for (const c of Object.values(android.charts)) expect(c.empty).toMatchObject({ badge: 'In review', text: 'No live data yet' });
+  expect(android.state).toBe('live');
+  expect(android.has_data).toBe(true);
 
   for (const [slug, badge] of [['chillwater-lake', 'In review'], ['game-3', 'Pre-launch'], ['game-4', 'Pre-launch']]) {
     for (const q of ['', '?range=7d&platform=ios', '?range=90d&platform=android']) {
@@ -203,7 +201,7 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
 
   // New players a day are the customers the mock made for that day: its testers are not among them.
   const news = pt.charts.players.series.find((s) => s.id === 'new').values, at = pt.charts.players.dates.indexOf(addDays(to, -3));
-  expect(news[at]).toBe(mockDay('pearl-tide', 'ios', addDays(to, -3)).newUsers);
+  expect(news[at]).toBe(['ios', 'android'].reduce((a, p) => a + mockDay('pearl-tide', p, addDays(to, -3)).newUsers, 0));
   expect(pt.charts.players.dates.at(-1)).toBe(to);
 
   // Downloads since launch only go up, and the marks are days since launch.
@@ -247,14 +245,14 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   // Graphics levels: each player once (the posthog.gfx fact), fewer than the daily rows, which count a player every day they play.
   expect(pt.extras.gfx.unit).toBe('players');
   const shares = [0.05, 0.3, 0.2, 0.25, 0.15, 0.05], range = dates(from, to);
-  expect(pt.extras.gfx.levels.map((l) => l.players)).toEqual(shares.map((s) => range.reduce((a, d) => a + Math.round(mockDay('pearl-tide', 'ios', d).newUsers * s), 0)));
+  expect(pt.extras.gfx.levels.map((l) => l.players)).toEqual(shares.map((s) => range.reduce((a, d) => a + ['ios', 'android'].reduce((b, p) => b + Math.round(mockDay('pearl-tide', p, d).newUsers * s), 0), 0)));
   const playerDays = await pg.query(`select sum(metric_value)::float8 as v from metrics_daily where game_slug = 'pearl-tide' and platform = 'all' and source = 'posthog' and metric_key like 'gfx_level:%' and date between $1 and $2`, [from, to]);
   expect(pt.extras.gfx.levels.reduce((a, l) => a + l.players, 0)).toBeLessThan(playerDays.rows[0].v);
   // Conversion: an install day counts only the players who have had 7 days, so the last week reads zero and older days are whole.
   const conv = await pg.query(`select date::text as date, metric_value::float8 as v from metrics_daily where game_slug = 'pearl-tide' and platform = 'all' and source = 'revenuecat' and metric_key = 'conv_cohort_size'`);
   const cohort = (d) => conv.rows.find((r) => r.date === d)?.v;
   for (const back of [0, 1, 5]) expect(cohort(addDays(to, -back))).toBe(0);
-  for (const back of [9, 20]) expect(cohort(addDays(to, -back))).toBe(mockDay('pearl-tide', 'ios', addDays(to, -back)).newUsers);
+  for (const back of [9, 20]) expect(cohort(addDays(to, -back))).toBe(['ios', 'android'].reduce((a, p) => a + mockDay('pearl-tide', p, addDays(to, -back)).newUsers, 0));
   expect(pt.kpis.find((k) => k.id === 'conversion').sub[1].label).toBe('players at day 7');
   // Apple's unique counts are stored so store conversion, page-to-download, and search clicks count unique devices.
   expect((await pg.query(`select count(*)::int as n from metrics_daily where metric_key like '%\\_unique'`)).rows[0].n).toBeGreaterThan(0);
@@ -263,9 +261,10 @@ test('today, the listing, ranks, downloads, stories and benchmarks come on one c
   expect(pt.extras.store.steps.map((x) => x.key).slice(0, 2)).toEqual(['Open', 'Tap']);
   expect(pt.extras.store.steps[0].count).toBeGreaterThan(pt.extras.store.steps[1].count);
 
-  // On Android, which is not live, none of it shows.
+  // On Android, now live too, today shows, but never the App Store's listing.
   const android = await (await call('/api/game/pearl-tide?platform=android', { headers: { cookie } })).json();
-  expect(android.today).toBeNull();
+  expect(android.today).not.toBeNull();
+  expect(android.today.store?.name).not.toBe('App Store');
 });
 
 test('a reporting day starts at the zone\'s midnight, on either side of a clock change', () => {

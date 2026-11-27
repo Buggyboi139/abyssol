@@ -12,7 +12,7 @@
       "android_package_id": "com.pearltide.swim",
       "platforms": {
         "ios": { "status": "live", "app_store_id": "6820164397", "launched": "2026-11-06" },
-        "android": { "status": "in_review" }
+        "android": { "status": "live", "launched": "2026-11-26" }
       },
       "storefronts": ["us", "ca", "gb", "au", "mx", "sa"],
       "search_terms": ["cozy mermaid", "mermaid", "mermaid games", "mermaid runway", "mermaid swim", "mermaid nail", "mermaid home", "mermaid fashion", "mermaid life", "mermaid dress up"],
